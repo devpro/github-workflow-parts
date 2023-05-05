@@ -87,5 +87,5 @@ runs:
         shell: bash
       - name: Stop code analysis
         if: ${{ inputs.sonar_enabled == 'true' }}
-        run: .\.sonar\scanner\dotnet-sonarscanner end /d:sonar.login="${{inputs.sonar_token}}"
+        run: ./.sonar/scanner/dotnet-sonarscanner end /d:sonar.login="${{inputs.sonar_token}}"
         shell: bash
