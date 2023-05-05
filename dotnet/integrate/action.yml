@@ -1,26 +1,63 @@
-name: Publish to Docker
-description: Pushes built artifacts to Docker
+name: Build and test .NET
+description: Builds and runs tests on a .NET codebase
 
 inputs:
-  registry_username:
-    description: Username for image registry
-    required: true
-  registry_password:
-    description: Password for image registry
-    required: true
+  dotnet_version:
+    description: .NET SDK version to be used
+    required: false
+    default: '7.0.x'
+  sonar_enabled:
+    description: Enable code scan by Sonar
+    required: false
+    default: 'false'
+  sonar_organization:
+    description: Sonar organization
+    required: false
+    default: ''
+  sonar_host_url:
+    description: Sonar host URL
+    required: false
+    default: ''
+  sonar_project_name:
+    description: Sonar project name
+    required: false
+    default: ''
+  sonar_project_key:
+    description: Sonar project key
+    required: false
+    default: ''
+  sonar_token:
+    description: Sonar token for login
+    required: false
+    default: ''
 
 runs:
   using: "composite"
   steps:
-      - uses: docker/setup-buildx-action@v1
-
-      - uses: docker/login-action@v1
+      - name: Install .NET
+        uses: actions/setup-dotnet@v3
         with:
-          username: ${{inputs.registry_username}}
-          password: ${{inputs.registry_password}}
-
-      - uses: docker/build-push-action@v2
-        with:
-          context: .
-          push: true
-          tags: user/app:latest
+          dotnet-version: ${{inputs.dotnet_version}}
+      - name: Install .NET linters
+        if: ${{ inputs.dotnet_version == '7.0.x' }}
+        run: dotnet tool install -g dotnet-format --version "7.*" --add-source https://pkgs.dev.azure.com/dnceng/public/_packaging/dotnet7/nuget/v3/index.json
+      - name: Restore .NET packages
+        run: dotnet restore
+      - name: Lint .NET code
+        run: dotnet-format --verify-no-changes --severity warn --verbosity:diagnostic
+      - name: Install SonarQube
+        if: ${{ inputs.sonar_enabled == 'true' }}
+        run: |
+          sudo apt-get install --yes openjdk-11-jre
+          dotnet tool install --global dotnet-sonarscanner
+          export PATH="$PATH:/root/.dotnet/tools"
+      - name: Start code analysis
+        if: ${{ inputs.sonar_enabled == 'true' }}
+        run: dotnet sonarscanner begin /k:"${{inputs.sonar_project_key}}" /o:"${{inputs.sonar_organization}}" /d:sonar.projectName="${{inputs.sonar_project_name}}" /d:sonar.login="${{inputs.sonar_token}}" /d:"sonar.host.url=${{inputs.sonar_host_url}}"
+      - name: Build .NET solution
+        run: dotnet build --no-restore
+      - name: Run tests
+        run: dotnet test --no-build --verbosity normal
+      - name: Stop code analysis
+        if: ${{ inputs.sonar_enabled == 'true' }}
+        run: dotnet sonarscanner end /d:sonar.login="${{inputs.sonar_token}}"
