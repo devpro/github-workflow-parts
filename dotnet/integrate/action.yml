@@ -72,7 +72,7 @@ runs:
       - name: Install Sonar scanner
         if: ${{ inputs.sonar_enabled == 'true' && steps.cache-sonar-scanner.outputs.cache-hit != 'true' }}
         run: |
-          mkdir ./.sonar/scanner
+          mkdir -p ./.sonar/scanner
           dotnet tool update dotnet-sonarscanner --tool-path ./.sonar/scanner
         shell: bash
       - name: Start code analysis
