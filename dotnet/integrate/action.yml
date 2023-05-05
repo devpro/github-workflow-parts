@@ -57,7 +57,7 @@ runs:
         shell: bash
       - name: Start code analysis
         if: ${{ inputs.sonar_enabled == 'true' }}
-        run: dotnet sonarscanner begin /k:"${{inputs.sonar_project_key}}" /o:"${{inputs.sonar_organization}}" /d:sonar.projectName="${{inputs.sonar_project_name}}" /d:sonar.login="${{inputs.sonar_token}}" /d:"sonar.host.url=${{inputs.sonar_host_url}}"
+        run: dotnet sonarscanner begin /k:"${{inputs.sonar_project_key}}" /o:"${{inputs.sonar_organization}}" /n:"${{inputs.sonar_project_name}}" /d:sonar.login="${{inputs.sonar_token}}" /d:sonar.host.url="${{inputs.sonar_host_url}}"
         shell: bash
       - name: Build .NET solution
         run: dotnet build --no-restore
