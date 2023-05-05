@@ -41,23 +41,31 @@ runs:
       - name: Install .NET linters
         if: ${{ inputs.dotnet_version == '7.0.x' }}
         run: dotnet tool install -g dotnet-format --version "7.*" --add-source https://pkgs.dev.azure.com/dnceng/public/_packaging/dotnet7/nuget/v3/index.json
+        shell: bash
       - name: Restore .NET packages
         run: dotnet restore
+        shell: bash
       - name: Lint .NET code
         run: dotnet-format --verify-no-changes --severity warn --verbosity:diagnostic
+        shell: bash
       - name: Install SonarQube
         if: ${{ inputs.sonar_enabled == 'true' }}
         run: |
           sudo apt-get install --yes openjdk-11-jre
           dotnet tool install --global dotnet-sonarscanner
           export PATH="$PATH:/root/.dotnet/tools"
+        shell: bash
       - name: Start code analysis
         if: ${{ inputs.sonar_enabled == 'true' }}
         run: dotnet sonarscanner begin /k:"${{inputs.sonar_project_key}}" /o:"${{inputs.sonar_organization}}" /d:sonar.projectName="${{inputs.sonar_project_name}}" /d:sonar.login="${{inputs.sonar_token}}" /d:"sonar.host.url=${{inputs.sonar_host_url}}"
+        shell: bash
       - name: Build .NET solution
         run: dotnet build --no-restore
+        shell: bash
       - name: Run tests
         run: dotnet test --no-build --verbosity normal
+        shell: bash
       - name: Stop code analysis
         if: ${{ inputs.sonar_enabled == 'true' }}
         run: dotnet sonarscanner end /d:sonar.login="${{inputs.sonar_token}}"
+        shell: bash
