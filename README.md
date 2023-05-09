@@ -1,2 +1,3 @@
-# github-workflow-repository
-Repository of workflows to be used in GitHub Actions
+# GitHub workflow parts
+
+Repository of workflow parts to be used in GitHub Actions.

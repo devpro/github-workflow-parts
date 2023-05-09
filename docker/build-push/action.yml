@@ -1,0 +1,51 @@
+name: Build and push a container image
+description: Builds a new container image with Docker and pushes it to a registry
+
+inputs:
+  container_registry:
+    description: Container registry
+    required: true
+  container_username:
+    description: Container username
+    required: true
+  container_password:
+    description: Container password
+    required: true
+  docker_file:
+    description: Path to the Dockerfile
+    required: true
+  image_path:
+    description: Image tag
+    required: true
+  image_name:
+    description: Image name
+    required: true
+  image_tag:
+    description: Image tag
+    required: true
+  create_latest:
+    description: Create latest tag?
+    required: false
+    default: 'false'
+
+runs:
+  using: "composite"
+  steps:
+    - name: Login to container registry
+      uses: docker/login-action@v2
+      with:
+        registry: ${{ inputs.container_registry }}
+        username: ${{ inputs.container_username }}
+        password: ${{ inputs.container_password }}
+    - name: Build container image
+      run: docker build . --file ${{inputs.docker_file}} --tag ${{inputs.image_path}}/${{inputs.image_name}}:${{inputs.image_tag}}
+      shell: bash
+    - name: Push image to container registry
+      run: docker push ${{inputs.image_path}}/${{inputs.image_name}}:${{inputs.image_tag}}
+      shell: bash
+    - name: Push latest tag to container registry
+      if: ${{ inputs.create_latest == 'true' }}
+      run: |
+        docker tag ${{inputs.image_path}}/${{inputs.image_name}}:${{inputs.image_tag}} ${{inputs.image_path}}/${{inputs.image_name}}:latest
+        docker push ${{inputs.image_path}}/${{inputs.image_name}}:latest
+      shell: bash

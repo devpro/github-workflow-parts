@@ -1,0 +1,57 @@
+name: Scan container image
+description: Builds a new container image with Docker and scans it
+
+inputs:
+  docker_file:
+    description: Path to the Dockerfile
+    required: true
+  image_tag:
+    description: Image tag
+    required: true
+  image_path:
+    description: Image tag
+    required: true
+  image_name:
+    description: Image name
+    required: true
+  neuvector_enabled:
+    description: Use NeuVector to scan the image?
+    required: false
+    default: 'true'
+  trivy_enabled:
+    description: Use Trivy to scan the image?
+    required: false
+    default: 'true'
+  max_high_cves:
+    description: Maximum number of high CVE authorized
+    required: false
+    default: '1'
+  max_medium_cves:
+    description: Maximum number of medium CVE authorized
+    required: false
+    default: '1'
+
+runs:
+  using: "composite"
+  steps:
+    - name: Build container image
+      run: docker build . --file ${{inputs.docker_file}} --tag ${{inputs.image_path}}/${{inputs.image_name}}:${{inputs.image_tag}}
+      shell: bash
+    - name: Scan container image with NeuVector
+      if: ${{ inputs.neuvector_enabled == 'true' }}
+      uses: neuvector/scan-action@main
+      with:
+        image-repository: ${{inputs.image_path}}/${{inputs.image_name}}
+        image-tag: ${{inputs.image_tag}}
+        min-high-cves-to-fail: '${{inputs.max_high_cves}}'
+        min-medium-cves-to-fail: '${{inputs.max_medium_cves}}'
+    - name: Scan container image with Trivy
+      if: ${{ inputs.trivy_enabled == 'true' }}
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: '${{inputs.image_path}}/${{inputs.image_name}}:${{inputs.image_tag}}'
+        format: 'table'
+        exit-code: '1'
+        ignore-unfixed: true
+        vuln-type: 'os,library'
+        severity: 'CRITICAL,HIGH'
