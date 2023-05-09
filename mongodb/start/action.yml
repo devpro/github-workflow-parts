@@ -4,6 +4,7 @@ description: Starts a local MongoDB database
 runs:
   using: "composite"
   steps:
+    # see https://www.mongodb.com/docs/manual/tutorial/install-mongodb-on-ubuntu/
     - name: Install & start MongoDB
       run: |
         curl -fsSL https://pgp.mongodb.com/server-6.0.asc | \
