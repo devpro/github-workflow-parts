@@ -57,7 +57,7 @@ runs:
       run: dotnet restore
       shell: bash
     - name: Lint .NET code
-      run: dotnet-format --verify-no-changes --severity warn --verbosity:diagnostic
+      run: dotnet format --verify-no-changes --severity warn --verbosity:diagnostic
       shell: bash
     - name: Cache Sonar packages
       if: ${{ inputs.sonar_enabled == 'true' }}
