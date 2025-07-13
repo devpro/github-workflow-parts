@@ -111,5 +111,5 @@ runs:
         path: |
           ./**/*test-result.xml
           ./test/*/TestResults/*/coverage.cobertura.xml
-          "./${{inputs.report_folder}}"/SonarQube.xml"
-          "./${{inputs.report_folder}}"/Summary.txt"
+          "./${{inputs.report_folder}}/SonarQube.xml"
+          "./${{inputs.report_folder}}/Summary.txt"
