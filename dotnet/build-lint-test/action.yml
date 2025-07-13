@@ -30,6 +30,10 @@ inputs:
     description: Sonar token for login
     required: false
     default: ''
+  report_folder:
+    description: Folder where report files will be generated
+    required: false
+    default: report
 
 runs:
   using: "composite"
@@ -82,7 +86,7 @@ runs:
       shell: bash
     - name: Start code analysis
       if: ${{ inputs.sonar_enabled == 'true' }}
-      run: ./.sonar/scanner/dotnet-sonarscanner begin /k:"${{inputs.sonar_project_key}}" /o:"${{inputs.sonar_organization}}" /n:"${{inputs.sonar_project_name}}" /d:sonar.token="${{inputs.sonar_token}}" /d:sonar.host.url="${{inputs.sonar_host_url}}" /d:sonar.cpd.exclusions=**/*Generated*.cs /d:sonar.coverageReportPaths=./sonarqubecoverage/SonarQube.xml
+      run: ./.sonar/scanner/dotnet-sonarscanner begin /k:"${{inputs.sonar_project_key}}" /o:"${{inputs.sonar_organization}}" /n:"${{inputs.sonar_project_name}}" /d:sonar.token="${{inputs.sonar_token}}" /d:sonar.host.url="${{inputs.sonar_host_url}}" /d:sonar.cpd.exclusions="**/*Generated*.cs,${{inputs.report_folder}}/**" /d:sonar.coverageReportPaths="${{inputs.report_folder}}/SonarQube.xml"
       shell: bash
     - name: Build .NET solution
       run: dotnet build --no-restore
@@ -94,7 +98,7 @@ runs:
         ASPNETCORE_ENVIRONMENT: Development
         Application__IsHttpsRedirectionEnabled: "false"
     - name: Generate test report
-      run: reportgenerator "-reports:./test/*/TestResults/*/coverage.cobertura.xml" -targetdir:sonarqubecoverage -reporttypes:SonarQube
+      run: reportgenerator "-reports:./test/*/TestResults/*/coverage.cobertura.xml" "-targetdir:${{inputs.report_folder}}" "-reporttypes:Cobertura;Html;TextSummary;SonarQube"
       shell: bash
     - name: Complete code analysis
       if: ${{ inputs.sonar_enabled == 'true' }}
@@ -107,4 +111,5 @@ runs:
         path: |
           ./**/*test-result.xml
           ./test/*/TestResults/*/coverage.cobertura.xml
-          ./sonarqubecoverage/SonarQube.xml
+          "./${{inputs.report_folder}}"/SonarQube.xml"
+          "./${{inputs.report_folder}}"/Summary.txt"
