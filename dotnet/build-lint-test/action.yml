@@ -42,7 +42,7 @@ runs:
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: ${{inputs.dotnet_version}}
-    - name: Set up JDK 11 for Sonar
+    - name: Set up JDK for Sonar
       if: ${{ inputs.sonar_enabled == 'true' }}
       uses: actions/setup-java@v4
       with:
