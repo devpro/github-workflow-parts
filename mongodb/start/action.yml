@@ -15,4 +15,10 @@ runs:
         sudo apt-get update
         sudo apt-get install -y mongodb-org
         sudo systemctl start mongod
+        timeout 30 bash -c "
+          until mongosh --host localhost:27017 --eval 'db.runCommand({ ping: 1 })' >/dev/null 2>&1; do
+            echo 'MongoDB not ready yet, retrying in 1 second...'
+            sleep 1
+          done
+        "
       shell: bash
