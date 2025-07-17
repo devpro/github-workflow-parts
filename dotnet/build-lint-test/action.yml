@@ -5,7 +5,7 @@ inputs:
   dotnet_version:
     description: .NET SDK version to be used
     required: false
-    default: '7.0.x'
+    default: '8.0.x'
   sonar_enabled:
     description: Enable code scan by Sonar
     required: false
@@ -30,19 +30,23 @@ inputs:
     description: Sonar token for login
     required: false
     default: ''
+  report_folder:
+    description: Folder where report files will be generated
+    required: false
+    default: report
 
 runs:
   using: "composite"
   steps:
     - name: Install .NET
-      uses: actions/setup-dotnet@v3
+      uses: actions/setup-dotnet@v4
       with:
         dotnet-version: ${{inputs.dotnet_version}}
-    - name: Set up JDK 11 for Sonar
+    - name: Set up JDK for Sonar
       if: ${{ inputs.sonar_enabled == 'true' }}
-      uses: actions/setup-java@v3
+      uses: actions/setup-java@v4
       with:
-        java-version: 11
+        java-version: 21
         distribution: 'zulu'
     - name: Install .NET linters
       if: ${{ inputs.dotnet_version == '7.0.x' }}
@@ -57,11 +61,11 @@ runs:
       run: dotnet restore
       shell: bash
     - name: Lint .NET code
-      run: dotnet-format --verify-no-changes --severity warn --verbosity:diagnostic
+      run: dotnet format --verify-no-changes --severity warn --verbosity:diagnostic
       shell: bash
     - name: Cache Sonar packages
       if: ${{ inputs.sonar_enabled == 'true' }}
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: ~/sonar/cache
         key: ${{ runner.os }}-sonar
@@ -69,7 +73,7 @@ runs:
     - name: Cache Sonar scanner
       if: ${{ inputs.sonar_enabled == 'true' }}
       id: cache-sonar-scanner
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: ./.sonar/scanner
         key: ${{ runner.os }}-sonar-scanner
@@ -82,7 +86,7 @@ runs:
       shell: bash
     - name: Start code analysis
       if: ${{ inputs.sonar_enabled == 'true' }}
-      run: ./.sonar/scanner/dotnet-sonarscanner begin /k:"${{inputs.sonar_project_key}}" /o:"${{inputs.sonar_organization}}" /n:"${{inputs.sonar_project_name}}" /d:sonar.login="${{inputs.sonar_token}}" /d:sonar.host.url="${{inputs.sonar_host_url}}" /d:sonar.cpd.exclusions=**/*Generated*.cs /d:sonar.coverageReportPaths=./sonarqubecoverage/SonarQube.xml
+      run: ./.sonar/scanner/dotnet-sonarscanner begin /k:"${{inputs.sonar_project_key}}" /o:"${{inputs.sonar_organization}}" /n:"${{inputs.sonar_project_name}}" /d:sonar.token="${{inputs.sonar_token}}" /d:sonar.host.url="${{inputs.sonar_host_url}}" /d:sonar.cpd.exclusions="**/*Generated*.cs,${{inputs.report_folder}}/**" /d:sonar.exclusions="${{inputs.report_folder}}/**/*" /d:sonar.coverageReportPaths="${{inputs.report_folder}}/SonarQube.xml"
       shell: bash
     - name: Build .NET solution
       run: dotnet build --no-restore
@@ -94,16 +98,18 @@ runs:
         ASPNETCORE_ENVIRONMENT: Development
         Application__IsHttpsRedirectionEnabled: "false"
     - name: Generate test report
-      run: reportgenerator "-reports:./test/*/TestResults/*/coverage.cobertura.xml" -targetdir:sonarqubecoverage -reporttypes:SonarQube
+      run: reportgenerator "-reports:./test/*/TestResults/*/coverage.cobertura.xml" "-targetdir:${{inputs.report_folder}}" "-reporttypes:Cobertura;Html;TextSummary;SonarQube"
       shell: bash
     - name: Complete code analysis
       if: ${{ inputs.sonar_enabled == 'true' }}
-      run: ./.sonar/scanner/dotnet-sonarscanner end /d:sonar.login="${{inputs.sonar_token}}"
+      run: ./.sonar/scanner/dotnet-sonarscanner end /d:sonar.token="${{inputs.sonar_token}}"
       shell: bash
     - name: Archive test results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: dotnet-test-results
         path: |
           ./**/*test-result.xml
           ./test/*/TestResults/*/coverage.cobertura.xml
+          ./**/SonarQube.xml
+          ./**/Summary.txt
