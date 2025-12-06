@@ -5,7 +5,7 @@ inputs:
   dotnet_version:
     description: .NET SDK version to be used
     required: false
-    default: '8.0.x'
+    default: '10.0.x'
   sonar_enabled:
     description: Enable code scan by Sonar
     required: false
