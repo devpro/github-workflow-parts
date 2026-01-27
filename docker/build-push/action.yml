@@ -5,11 +5,11 @@ inputs:
   container_registry:
     description: Container registry
     required: true
-  container_username:
-    description: Container username
+  container_registry_username:
+    description: Container registry username
     required: true
-  container_password:
-    description: Container password
+  container_registry_password:
+    description: Container registry password
     required: true
   docker_file:
     description: Path to the Dockerfile
@@ -27,6 +27,10 @@ inputs:
     description: Create latest tag?
     required: false
     default: 'false'
+  build_arguments:
+    description: Container build arguments
+    required: false
+    default: ''
 
 runs:
   using: "composite"
@@ -35,10 +39,10 @@ runs:
       uses: docker/login-action@v3
       with:
         registry: ${{ inputs.container_registry }}
-        username: ${{ inputs.container_username }}
-        password: ${{ inputs.container_password }}
+        username: ${{ inputs.container_registry_username }}
+        password: ${{ inputs.container_registry_password }}
     - name: Build container image
-      run: docker build . --file ${{inputs.docker_file}} --tag ${{inputs.image_path}}/${{inputs.image_name}}:${{inputs.image_tag}}
+      run: docker build . --file ${{inputs.docker_file}} --tag ${{inputs.image_path}}/${{inputs.image_name}}:${{inputs.image_tag}}${{inputs.build_arguments}}
       shell: bash
     - name: Push image to container registry
       run: docker push ${{inputs.image_path}}/${{inputs.image_name}}:${{inputs.image_tag}}
