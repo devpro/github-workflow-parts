@@ -43,10 +43,6 @@ runs:
           "https://cloud.mongodb.com/api/atlas/v2/groups/${{inputs.atlas_groupid}}/accessList")
 
         HTTP_CODE=${RESPONSE: -3}
-        BODY=${RESPONSE%???}
-
-        echo "API response code: $HTTP_CODE"
-        echo "API response body: $BODY"
 
         if [[ "$HTTP_CODE" != "201" ]]; then
           echo "Failed to add IP to Atlas access list (code $HTTP_CODE)"
