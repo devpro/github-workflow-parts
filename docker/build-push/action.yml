@@ -46,6 +46,15 @@ runs:
       run: docker build . --file ${{ inputs.docker_file }} --tag ${{ inputs.image_path }}/${{ inputs.image_name }}:${{ inputs.image_tag }}${{ inputs.build_arguments }}
       shell: bash
     
+    - name: Generate SBOM with Syft
+      uses: anchore/sbom-action@v0
+      continue-on-error: true
+      with:
+        image: ${{ inputs.image_path }}/${{ inputs.image_name }}:${{ inputs.image_tag }}
+        # format: spdx-json # Or cyclonedx-json
+        # output-file: sbom.json
+        # upload-artifact: true # Auto-upload to workflow artifacts
+    
     - name: Push image to container registry
       run: docker push ${{ inputs.image_path }}/${{ inputs.image_name }}:${{ inputs.image_tag }}
       shell: bash
@@ -57,27 +66,21 @@ runs:
         docker push ${{ inputs.image_path }}/${{ inputs.image_name }}:latest
       shell: bash
     
-    - name: Generate SBOM with Syft
-      uses: anchore/sbom-action@v0
-      with:
-        path: ${{ inputs.image_path }}/${{ inputs.image_name }}:${{ inputs.image_tag }}
-      #   format: spdx-json # Or cyclonedx-json
-      #   output-file: sbom.json
-      #   upload-artifact: true # Auto-upload to workflow artifacts
-    
     - name: Install Cosign
       uses: sigstore/cosign-installer@v4.0.0
       with:
         cosign-release: 'v3.0.3'
+    
     - name: Get image digest
       id: digest
       run: |
         DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' ${{ inputs.image_path }}/${{ inputs.image_name }}:${{ inputs.image_tag }} | cut -d'@' -f2)
         echo "DIGEST=$DIGEST" >> $GITHUB_OUTPUT
       shell: bash
+    
     - name: Sign image with Cosign
       env:
-        COSIGN_EXPERIMENTAL: 1  # If using keyless (recommended for GitHub Actions)
+        COSIGN_EXPERIMENTAL: 1
       run: |
         cosign sign --yes ${{ inputs.image_path }}/${{ inputs.image_name }}@${{ steps.digest.outputs.DIGEST }}
       shell: bash
