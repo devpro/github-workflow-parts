@@ -1,0 +1,52 @@
+name: Add GitHub Actions runner public IP to MongoDB Atlas
+description: Update project IP access list (temporary)
+
+inputs:
+  atlas_publickey:
+    description: MongoDB public key
+    required: true
+  atlas_privatekey:
+    description: MongoDB private key
+    required: true
+  atlas_groupid:
+    description: MongoDB group ID
+    required: true
+  github_runid:
+    description: GitHub run ID
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Add runner IP to MongoDB Atlas
+      shell: bash
+      run: |
+        # gets current outbound IP of this runner
+        RUNNER_IP=$(curl -s https://api.ipify.org || curl -s https://ifconfig.me)
+        if [ -z "$RUNNER_IP" ]; then
+          echo "Failed to detect runner IP"
+          exit 1
+        fi
+
+        echo "Detected runner IP: $RUNNER_IP"
+
+        # prepares JSON payload (single /32 entry, temporary delete after 1 hour)
+        # uses ISO 8601 UTC for deleteAfterDate (current time + 3600s)
+        DELETE_AFTER=$(date -u -d '+3600 seconds' +"%Y-%m-%dT%H:%M:%SZ")
+        PAYLOAD="[{\"ipAddress\": \"$RUNNER_IP\", \"comment\": \"GH Actions temp - run ${{ github.run_id }}\", \"deleteAfterDate\": \"$DELETE_AFTER\"}]"
+
+        # calls Atlas API v2 to add the entry (uses digest Auth via curl)
+        RESPONSE=$(curl -s -w "%{http_code}" --user "${{inputs.atlas_publickey}}:${{inputs.atlas_privatekey}}" --digest \
+          -H "Accept: application/vnd.atlas.2023-01-01+json" \
+          -H "Content-Type: application/json" \
+          --data "$PAYLOAD" \
+          "https://cloud.mongodb.com/api/atlas/v2/groups/${{inputs.atlas_groupid}}/accessList")
+
+        HTTP_CODE=${RESPONSE: -3}
+
+        if [[ "$HTTP_CODE" != "201" ]]; then
+          echo "Failed to add IP to Atlas access list (code $HTTP_CODE)"
+          exit 1
+        fi
+
+        echo "Successfully added temporary IP $RUNNER_IP to Atlas access list (auto-deletes ~1h)"
