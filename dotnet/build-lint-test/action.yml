@@ -5,35 +5,43 @@ inputs:
   dotnet_version:
     description: .NET SDK version to be used
     required: false
-    default: '10.0.x'
+    default: "10.0.x"
   sonar_enabled:
     description: Enable code scan by Sonar
     required: false
-    default: 'false'
+    default: "false"
   sonar_organization:
     description: Sonar organization
     required: false
-    default: ''
+    default: ""
   sonar_host_url:
     description: Sonar host URL
     required: false
-    default: ''
+    default: ""
   sonar_project_name:
     description: Sonar project name
     required: false
-    default: ''
+    default: ""
   sonar_project_key:
     description: Sonar project key
     required: false
-    default: ''
+    default: ""
   sonar_token:
     description: Sonar token for login
     required: false
-    default: ''
+    default: ""
   report_folder:
     description: Folder where report files will be generated
     required: false
     default: report
+  fossa_enabled:
+    description: Enable license compliance with FOSSA
+    required: false
+    default: "false"
+  fossa_api_key:
+    description: FOSSA API KEY
+    required: false
+    default: ""
 
 runs:
   using: "composite"
@@ -41,13 +49,13 @@ runs:
     - name: Install .NET
       uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: ${{inputs.dotnet_version}}
+        dotnet-version: ${{ inputs.dotnet_version }}
     - name: Set up JDK for Sonar
       if: ${{ inputs.sonar_enabled == 'true' }}
       uses: actions/setup-java@v4
       with:
         java-version: 21
-        distribution: 'zulu'
+        distribution: "zulu"
     - name: Install .NET linters
       if: ${{ inputs.dotnet_version == '7.0.x' }}
       run: dotnet tool install -g dotnet-format --version "7.*" --add-source https://pkgs.dev.azure.com/dnceng/public/_packaging/dotnet7/nuget/v3/index.json
@@ -86,24 +94,50 @@ runs:
       shell: bash
     - name: Start code analysis
       if: ${{ inputs.sonar_enabled == 'true' }}
-      run: ./.sonar/scanner/dotnet-sonarscanner begin /k:"${{inputs.sonar_project_key}}" /o:"${{inputs.sonar_organization}}" /n:"${{inputs.sonar_project_name}}" /d:sonar.token="${{inputs.sonar_token}}" /d:sonar.host.url="${{inputs.sonar_host_url}}" /d:sonar.cpd.exclusions="**/*Generated*.cs,${{inputs.report_folder}}/**" /d:sonar.exclusions="${{inputs.report_folder}}/**/*" /d:sonar.coverageReportPaths="${{inputs.report_folder}}/SonarQube.xml"
+      run: |
+        ./.sonar/scanner/dotnet-sonarscanner begin /k:"${{ inputs.sonar_project_key }}" /o:"${{ inputs.sonar_organization }}" \
+          /n:"${{ inputs.sonar_project_name }}" /d:sonar.token="${{ inputs.sonar_token}}" /d:sonar.host.url="${{inputs.sonar_host_url}}" \
+          /d:sonar.cpd.exclusions="**/*Generated*.cs,${{ inputs.report_folder }}/**" /d:sonar.exclusions="${{ inputs.report_folder }}/**/*" \
+          /d:sonar.coverageReportPaths="${{ inputs.report_folder }}/SonarQube.xml"
       shell: bash
     - name: Build .NET solution
       run: dotnet build --no-restore
       shell: bash
     - name: Run tests
-      run: dotnet test --no-build --verbosity normal --configuration Debug --logger:"junit;LogFilePath=..\..\artifacts\{assembly}-test-result.xml;MethodFormat=Class;FailureBodyFormat=Verbose" --collect:"XPlat Code Coverage"
+      run: |
+        dotnet test --no-build --verbosity normal --configuration Debug \
+          --logger:"junit;LogFilePath=..\..\artifacts\{assembly}-test-result.xml;MethodFormat=Class;FailureBodyFormat=Verbose" \
+          --collect:"XPlat Code Coverage"
       shell: bash
       env:
         ASPNETCORE_ENVIRONMENT: Development
         Application__IsHttpsRedirectionEnabled: "false"
     - name: Generate test report
-      run: reportgenerator "-reports:./test/*/TestResults/*/coverage.cobertura.xml" "-targetdir:${{inputs.report_folder}}" "-reporttypes:Cobertura;Html;TextSummary;SonarQube"
+      run: |
+        reportgenerator "-reports:./test/*/TestResults/*/coverage.cobertura.xml" \
+          "-targetdir:${{inputs.report_folder}}" \
+          "-reporttypes:Cobertura;Html;TextSummary;SonarQube"
       shell: bash
     - name: Complete code analysis
       if: ${{ inputs.sonar_enabled == 'true' }}
       run: ./.sonar/scanner/dotnet-sonarscanner end /d:sonar.token="${{inputs.sonar_token}}"
       shell: bash
+
+    - name: License Compliance with FOSSA
+      if: ${{ inputs.fossa_enabled == 'true' }}
+      uses: fossas/fossa-action@v1
+      with:
+        api-key: "${{ inputs.fossa_api_key }}"
+        run-tests: false
+
+    - name: Generate SBOM with Syft
+      uses: anchore/sbom-action@v0
+      # with:
+      #   path: . # Or Dockerfile path
+      #   format: spdx-json # Or cyclonedx-json
+      #   output-file: sbom.json
+      #   upload-artifact: true # Auto-upload to workflow artifacts
+
     - name: Archive test results
       uses: actions/upload-artifact@v4
       with:
