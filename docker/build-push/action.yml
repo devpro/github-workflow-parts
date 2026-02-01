@@ -1,5 +1,12 @@
 name: Build and push a container image
-description: Builds a new container image with Docker and pushes it to a registry
+description: |
+  Builds a new container image with Docker and pushes it to a registry
+  Make sure to add (needed by cosign):
+  ```
+  permissions:
+    id-token: write
+    contents: read
+  ```
 
 inputs:
   container_registry:
