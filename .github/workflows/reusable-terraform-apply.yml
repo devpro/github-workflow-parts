@@ -80,8 +80,15 @@ jobs:
     steps:
       - name: Clone repository
         uses: actions/checkout@v6
+      - name: Checkout workflow parts
+        uses: actions/checkout@v6
+        with:
+          repository: devpro/github-workflow-parts
+          ref: ${{ inputs.workflow-parts-version }}
+          path: workflow-parts
       - name: Add runner ID to MongoDB Atlas
-        uses: devpro/github-workflow-parts/actions/mongodb-atlas/add-runner-ip@${{ inputs.workflow-parts-version }}
+        # uses: devpro/github-workflow-parts/actions/mongodb-atlas/add-runner-ip@... cannot be used with an input parameter in it (must be static) so checkout is mandatory
+        uses: ./workflow-parts/actions/mongodb-atlas/add-runner-ip
         with:
           atlas-publickey: ${{ secrets.atlas-publickey }}
           atlas-privatekey: ${{ secrets.atlas-privatekey }}
