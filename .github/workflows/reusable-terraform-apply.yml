@@ -111,8 +111,8 @@ jobs:
         run: terraform validate
       - name: Terraform plan
         run: terraform plan -out=plan.tfplan ${{ inputs.terraform-var-flags }}
-      # - name: Terraform apply
-      #   run: terraform apply -auto-approve plan.tfplan ${{ inputs.terraform-var-flags }}
+      - name: Terraform apply
+        run: terraform apply -auto-approve plan.tfplan ${{ inputs.terraform-var-flags }}
     env:
       TF_HTTP_ADDRESS: "http://localhost:8080/${{ secrets.tfbackend-tenant }}/state/${{ inputs.tfbackend-project }}"
       TF_HTTP_LOCK_ADDRESS: "http://localhost:8080/${{ secrets.tfbackend-tenant }}/state/${{ inputs.tfbackend-project }}/lock"
