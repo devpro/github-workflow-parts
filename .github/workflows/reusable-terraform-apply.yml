@@ -83,10 +83,16 @@ jobs:
           atlas-groupid: ${{ secrets.atlas-groupid }}
       - name: Set additional variables
         run: |
-          echo "${{ secrets.additional-vars }}" | while IFS='=' read -r key val; do
-            echo "::add-mask::$val"
-          done
-          echo "${{ secrets.additional-vars }}" >> "$GITHUB_ENV"
+          if [[ -z "${{ secrets.additional-vars }}" ]]; then
+            echo "No additional-vars bundle provided - skipping."
+          else
+            echo "${{ secrets.additional-vars }}" | while IFS='=' read -r key val; do
+              if [[ -n "$val" ]]; then
+                echo "::add-mask::$val"
+              fi
+            done
+            echo "${{ secrets.additional-vars }}" >> "$GITHUB_ENV"
+          fi
       - name: Run optional custom commands
         if: ${{ inputs.custom-commands != '' }}
         run: |
@@ -103,7 +109,7 @@ jobs:
         run: terraform init
       - name: Terraform validate
         run: terraform validate
-      - name: Terraform plan
+      - name: Terraform plan${{ inputs.terraform-var-flags }}
         run: terraform plan -out=plan.tfplan
       - name: Terraform apply
         run: terraform apply -auto-approve plan.tfplan${{ inputs.terraform-var-flags }}
