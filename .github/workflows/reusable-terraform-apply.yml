@@ -83,6 +83,9 @@ jobs:
           atlas-groupid: ${{ secrets.atlas-groupid }}
       - name: Set additional variables
         run: |
+          echo "${{ secrets.additional-vars }}" | while IFS='=' read -r key val; do
+            echo "::add-mask::$val"
+          done
           echo "${{ secrets.additional-vars }}" >> "$GITHUB_ENV"
       - name: Run optional custom commands
         if: ${{ inputs.custom-commands != '' }}
