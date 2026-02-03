@@ -2,17 +2,14 @@ name: Add GitHub Actions runner public IP to MongoDB Atlas
 description: Update project IP access list (temporary)
 
 inputs:
-  atlas_publickey:
+  atlas-publickey:
     description: MongoDB public key
     required: true
-  atlas_privatekey:
+  atlas-privatekey:
     description: MongoDB private key
     required: true
-  atlas_groupid:
+  atlas-groupid:
     description: MongoDB group ID
-    required: true
-  github_runid:
-    description: GitHub run ID
     required: true
 
 runs:
@@ -36,11 +33,11 @@ runs:
         PAYLOAD="[{\"ipAddress\": \"$RUNNER_IP\", \"comment\": \"GH Actions temp - run ${{ github.run_id }}\", \"deleteAfterDate\": \"$DELETE_AFTER\"}]"
 
         # calls Atlas API v2 to add the entry (uses digest Auth via curl)
-        RESPONSE=$(curl -s -w "%{http_code}" --user "${{inputs.atlas_publickey}}:${{inputs.atlas_privatekey}}" --digest \
+        RESPONSE=$(curl -s -w "%{http_code}" --user "${{ inputs.atlas-publickey }}:${{ inputs.atlas-privatekey }}" --digest \
           -H "Accept: application/vnd.atlas.2023-01-01+json" \
           -H "Content-Type: application/json" \
           --data "$PAYLOAD" \
-          "https://cloud.mongodb.com/api/atlas/v2/groups/${{inputs.atlas_groupid}}/accessList")
+          "https://cloud.mongodb.com/api/atlas/v2/groups/${{ inputs.atlas-groupid }}/accessList")
 
         HTTP_CODE=${RESPONSE: -3}
 

@@ -25,6 +25,34 @@ on:
         type: string
         required: false
         default: ""
+    secrets:
+      atlas-publickey:
+        description: "Atlas public key"
+        required: true
+      atlas-privatekey:
+        description: "Atlas private key"
+        required: true
+      atlas-groupid:
+        description: "Atlas group IP"
+        required: true
+      tfbackend-connstring:
+        description: "Terraform backend connection string"
+        required: true
+      tfbackend-dbname:
+        description: "Terraform backend database name"
+        required: true
+      tfbackend-tenant:
+        description: "Terraform backend tenant"
+        required: true
+      tfbackend-username:
+        description: "Terraform backend user name"
+        required: true
+      tfbackend-userpwd:
+        description: "Terraform backend user password"
+        required: true
+      additional-vars:
+        description: "Additional variables"
+        required: false
 
 jobs:
   deploy:
@@ -39,9 +67,9 @@ jobs:
         image: devprofr/terraform-backend-mongodb:latest
         env:
           Application__IsHttpsRedirectionEnabled: false
-          ConnectionStrings__MongoDb: ${{ secrets.TFBACKEND_CONNSTRING }}
+          ConnectionStrings__MongoDb: ${{ secrets.tfbackend-connstring }}
           MongoDb__ConnectionStringName: MongoDb
-          MongoDb__DatabaseName: ${{ secrets.TFBACKEND_DBNAME }}
+          MongoDb__DatabaseName: ${{ secrets.tfbackend-dbname }}
         ports:
           - 8080:8080
     steps:
@@ -50,16 +78,19 @@ jobs:
       - name: Add runner ID to MongoDB Atlas
         uses: devpro/github-workflow-parts/actions/mongodb-atlas/add-runner-ip@feature/reuse-workflows
         with:
-          atlas_publickey: ${{ secrets.ATLAS_PUBLIC_KEY }}
-          atlas_privatekey: ${{ secrets.ATLAS_PRIVATE_KEY }}
-          atlas_groupid: ${{ secrets.ATLAS_GROUP_ID }}
-          github_runid: ${{ github.run_id }}
+          atlas-publickey: ${{ secrets.atlas-publickey }}
+          atlas-privatekey: ${{ secrets.atlas-privatekey }}
+          atlas-groupid: ${{ secrets.atlas-groupid }}
       - name: Set TF variables from branch
         run: |
-          tfbackendurl="http://localhost:8080/${{ secrets.TFBACKEND_TENANT }}/state/${{ inputs.tfbackend-project }}"
+          tfbackendurl="http://localhost:8080/${{ secrets.tfbackend-tenant }}/state/${{ inputs.tfbackend-project }}"
           echo "TF_HTTP_ADDRESS=$tfbackendurl" >> "$GITHUB_ENV"
           echo "TF_HTTP_LOCK_ADDRESS=$tfbackendurl/lock" >> "$GITHUB_ENV"
           echo "TF_HTTP_UNLOCK_ADDRESS=$tfbackendurl/lock" >> "$GITHUB_ENV"
+          # for pair in ${{ secrets.additional-vars }}; do
+          #   echo "$pair" >> "$GITHUB_ENV"
+          # done
+          echo "${{ secrets.additional-vars }}" >> "$GITHUB_ENV"
       - name: Run optional custom commands
         if: ${{ inputs.custom-commands != '' }}
         run: |
@@ -81,9 +112,5 @@ jobs:
       - name: Terraform apply
         run: terraform apply -auto-approve plan.tfplan${{ inputs.terraform-var-flags }}
     env:
-      ARM_CLIENT_ID: "${{ secrets.ARM_CLIENT_ID }}"
-      ARM_CLIENT_SECRET: "${{ secrets.ARM_CLIENT_SECRET }}"
-      ARM_SUBSCRIPTION_ID: "${{ secrets.ARM_SUBSCRIPTION_ID }}"
-      ARM_TENANT_ID: "${{ secrets.ARM_TENANT_ID }}"
-      TF_HTTP_USERNAME: "${{ secrets.TFBACKEND_USERNAME }}"
-      TF_HTTP_PASSWORD: "${{ secrets.TFBACKEND_USERPWD }}"
+      TF_HTTP_USERNAME: "${{ secrets.tfbackend-username }}"
+      TF_HTTP_PASSWORD: "${{ secrets.tfbackend-userpwd }}"
