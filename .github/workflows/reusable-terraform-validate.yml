@@ -1,4 +1,4 @@
-name: Reusable workflow to validate Terraform project
+name: Reusable - Terraform validate
 
 on:
   workflow_call:

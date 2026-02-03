@@ -1,4 +1,4 @@
-﻿name: Reusable workflow to apply Terraform
+﻿name: Reusable - Terraform apply
 
 on:
   workflow_call:
@@ -122,9 +122,9 @@ jobs:
       - name: Terraform validate
         run: terraform validate
       - name: Terraform plan
-        run: terraform plan -out=plan.tfplan ${{ inputs.terraform-var-flags }}
+        run: terraform plan -input=false -out=plan.tfplan ${{ inputs.terraform-var-flags }}
       - name: Terraform apply
-        run: terraform apply -auto-approve plan.tfplan ${{ inputs.terraform-var-flags }}
+        run: terraform apply -auto-approve plan.tfplan
     env:
       TF_HTTP_ADDRESS: "http://localhost:8080/${{ secrets.tfbackend-tenant }}/state/${{ inputs.tfbackend-project }}"
       TF_HTTP_LOCK_ADDRESS: "http://localhost:8080/${{ secrets.tfbackend-tenant }}/state/${{ inputs.tfbackend-project }}/lock"
