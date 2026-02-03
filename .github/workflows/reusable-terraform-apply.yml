@@ -1,0 +1,133 @@
+﻿name: Reusable workflow to apply Terraform
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: "GitHub environment"
+        type: string
+        required: true
+      working-directory:
+        description: "Working directory"
+        type: string
+        required: true
+      tfbackend-project:
+        description: "Terraform backend project"
+        type: string
+        required: true
+      custom-commands:
+        description: "Optional shell commands to run before apply"
+        type: string
+        required: false
+        default: ""
+      terraform-var-flags:
+        description: 'Extra -var "key=value" flags (space separated)'
+        type: string
+        required: false
+        default: ""
+      workflow-parts-version:
+        description: "GitHub workflow parts version (branch/tag/SHA)"
+        type: string
+        required: false
+        default: "main"
+    secrets:
+      atlas-publickey:
+        description: "Atlas public key"
+        required: true
+      atlas-privatekey:
+        description: "Atlas private key"
+        required: true
+      atlas-groupid:
+        description: "Atlas group IP"
+        required: true
+      tfbackend-connstring:
+        description: "Terraform backend connection string"
+        required: true
+      tfbackend-dbname:
+        description: "Terraform backend database name"
+        required: true
+      tfbackend-tenant:
+        description: "Terraform backend tenant"
+        required: true
+      tfbackend-username:
+        description: "Terraform backend user name"
+        required: true
+      tfbackend-userpwd:
+        description: "Terraform backend user password"
+        required: true
+      additional-vars:
+        description: "Additional variables"
+        required: false
+
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    services:
+      tfbackend:
+        image: devprofr/terraform-backend-mongodb:latest
+        env:
+          Application__IsHttpsRedirectionEnabled: false
+          ConnectionStrings__MongoDb: ${{ secrets.tfbackend-connstring }}
+          MongoDb__ConnectionStringName: MongoDb
+          MongoDb__DatabaseName: ${{ secrets.tfbackend-dbname }}
+        ports:
+          - 8080:8080
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v6
+      - name: Checkout workflow parts
+        uses: actions/checkout@v6
+        with:
+          repository: devpro/github-workflow-parts
+          ref: ${{ inputs.workflow-parts-version }}
+          path: workflow-parts
+      - name: Add runner ID to MongoDB Atlas
+        # uses: devpro/github-workflow-parts/actions/mongodb-atlas/add-runner-ip@... cannot be used with an input parameter in it (must be static) so checkout is mandatory
+        uses: ./workflow-parts/actions/mongodb-atlas/add-runner-ip
+        with:
+          atlas-publickey: ${{ secrets.atlas-publickey }}
+          atlas-privatekey: ${{ secrets.atlas-privatekey }}
+          atlas-groupid: ${{ secrets.atlas-groupid }}
+      - name: Set additional variables
+        run: |
+          if [[ -z "${{ secrets.additional-vars }}" ]]; then
+            echo "No additional-vars bundle provided - skipping."
+          else
+            echo "${{ secrets.additional-vars }}" | while IFS='=' read -r key val; do
+              if [[ -n "$val" ]]; then
+                echo "::add-mask::$val"
+              fi
+            done
+            echo "${{ secrets.additional-vars }}" >> "$GITHUB_ENV"
+          fi
+      - name: Run optional custom commands
+        if: ${{ inputs.custom-commands != '' }}
+        run: |
+          ${{ inputs.custom-commands }}
+      - name: Cache Terraform plugins
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.terraform.d/plugin-cache
+          key: terraform-${{ hashFiles('**/.terraform.lock.hcl') }}
+      - name: Install terraform
+        uses: hashicorp/setup-terraform@v3
+      - name: Terraform init
+        run: terraform init
+      - name: Terraform validate
+        run: terraform validate
+      - name: Terraform plan
+        run: terraform plan -out=plan.tfplan ${{ inputs.terraform-var-flags }}
+      - name: Terraform apply
+        run: terraform apply -auto-approve plan.tfplan ${{ inputs.terraform-var-flags }}
+    env:
+      TF_HTTP_ADDRESS: "http://localhost:8080/${{ secrets.tfbackend-tenant }}/state/${{ inputs.tfbackend-project }}"
+      TF_HTTP_LOCK_ADDRESS: "http://localhost:8080/${{ secrets.tfbackend-tenant }}/state/${{ inputs.tfbackend-project }}/lock"
+      TF_HTTP_UNLOCK_ADDRESS: "http://localhost:8080/${{ secrets.tfbackend-tenant }}/state/${{ inputs.tfbackend-project }}/lock"
+      TF_HTTP_USERNAME: "${{ secrets.tfbackend-username }}"
+      TF_HTTP_PASSWORD: "${{ secrets.tfbackend-userpwd }}"

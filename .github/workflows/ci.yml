@@ -21,7 +21,7 @@ jobs:
       - name: Lints Markdown files
         uses: DavidAnson/markdownlint-cli2-action@v20
         with:
-          globs: '**/*.md'
+          globs: "**/*.md"
       - name: Set up Python ${{ env.python_version }}
         uses: actions/setup-python@v5
         with:
