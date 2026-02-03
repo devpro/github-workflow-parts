@@ -26,7 +26,7 @@ on:
         required: false
         default: ""
       workflow-parts-version:
-        description: "GitHub workflow parts version"
+        description: "GitHub workflow parts version (branch/tag/SHA)"
         type: string
         required: false
         default: "main"
