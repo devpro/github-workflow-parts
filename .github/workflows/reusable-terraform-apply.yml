@@ -1,0 +1,80 @@
+﻿name: Reusable workflow to apply Terraform
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: "GitHub environment"
+        required: true
+        type: string
+      working-directory:
+        description: "Working directory"
+        required: true
+        type: string
+      tfbackend-project:
+        description: "Terraform backend project"
+        required: true
+        type: string
+      custom-commands:
+        description: 'Optional shell commands to run before apply'
+        required: false
+        type: string
+        default: ''
+
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    services:
+      tfbackend:
+        image: devprofr/terraform-backend-mongodb:latest
+        env:
+          Application__IsHttpsRedirectionEnabled: false
+          ConnectionStrings__MongoDb: ${{ secrets.TFBACKEND_CONNSTRING }}
+          MongoDb__ConnectionStringName: MongoDb
+          MongoDb__DatabaseName: ${{ secrets.TFBACKEND_DBNAME }}
+        ports:
+          - 8080:8080
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v6
+      - name: Add runner ID to MongoDB Atlas
+        uses: ./mongodb-atlas/add-runner-ip
+        with:
+          atlas_publickey: ${{ secrets.ATLAS_PUBLIC_KEY }}
+          atlas_privatekey: ${{ secrets.ATLAS_PRIVATE_KEY }}
+          atlas_groupid: ${{ secrets.ATLAS_GROUP_ID }}
+          github_runid: ${{ github.run_id }}
+      - name: Set TF variables from branch
+        run: |
+          tfbackendurl="http://localhost:8080/${{ secrets.TFBACKEND_TENANT }}/state/${{ inputs.tfbackend-project }}"
+          echo "TF_HTTP_ADDRESS=$tfbackendurl" >> "$GITHUB_ENV"
+          echo "TF_HTTP_LOCK_ADDRESS=$tfbackendurl/lock" >> "$GITHUB_ENV"
+          echo "TF_HTTP_UNLOCK_ADDRESS=$tfbackendurl/lock" >> "$GITHUB_ENV"
+      - name: Run optional custom commands
+        if: ${{ inputs.custom-commands != '' }}
+        run: |
+          ${{ inputs.custom-commands }}
+      - name: Cache Terraform plugins
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.terraform.d/plugin-cache
+          key: terraform-${{ hashFiles('**/.terraform.lock.hcl') }}
+      - name: Install terraform
+        uses: hashicorp/setup-terraform@v3
+      - name: Terraform init
+        run: terraform init
+      - name: Terraform validate
+        run: terraform validate
+      - name: Terraform plan
+        run: terraform plan -out=plan.tfplan
+      - name: Terraform apply
+        run: terraform apply -auto-approve plan.tfplan
+    env:
+      TF_HTTP_USERNAME: "${{ secrets.TFBACKEND_USERNAME }}"
+      TF_HTTP_PASSWORD: "${{ secrets.TFBACKEND_USERPWD }}"
