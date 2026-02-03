@@ -25,6 +25,11 @@ on:
         type: string
         required: false
         default: ""
+      workflow-parts-version:
+        description: "GitHub workflow parts version"
+        type: string
+        required: false
+        default: "main"
     secrets:
       atlas-publickey:
         description: "Atlas public key"
@@ -76,7 +81,7 @@ jobs:
       - name: Clone repository
         uses: actions/checkout@v6
       - name: Add runner ID to MongoDB Atlas
-        uses: devpro/github-workflow-parts/actions/mongodb-atlas/add-runner-ip@feature/reuse-workflows
+        uses: devpro/github-workflow-parts/actions/mongodb-atlas/add-runner-ip@${{ inputs.workflow-parts-version }}
         with:
           atlas-publickey: ${{ secrets.atlas-publickey }}
           atlas-privatekey: ${{ secrets.atlas-privatekey }}
