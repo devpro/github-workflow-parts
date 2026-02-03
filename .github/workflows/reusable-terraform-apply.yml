@@ -5,20 +5,25 @@ on:
     inputs:
       environment:
         description: "GitHub environment"
-        required: true
         type: string
+        required: true
       working-directory:
         description: "Working directory"
-        required: true
         type: string
+        required: true
       tfbackend-project:
         description: "Terraform backend project"
-        required: true
         type: string
+        required: true
       custom-commands:
         description: "Optional shell commands to run before apply"
-        required: false
         type: string
+        required: false
+        default: ""
+      terraform-var-flags:
+        description: 'Extra -var "key=value" flags (space separated)'
+        type: string
+        required: false
         default: ""
 
 jobs:
@@ -43,7 +48,7 @@ jobs:
       - name: Clone repository
         uses: actions/checkout@v6
       - name: Add runner ID to MongoDB Atlas
-        uses: devpro/github-workflow-parts/actions/mongodb-atlas-add-runner-ip@feature/reuse-workflows
+        uses: devpro/github-workflow-parts/actions/mongodb-atlas/add-runner-ip@feature/reuse-workflows
         with:
           atlas_publickey: ${{ secrets.ATLAS_PUBLIC_KEY }}
           atlas_privatekey: ${{ secrets.ATLAS_PRIVATE_KEY }}
@@ -74,7 +79,11 @@ jobs:
       - name: Terraform plan
         run: terraform plan -out=plan.tfplan
       - name: Terraform apply
-        run: terraform apply -auto-approve plan.tfplan
+        run: terraform apply -auto-approve plan.tfplan${{ inputs.terraform-var-flags }}
     env:
+      ARM_CLIENT_ID: "${{ secrets.ARM_CLIENT_ID }}"
+      ARM_CLIENT_SECRET: "${{ secrets.ARM_CLIENT_SECRET }}"
+      ARM_SUBSCRIPTION_ID: "${{ secrets.ARM_SUBSCRIPTION_ID }}"
+      ARM_TENANT_ID: "${{ secrets.ARM_TENANT_ID }}"
       TF_HTTP_USERNAME: "${{ secrets.TFBACKEND_USERNAME }}"
       TF_HTTP_PASSWORD: "${{ secrets.TFBACKEND_USERPWD }}"
