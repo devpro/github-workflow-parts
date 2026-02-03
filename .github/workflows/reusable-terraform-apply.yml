@@ -81,15 +81,8 @@ jobs:
           atlas-publickey: ${{ secrets.atlas-publickey }}
           atlas-privatekey: ${{ secrets.atlas-privatekey }}
           atlas-groupid: ${{ secrets.atlas-groupid }}
-      - name: Set TF variables from branch
+      - name: Set additional variables
         run: |
-          tfbackendurl="http://localhost:8080/${{ secrets.tfbackend-tenant }}/state/${{ inputs.tfbackend-project }}"
-          echo "TF_HTTP_ADDRESS=$tfbackendurl" >> "$GITHUB_ENV"
-          echo "TF_HTTP_LOCK_ADDRESS=$tfbackendurl/lock" >> "$GITHUB_ENV"
-          echo "TF_HTTP_UNLOCK_ADDRESS=$tfbackendurl/lock" >> "$GITHUB_ENV"
-          # for pair in ${{ secrets.additional-vars }}; do
-          #   echo "$pair" >> "$GITHUB_ENV"
-          # done
           echo "${{ secrets.additional-vars }}" >> "$GITHUB_ENV"
       - name: Run optional custom commands
         if: ${{ inputs.custom-commands != '' }}
@@ -112,5 +105,8 @@ jobs:
       - name: Terraform apply
         run: terraform apply -auto-approve plan.tfplan${{ inputs.terraform-var-flags }}
     env:
+      TF_HTTP_ADDRESS: "http://localhost:8080/${{ secrets.tfbackend-tenant }}/state/${{ inputs.tfbackend-project }}"
+      TF_HTTP_LOCK_ADDRESS: "http://localhost:8080/${{ secrets.tfbackend-tenant }}/state/${{ inputs.tfbackend-project }}/lock"
+      TF_HTTP_UNLOCK_ADDRESS: "http://localhost:8080/${{ secrets.tfbackend-tenant }}/state/${{ inputs.tfbackend-project }}/lock"
       TF_HTTP_USERNAME: "${{ secrets.tfbackend-username }}"
       TF_HTTP_PASSWORD: "${{ secrets.tfbackend-userpwd }}"
