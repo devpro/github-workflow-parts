@@ -3,6 +3,11 @@ name: Reusable workflow to validate Terraform project
 on:
   workflow_call:
     inputs:
+      job-name:
+        description: "Job name"
+        required: false
+        type: string
+        default: "Validate"
       working-directory:
         description: "Working directory"
         required: false
@@ -11,7 +16,7 @@ on:
 
 jobs:
   terraform-validate:
-    name: Terraform validate
+    name: ${{ inputs.job-name }}
     runs-on: ubuntu-latest
     defaults:
       run:
