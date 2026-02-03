@@ -70,20 +70,20 @@ jobs:
       - name: Setup TFLint
         uses: terraform-linters/setup-tflint@v6
         with:
-          tflint_version: v0.60.0                       # ref. https://github.com/terraform-linters/tflint/pkgs/container/tflint
+          tflint_version: v0.60.0 # ref. https://github.com/terraform-linters/tflint/pkgs/container/tflint
       - name: Initialize TFLint
         run: tflint --init --recursive
         env:
-          GITHUB_TOKEN: ${{ github.token }}             # ref. https://github.com/terraform-linters/tflint/blob/master/docs/user-guide/plugins.md#avoiding-rate-limiting
+          GITHUB_TOKEN: ${{ github.token }} # ref. https://github.com/terraform-linters/tflint/blob/master/docs/user-guide/plugins.md#avoiding-rate-limiting
       - name: Run TFLint
         run: tflint --recursive --format compact
       - name: Run Trivy IaC scan
         uses: aquasecurity/trivy-action@0.33.1
         with:
-          scan-type: 'config'
-          format: 'sarif'
-          output: 'trivy-results.sarif'
+          scan-type: "config"
+          format: "sarif"
+          output: "trivy-results.sarif"
           ignore-unfixed: true
-          severity: 'HIGH,CRITICAL'
+          severity: "HIGH,CRITICAL"
     env:
       TF_IN_AUTOMATION: true
