@@ -16,10 +16,10 @@ on:
         required: true
         type: string
       custom-commands:
-        description: 'Optional shell commands to run before apply'
+        description: "Optional shell commands to run before apply"
         required: false
         type: string
-        default: ''
+        default: ""
 
 jobs:
   deploy:
@@ -43,7 +43,7 @@ jobs:
       - name: Clone repository
         uses: actions/checkout@v6
       - name: Add runner ID to MongoDB Atlas
-        uses: ./mongodb-atlas/add-runner-ip
+        uses: devpro/github-workflow-parts/actions/mongodb-atlas-add-runner-ip@feature/reuse-workflows
         with:
           atlas_publickey: ${{ secrets.ATLAS_PUBLIC_KEY }}
           atlas_privatekey: ${{ secrets.ATLAS_PRIVATE_KEY }}
