@@ -1,0 +1,33 @@
+name: Build & Test
+description: Builds and runs tests on a .NET codebase
+
+inputs:
+  dotnet_version:
+    description: .NET SDK version to be used
+    required: false
+    default: "10.0"
+  report_folder:
+    description: Folder where report files will be generated
+    required: false
+    default: report
+
+runs:
+  using: "composite"
+  steps:
+    - name: Build .NET code
+      run: dotnet build --no-restore
+      shell: bash
+    - name: Run .NET tests
+      run: |
+        dotnet test --no-build --verbosity normal --configuration Debug \
+          --logger:"junit;LogFilePath=..\..\artifacts\{assembly}-test-result.xml;MethodFormat=Class;FailureBodyFormat=Verbose" \
+          --collect:"XPlat Code Coverage"
+      shell: bash
+      env:
+        ASPNETCORE_ENVIRONMENT: Development
+    - name: Generate test report
+      run: |
+        reportgenerator "-reports:./test/*/TestResults/*/coverage.cobertura.xml" \
+          "-targetdir:${{inputs.report_folder}}" \
+          "-reporttypes:Cobertura;Html;TextSummary"
+      shell: bash

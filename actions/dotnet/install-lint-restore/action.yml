@@ -1,0 +1,31 @@
+name: Install & Lint
+description: Installs .NET SDK, lints and restores .NET code
+
+inputs:
+  dotnet-version:
+    description: .NET SDK version to be used
+    required: false
+    default: "10.0"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install .NET
+      uses: actions/setup-dotnet@v5
+      with:
+        dotnet-version: ${{ inputs.dotnet-version }}
+    - name: Install .NET linters
+      if: ${{ startsWith(inputs.dotnet-version, '7') }}
+      run: dotnet tool install -g dotnet-format --version "7.*" --add-source https://pkgs.dev.azure.com/dnceng/public/_packaging/dotnet7/nuget/v3/index.json
+      shell: bash
+    - name: Install .NET tools
+      run: |
+        dotnet tool install --global dotnet-reportgenerator-globaltool
+        export PATH="$PATH:/root/.dotnet/tools"
+      shell: bash
+    - name: Lint .NET code
+      run: dotnet format --verify-no-changes --severity warn --verbosity:diagnostic
+      shell: bash
+    - name: Restore .NET packages
+      run: dotnet restore
+      shell: bash
