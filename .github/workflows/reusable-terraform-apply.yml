@@ -71,7 +71,7 @@ on:
         required: false
 
 jobs:
-  deploy:
+  terraform-apply:
     name: ${{ inputs.job-name }}
     runs-on: ${{ inputs.operating-system }}
     environment: ${{ inputs.environment }}

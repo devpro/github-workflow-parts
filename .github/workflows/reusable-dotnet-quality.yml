@@ -1,4 +1,4 @@
-name: Reusable - .NET validate
+name: Reusable - .NET quality
 
 on:
   workflow_call:
@@ -21,7 +21,7 @@ on:
         description: Job name
         type: string
         required: false
-        default: Validate
+        default: Quality
       mongodb-enabled:
         description: "Start MongoDB for integration tests?"
         type: boolean
@@ -76,7 +76,7 @@ on:
         required: false
 
 jobs:
-  dotnet-validate:
+  dotnet-quality:
     name: ${{ inputs.job-name }}
     runs-on: ${{ inputs.operating-system }}
     defaults:
@@ -100,17 +100,17 @@ jobs:
           repository: devpro/github-workflow-parts
           ref: ${{ inputs.workflow-parts-version }}
           path: workflow-parts
-      - name: Install & lint .NET
+      - name: Install .NET & lint
         uses: ./workflow-parts/actions/dotnet/install-lint-restore
         with:
           dotnet-version: ${{ inputs.dotnet-version }}
       - name: Start MongoDB
         if: ${{ inputs.mongodb-enabled }}
         uses: ./workflow-parts/actions/mongodb/start
-      - name: Build & test .NET
+      - name: Build & test
         if: ${{ ! inputs.sonar-enabled }}
         uses: ./workflow-parts/actions/dotnet/build-test
-      - name: Build, lint & test
+      - name: Build, test & analyze
         if: ${{ inputs.sonar-enabled }}
         uses: ./workflow-parts/actions/dotnet/build-test-sonar
         with:
@@ -119,7 +119,7 @@ jobs:
           sonar-project-name: ${{ inputs.sonar-project-name }}
           sonar-project-key: ${{ inputs.sonar-project-key }}
           sonar-token: ${{ secrets.sonar-token }}
-      - name: License Compliance with FOSSA
+      - name: Check license compliance with FOSSA
         if: ${{ inputs.fossa-enabled }}
         uses: fossas/fossa-action@v1
         with:
