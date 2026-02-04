@@ -1,5 +1,7 @@
 # GitHub workflow parts
 
+[![CI](https://github.com/devpro/github-workflow-parts/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/devpro/github-workflow-parts/actions/workflows/ci.yml)
+
 Repository of workflow parts to be used in GitHub Actions.
 
 ## Actions
