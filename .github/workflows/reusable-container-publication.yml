@@ -21,11 +21,6 @@ on:
         type: boolean
         required: false
         default: false
-      extra-build-arguments:
-        description: Container build additional arguments
-        type: string
-        required: false
-        default: ""
       image-definition:
         description: Path to the container definition file (Dockerfile, Containerfile)
         type: string
@@ -69,6 +64,9 @@ on:
       container-registry-password:
         description: Container registry password
         required: true
+      extra-build-arguments:
+        description: Container build additional arguments
+        required: false
 
 jobs:
   container-publication:
@@ -93,7 +91,7 @@ jobs:
           username: ${{ inputs.container-registry-username }}
           password: ${{ inputs.container-registry-password }}
       - name: Build container image
-        run: docker build . --file ${{ inputs.image-definition }} --tag ${{ env.IMAGE_REF }} ${{ inputs.extra-build-arguments }}
+        run: docker build . --file ${{ inputs.image-definition }} --tag ${{ env.IMAGE_REF }} ${{ secrets.extra-build-arguments }}
         shell: bash
       - name: Generate SBOM with Syft
         uses: anchore/sbom-action@v0
