@@ -3,26 +3,6 @@ name: Reusable - .NET validate
 on:
   workflow_call:
     inputs:
-      job-name:
-        description: Job name
-        type: string
-        required: false
-        default: Validate
-      working-directory:
-        description: Working directory
-        type: string
-        required: false
-        default: "."
-      operating-system:
-        description: Operating system executing the runner
-        type: string
-        required: false
-        default: ubuntu-latest
-      workflow-parts-version:
-        description: GitHub workflow parts version (branch/tag/SHA)
-        type: string
-        required: false
-        default: main
       dotnet-version:
         description: .NET version
         type: string
@@ -32,51 +12,68 @@ on:
         type: string
         required: false
         default: ""
-      mongodb-enabled:
-        description: Start MongoDB for integration tests?
-        type: boolean
-        required: false
-        default: false
-      sonar-enabled:
-        description: Enable check done by Sonar (SonarQube or SonarCloud)
-        type: boolean
-        required: false
-        default: false
-      sonar_host_url:
-        description: Sonar host URL
-        type: string
-        required: false
-        default: "https://sonarcloud.io"
-      sonar_organization:
-        description: Sonar organization
-        type: string
-        required: false
-        default: ""
-      sonar_project_name:
-        description: Sonar project name
-        type: string
-        required: false
-        default: ""
-      sonar_project_key:
-        description: Sonar project key
-        type: string
-        required: false
-        default: ""
-      sonar_token:
-        description: Sonar token for login
-        type: string
-        required: false
-        default: ""
       fossa-enabled:
         description: Enable license compliance with FOSSA
         type: boolean
         required: false
         default: false
-      fossa-api-key:
-        description: FOSSA API KEY
+      job-name:
+        description: Job name
+        type: string
+        required: false
+        default: Validate
+      mongodb-enabled:
+        description: "Start MongoDB for integration tests?"
+        type: boolean
+        required: false
+        default: false
+      operating-system:
+        description: Operating system executing the runner
+        type: string
+        required: false
+        default: ubuntu-latest
+      sonar-enabled:
+        description: Enable check done by Sonar (SonarQube or SonarCloud)
+        type: boolean
+        required: false
+        default: false
+      sonar-host-url:
+        description: Sonar host URL
+        type: string
+        required: false
+        default: "https://sonarcloud.io"
+      sonar-organization:
+        description: Sonar organization
         type: string
         required: false
         default: ""
+      sonar-project-key:
+        description: Sonar project key
+        type: string
+        required: false
+        default: ""
+      sonar-project-name:
+        description: Sonar project name
+        type: string
+        required: false
+        default: ""
+      workflow-parts-version:
+        description: GitHub workflow parts version (branch/tag/SHA)
+        type: string
+        required: false
+        default: main
+      working-directory:
+        description: Working directory
+        type: string
+        required: false
+        default: "."
+    secrets:
+      fossa-api-key:
+        description: FOSSA API KEY
+        required: false
+      sonar-token:
+        description: Sonar token for login
+        required: false
 
 jobs:
   dotnet-validate:
@@ -106,7 +103,7 @@ jobs:
       - name: Install & lint .NET
         uses: ./workflow-parts/dotnet/install-lint-restore
         with:
-          dotnet-version: ${{ dotnet-version }}
+          dotnet-version: ${{ inputs.dotnet-version }}
       - name: Start MongoDB
         if: ${{ inputs.mongodb-enabled }}
         uses: ./workflow-parts/mongodb/start
@@ -117,16 +114,16 @@ jobs:
         if: ${{ inputs.sonar-enabled }}
         uses: ./workflow-parts/dotnet/build-test-sonar
         with:
-          sonar_organization: ${{ inputs.sonar_organization }}
-          sonar_host_url: ${{ inputs.sonar_host_url }}
-          sonar_project_name: ${{ inputs.sonar_project_name }}
-          sonar_project_key: ${{ inputs.sonar_project_key }}
-          sonar_token: ${{ inputs.sonar_token }}
+          sonar-organization: ${{ inputs.sonar-organization }}
+          sonar-host-url: ${{ inputs.sonar-host-url }}
+          sonar-project-name: ${{ inputs.sonar-project-name }}
+          sonar-project-key: ${{ inputs.sonar-project-key }}
+          sonar-token: ${{ secrets.sonar-token }}
       - name: License Compliance with FOSSA
         if: ${{ inputs.fossa-enabled }}
         uses: fossas/fossa-action@v1
         with:
-          api-key: "${{ inputs.fossa-api-key }}"
+          api-key: "${{ secrets.fossa-api-key }}"
           run-tests: false
       - name: Generate SBOM with Syft
         uses: anchore/sbom-action@v0
@@ -144,11 +141,6 @@ jobs:
             ./test/*/TestResults/*/coverage.cobertura.xml
             ./**/SonarQube.xml
             ./**/Summary.txt
-
-# GITHUB_TOKEN: secrets.GITHUB_TOKEN
-# secrets.FOSSA_API_KEY
-# Application__IsHttpsRedirectionEnabled: "false"
-# sonar_organization: vars.SONAR_ORG
-# sonar_project_name: Todo Blazor
-# sonar_project_key: vars.SONAR_PROJECT_KEY
-# sonar_token: secrets.SONAR_TOKEN
+    env:
+      # https://docs.github.com/en/actions/reference/workflows-and-actions/contexts
+      GITHUB_TOKEN: ${{ github.token }}

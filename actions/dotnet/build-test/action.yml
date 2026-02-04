@@ -2,11 +2,7 @@ name: Build & Test
 description: Builds and runs tests on a .NET codebase
 
 inputs:
-  dotnet_version:
-    description: .NET SDK version to be used
-    required: false
-    default: "10.0"
-  report_folder:
+  report-folder:
     description: Folder where report files will be generated
     required: false
     default: report
@@ -28,6 +24,6 @@ runs:
     - name: Generate test report
       run: |
         reportgenerator "-reports:./test/*/TestResults/*/coverage.cobertura.xml" \
-          "-targetdir:${{inputs.report_folder}}" \
+          "-targetdir:${{ inputs.report-folder }}" \
           "-reporttypes:Cobertura;Html;TextSummary"
       shell: bash

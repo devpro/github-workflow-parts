@@ -1,35 +1,35 @@
-name: Build, lint and test .NET
-description: Builds, checks and runs tests on a .NET codebase
+name: Build, Test & Analyze
+description: Builds, runs tests on a .NET codebase and run analysis with Sonar
 
 inputs:
-  dotnet_version:
-    description: .NET SDK version to be used
+  java-version:
+    description: Java version that will be installed (for Sonar CLI)
     required: false
-    default: "10.0"
-  sonar_organization:
-    description: Sonar organization
-    required: false
-    default: ""
-  sonar_host_url:
-    description: Sonar host URL
-    required: false
-    default: ""
-  sonar_project_name:
-    description: Sonar project name
-    required: false
-    default: ""
-  sonar_project_key:
-    description: Sonar project key
-    required: false
-    default: ""
-  sonar_token:
-    description: Sonar token for login
-    required: false
-    default: ""
-  report_folder:
+    default: "21"
+  report-folder:
     description: Folder where report files will be generated
     required: false
     default: report
+  sonar-host-url:
+    description: Sonar host URL
+    required: false
+    default: ""
+  sonar-organization:
+    description: Sonar organization
+    required: false
+    default: ""
+  sonar-project-key:
+    description: Sonar project key
+    required: false
+    default: ""
+  sonar-project-name:
+    description: Sonar project name
+    required: false
+    default: ""
+  sonar-token:
+    description: Sonar token for login
+    required: false
+    default: ""
 
 runs:
   using: "composite"
@@ -37,7 +37,7 @@ runs:
     - name: Set up JDK for Sonar
       uses: actions/setup-java@v4
       with:
-        java-version: 21
+        java-version: ${{ inputs.java-version }}
         distribution: "zulu"
     - name: Cache Sonar packages
       uses: actions/cache@v4
@@ -60,10 +60,10 @@ runs:
       shell: bash
     - name: Start code analysis
       run: |
-        ./.sonar/scanner/dotnet-sonarscanner begin /k:"${{ inputs.sonar_project_key }}" /o:"${{ inputs.sonar_organization }}" \
-          /n:"${{ inputs.sonar_project_name }}" /d:sonar.token="${{ inputs.sonar_token}}" /d:sonar.host.url="${{inputs.sonar_host_url}}" \
-          /d:sonar.cpd.exclusions="**/*Generated*.cs,${{ inputs.report_folder }}/**" /d:sonar.exclusions="${{ inputs.report_folder }}/**/*" \
-          /d:sonar.coverageReportPaths="${{ inputs.report_folder }}/SonarQube.xml"
+        ./.sonar/scanner/dotnet-sonarscanner begin /k:"${{ inputs.sonar-project-key }}" /o:"${{ inputs.sonar-organization }}" \
+          /n:"${{ inputs.sonar-project-name }}" /d:sonar.token="${{ inputs.sonar-token}}" /d:sonar.host.url="${{ inputs.sonar-host-url }}" \
+          /d:sonar.cpd.exclusions="**/*Generated*.cs,${{ inputs.report-folder }}/**" /d:sonar.exclusions="${{ inputs.report-folder }}/**/*" \
+          /d:sonar.coverageReportPaths="${{ inputs.report-folder }}/SonarQube.xml"
       shell: bash
     - name: Build .NET solution
       run: dotnet build --no-restore
@@ -79,9 +79,9 @@ runs:
     - name: Generate test report
       run: |
         reportgenerator "-reports:./test/*/TestResults/*/coverage.cobertura.xml" \
-          "-targetdir:${{inputs.report_folder}}" \
+          "-targetdir:${{ inputs.report-folder }}" \
           "-reporttypes:Cobertura;Html;TextSummary;SonarQube"
       shell: bash
     - name: Complete code analysis
-      run: ./.sonar/scanner/dotnet-sonarscanner end /d:sonar.token="${{inputs.sonar_token}}"
+      run: ./.sonar/scanner/dotnet-sonarscanner end /d:sonar.token="${{ inputs.sonar-token }}"
       shell: bash
