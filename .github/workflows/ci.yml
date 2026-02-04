@@ -8,6 +8,6 @@ on:
   workflow_dispatch: {}
 
 jobs:
-  content-validate:
-    name: Content
-    uses: ./.github/workflows/reusable-content-validate.yaml
+  markup-lint:
+    name: Markup
+    uses: ./.github/workflows/reusable-markup-lint.yml
