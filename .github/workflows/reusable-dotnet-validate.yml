@@ -101,18 +101,18 @@ jobs:
           ref: ${{ inputs.workflow-parts-version }}
           path: workflow-parts
       - name: Install & lint .NET
-        uses: ./workflow-parts/dotnet/install-lint-restore
+        uses: ./workflow-parts/actions/dotnet/install-lint-restore
         with:
           dotnet-version: ${{ inputs.dotnet-version }}
       - name: Start MongoDB
         if: ${{ inputs.mongodb-enabled }}
-        uses: ./workflow-parts/mongodb/start
+        uses: ./workflow-parts/actions/mongodb/start
       - name: Build & test .NET
         if: ${{ ! inputs.sonar-enabled }}
-        uses: ./workflow-parts/dotnet/build-test
+        uses: ./workflow-parts/actions/dotnet/build-test
       - name: Build, lint & test
         if: ${{ inputs.sonar-enabled }}
-        uses: ./workflow-parts/dotnet/build-test-sonar
+        uses: ./workflow-parts/actions/dotnet/build-test-sonar
         with:
           sonar-organization: ${{ inputs.sonar-organization }}
           sonar-host-url: ${{ inputs.sonar-host-url }}
