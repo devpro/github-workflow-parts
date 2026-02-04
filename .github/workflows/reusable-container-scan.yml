@@ -54,7 +54,6 @@ on:
         type: string
         required: false
         default: "."
-    secrets:
 
 jobs:
   container-scan:
