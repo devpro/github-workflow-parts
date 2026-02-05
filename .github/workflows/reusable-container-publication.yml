@@ -108,7 +108,7 @@ jobs:
           username: ${{ secrets.container-registry-username }}
           password: ${{ secrets.container-registry-password }}
       - name: Build container image
-        run: docker build . --file ${{ inputs.image-definition }} --tag ${{ env.IMAGE_REF }} ${{ secrets.extra-build-arguments }}
+        run: docker build . --file ${{ inputs.image-definition }} --tag ${{ env.IMAGE_REF }} ${{ inputs.extra-build-arguments }}
         shell: bash
       - name: Generate SBOM with Syft
         uses: anchore/sbom-action@v0
