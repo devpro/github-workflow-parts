@@ -105,8 +105,8 @@ jobs:
         uses: docker/login-action@v3
         with:
           registry: ${{ inputs.container-registry }}
-          username: ${{ inputs.container-registry-username }}
-          password: ${{ inputs.container-registry-password }}
+          username: ${{ secrets.container-registry-username }}
+          password: ${{ secrets.container-registry-password }}
       - name: Build container image
         run: docker build . --file ${{ inputs.image-definition }} --tag ${{ env.IMAGE_REF }} ${{ secrets.extra-build-arguments }}
         shell: bash
