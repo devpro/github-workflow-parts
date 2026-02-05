@@ -3,12 +3,23 @@
 on:
   workflow_call:
     inputs:
-      environment:
-        description: "GitHub environment"
+      job-name:
+        description: "Job name"
         type: string
-        required: true
+        required: false
+        default: "Deploy"
       working-directory:
         description: "Working directory"
+        type: string
+        required: false
+        default: "."
+      operating-system:
+        description: "Operating system executing the runner"
+        type: string
+        required: false
+        default: "ubuntu-latest"
+      environment:
+        description: "GitHub environment"
         type: string
         required: true
       tfbackend-project:
@@ -60,9 +71,9 @@ on:
         required: false
 
 jobs:
-  deploy:
-    name: Deploy
-    runs-on: ubuntu-latest
+  terraform-apply:
+    name: ${{ inputs.job-name }}
+    runs-on: ${{ inputs.operating-system }}
     environment: ${{ inputs.environment }}
     defaults:
       run:

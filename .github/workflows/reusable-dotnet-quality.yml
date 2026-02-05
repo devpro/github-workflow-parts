@@ -1,0 +1,146 @@
+name: Reusable - .NET quality
+
+on:
+  workflow_call:
+    inputs:
+      dotnet-version:
+        description: .NET version
+        type: string
+        default: "10.0"
+      extra-vars:
+        description: "Additional environment variables at the start of the pipeline"
+        type: string
+        required: false
+        default: ""
+      fossa-enabled:
+        description: Enable license compliance with FOSSA
+        type: boolean
+        required: false
+        default: false
+      job-name:
+        description: Job name
+        type: string
+        required: false
+        default: Quality
+      mongodb-enabled:
+        description: "Start MongoDB for integration tests?"
+        type: boolean
+        required: false
+        default: false
+      operating-system:
+        description: Operating system executing the runner
+        type: string
+        required: false
+        default: ubuntu-latest
+      sonar-enabled:
+        description: Enable check done by Sonar (SonarQube or SonarCloud)
+        type: boolean
+        required: false
+        default: false
+      sonar-host-url:
+        description: Sonar host URL
+        type: string
+        required: false
+        default: "https://sonarcloud.io"
+      sonar-organization:
+        description: Sonar organization
+        type: string
+        required: false
+        default: ""
+      sonar-project-key:
+        description: Sonar project key
+        type: string
+        required: false
+        default: ""
+      sonar-project-name:
+        description: Sonar project name
+        type: string
+        required: false
+        default: ""
+      workflow-parts-version:
+        description: GitHub workflow parts version (branch/tag/SHA)
+        type: string
+        required: false
+        default: main
+      working-directory:
+        description: Working directory
+        type: string
+        required: false
+        default: "."
+    secrets:
+      fossa-api-key:
+        description: FOSSA API KEY
+        required: false
+      sonar-token:
+        description: Sonar token for login
+        required: false
+
+jobs:
+  dotnet-quality:
+    name: ${{ inputs.job-name }}
+    runs-on: ${{ inputs.operating-system }}
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - name: Set additional variables
+        run: |
+          if [[ -z "${{ secrets.extra-vars }}" ]]; then
+            echo "No extra-vars provided - skipping"
+          else
+            echo "${{ secrets.extra-vars }}" >> "$GITHUB_ENV"
+          fi
+      - name: Clone repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Checkout workflow parts
+        uses: actions/checkout@v6
+        with:
+          repository: devpro/github-workflow-parts
+          ref: ${{ inputs.workflow-parts-version }}
+          path: workflow-parts
+      - name: Install .NET & lint
+        uses: ./workflow-parts/actions/dotnet/install-lint-restore
+        with:
+          dotnet-version: ${{ inputs.dotnet-version }}
+      - name: Start MongoDB
+        if: ${{ inputs.mongodb-enabled }}
+        uses: ./workflow-parts/actions/mongodb/start
+      - name: Build & test
+        if: ${{ ! inputs.sonar-enabled }}
+        uses: ./workflow-parts/actions/dotnet/build-test
+      - name: Build, test & analyze
+        if: ${{ inputs.sonar-enabled }}
+        uses: ./workflow-parts/actions/dotnet/build-test-sonar
+        with:
+          sonar-organization: ${{ inputs.sonar-organization }}
+          sonar-host-url: ${{ inputs.sonar-host-url }}
+          sonar-project-name: ${{ inputs.sonar-project-name }}
+          sonar-project-key: ${{ inputs.sonar-project-key }}
+          sonar-token: ${{ secrets.sonar-token }}
+      - name: Check license compliance with FOSSA
+        if: ${{ inputs.fossa-enabled }}
+        uses: fossas/fossa-action@v1
+        with:
+          api-key: "${{ secrets.fossa-api-key }}"
+          run-tests: false
+      - name: Generate SBOM with Syft
+        uses: anchore/sbom-action@v0
+        # with:
+        #   path: . # Or Dockerfile path
+        #   format: spdx-json # Or cyclonedx-json
+        #   output-file: sbom.json
+        #   upload-artifact: true # Auto-upload to workflow artifacts
+      - name: Archive test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: dotnet-test-results
+          path: |
+            ./**/*test-result.xml
+            ./test/*/TestResults/*/coverage.cobertura.xml
+            ./**/SonarQube.xml
+            ./**/Summary.txt
+    env:
+      # https://docs.github.com/en/actions/reference/workflows-and-actions/contexts
+      GITHUB_TOKEN: ${{ github.token }}

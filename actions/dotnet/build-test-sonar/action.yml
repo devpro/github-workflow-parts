@@ -1,0 +1,87 @@
+name: Build, Test & Analyze
+description: Builds, runs tests on a .NET codebase and run analysis with Sonar
+
+inputs:
+  java-version:
+    description: Java version that will be installed (for Sonar CLI)
+    required: false
+    default: "21"
+  report-folder:
+    description: Folder where report files will be generated
+    required: false
+    default: report
+  sonar-host-url:
+    description: Sonar host URL
+    required: false
+    default: ""
+  sonar-organization:
+    description: Sonar organization
+    required: false
+    default: ""
+  sonar-project-key:
+    description: Sonar project key
+    required: false
+    default: ""
+  sonar-project-name:
+    description: Sonar project name
+    required: false
+    default: ""
+  sonar-token:
+    description: Sonar token for login
+    required: false
+    default: ""
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up JDK for Sonar
+      uses: actions/setup-java@v4
+      with:
+        java-version: ${{ inputs.java-version }}
+        distribution: "zulu"
+    - name: Cache Sonar packages
+      uses: actions/cache@v4
+      with:
+        path: ~/sonar/cache
+        key: ${{ runner.os }}-sonar
+        restore-keys: ${{ runner.os }}-sonar
+    - name: Cache Sonar scanner
+      id: cache-sonar-scanner
+      uses: actions/cache@v4
+      with:
+        path: ./.sonar/scanner
+        key: ${{ runner.os }}-sonar-scanner
+        restore-keys: ${{ runner.os }}-sonar-scanner
+    - name: Install Sonar scanner
+      if: ${{ steps.cache-sonar-scanner.outputs.cache-hit != 'true' }}
+      run: |
+        mkdir -p ./.sonar/scanner
+        dotnet tool update dotnet-sonarscanner --tool-path ./.sonar/scanner
+      shell: bash
+    - name: Start code analysis
+      run: |
+        ./.sonar/scanner/dotnet-sonarscanner begin /k:"${{ inputs.sonar-project-key }}" /o:"${{ inputs.sonar-organization }}" \
+          /n:"${{ inputs.sonar-project-name }}" /d:sonar.token="${{ inputs.sonar-token}}" /d:sonar.host.url="${{ inputs.sonar-host-url }}" \
+          /d:sonar.cpd.exclusions="**/*Generated*.cs,${{ inputs.report-folder }}/**" /d:sonar.exclusions="${{ inputs.report-folder }}/**/*" \
+          /d:sonar.coverageReportPaths="${{ inputs.report-folder }}/SonarQube.xml"
+      shell: bash
+    - name: Build .NET solution
+      run: dotnet build --no-restore
+      shell: bash
+    - name: Run tests
+      run: |
+        dotnet test --no-build --verbosity normal --configuration Debug \
+          --logger:"junit;LogFilePath=..\..\artifacts\{assembly}-test-result.xml;MethodFormat=Class;FailureBodyFormat=Verbose" \
+          --collect:"XPlat Code Coverage"
+      shell: bash
+      env:
+        ASPNETCORE_ENVIRONMENT: Development
+    - name: Generate test report
+      run: |
+        reportgenerator "-reports:./test/*/TestResults/*/coverage.cobertura.xml" \
+          "-targetdir:${{ inputs.report-folder }}" \
+          "-reporttypes:Cobertura;Html;TextSummary;SonarQube"
+      shell: bash
+    - name: Complete code analysis
+      run: ./.sonar/scanner/dotnet-sonarscanner end /d:sonar.token="${{ inputs.sonar-token }}"
+      shell: bash

@@ -1,0 +1,91 @@
+name: Reusable - Container scan
+
+on:
+  workflow_call:
+    inputs:
+      image-definition:
+        description: Path to the container definition file (Dockerfile, Containerfile)
+        type: string
+        required: true
+      image-name:
+        description: Image name
+        type: string
+        required: true
+      image-path:
+        description: Image path
+        type: string
+        required: true
+      image-tag:
+        description: Image tag
+        type: string
+        required: true
+      job-name:
+        description: Job name
+        type: string
+        required: false
+        default: Scan
+      max-high-cves:
+        description: Maximum number of high CVEs authorized
+        type: number
+        required: false
+        default: 0
+      max-medium-cves:
+        description: Maximum number of medium CVEs authorized
+        type: number
+        required: false
+        default: 0
+      neuvector-enabled:
+        description: "Use NeuVector to scan the image?"
+        type: string
+        required: false
+        default: false
+      operating-system:
+        description: Operating system executing the runner
+        type: string
+        required: false
+        default: ubuntu-latest
+      trivy-enabled:
+        description: "Use Trivy to scan the image?"
+        type: boolean
+        required: false
+        default: true
+      working-directory:
+        description: Working directory
+        type: string
+        required: false
+        default: "."
+
+jobs:
+  container-scan:
+    name: ${{ inputs.job-name }}
+    runs-on: ${{ inputs.operating-system }}
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v6
+      - name: Build container image
+        run: docker build . --file ${{ inputs.image-definition }} --tag ${{ env.IMAGE_REF }}
+        shell: bash
+      - name: Scan container image with NeuVector
+        if: ${{ inputs.neuvector-enabled }}
+        uses: neuvector/scan-action@main
+        with:
+          image-repository: ${{ inputs.image-path }}/${{ inputs.image-name }}
+          image-tag: ${{ inputs.image-tag }}
+          min-high-cves-to-fail: '${{ inputs.max-high-cves }}'
+          min-medium-cves-to-fail: '${{ inputs.max-medium-cves }}'
+      - name: Scan container image with Trivy
+        if: ${{ inputs.trivy-enabled }}
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.IMAGE_REF }}
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
+    env:
+      IMAGE_REF: ${{ inputs.image-path }}/${{ inputs.image-name }}:${{ inputs.image-tag }}
+      GITHUB_TOKEN: ${{ github.token }}

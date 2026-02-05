@@ -1,0 +1,138 @@
+name: Reusable - Container publication
+# description: |
+#   Builds a new container image with Docker and pushes it to a registry
+#   Make sure to add (needed by cosign):
+#   ```
+#   permissions:
+#     id-token: write
+#     contents: read
+#   ```
+
+on:
+  workflow_call:
+    inputs:
+      container-registry:
+        description: Container registry
+        type: string
+        required: false
+        default: "docker.io"
+      create-latest:
+        description: "Create latest tag?"
+        type: boolean
+        required: false
+        default: false
+      extra-build-arguments:
+        description: Container build additional arguments
+        type: string
+        required: false
+        default: ""
+      image-definition:
+        description: Path to the container definition file (Dockerfile, Containerfile)
+        type: string
+        required: true
+      image-name:
+        description: Image name
+        type: string
+        required: true
+      image-path:
+        description: Image path
+        type: string
+        required: true
+      image-tag:
+        description: Image tag
+        type: string
+        required: true
+      job-name:
+        description: Job name
+        type: string
+        required: false
+        default: Publication
+      operating-system:
+        description: Operating system executing the runner
+        type: string
+        required: false
+        default: ubuntu-latest
+      workflow-parts-version:
+        description: GitHub workflow parts version (branch/tag/SHA)
+        type: string
+        required: false
+        default: main
+      working-directory:
+        description: Working directory
+        type: string
+        required: false
+        default: "."
+    secrets:
+      container-registry-username:
+        description: Container registry username
+        required: true
+      container-registry-password:
+        description: Container registry password
+        required: true
+      extra-vars:
+        description: "Additional environment variables"
+        required: false
+
+jobs:
+  container-publication:
+    name: ${{ inputs.job-name }}
+    runs-on: ${{ inputs.operating-system }}
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - name: Set additional variables
+        run: |
+          if [[ -z "${{ secrets.extra-vars }}" ]]; then
+            echo "No extra-vars bundle provided - skipping."
+          else
+            echo "${{ secrets.extra-vars }}" | while IFS='=' read -r key val; do
+              if [[ -n "$val" ]]; then
+                echo "::add-mask::$val"
+              fi
+            done
+            echo "${{ secrets.extra-vars }}" >> "$GITHUB_ENV"
+          fi
+      - name: Clone repository
+        uses: actions/checkout@v6
+      - name: Checkout workflow parts
+        uses: actions/checkout@v6
+        with:
+          repository: devpro/github-workflow-parts
+          ref: ${{ inputs.workflow-parts-version }}
+          path: workflow-parts
+      - name: Login to container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ inputs.container-registry }}
+          username: ${{ secrets.container-registry-username }}
+          password: ${{ secrets.container-registry-password }}
+      - name: Build container image
+        run: docker build . --file ${{ inputs.image-definition }} --tag ${{ env.IMAGE_REF }} ${{ secrets.extra-build-arguments }}
+        shell: bash
+      - name: Generate SBOM with Syft
+        uses: anchore/sbom-action@v0
+        continue-on-error: true
+        with:
+          image: ${{ env.IMAGE_REF }}
+          # format: spdx-json # Or cyclonedx-json
+          # output-file: sbom.json
+          # upload-artifact: true # Auto-upload to workflow artifacts
+      - name: Push image to container registry
+        run: docker push ${{ env.IMAGE_REF }}
+        shell: bash
+      - name: Push latest tag to container registry
+        if: ${{ inputs.create_latest }}
+        run: |
+          docker tag ${{ env.IMAGE_REF }} ${{ env.IMAGE_REF_LATEST }}
+          docker push ${{ env.IMAGE_REF_LATEST }}
+        shell: bash
+      - name: Sign container image with Cosign
+        uses: ./workflow-parts/actions/cosign/sign
+        with:
+          image-name: ${{ inputs.image-name }}
+          image-path: ${{ inputs.image-path }}
+          image-tag: ${{ inputs.image-tag }}
+    env:
+      IMAGE_REF: ${{ inputs.image-path }}/${{ inputs.image-name }}:${{ inputs.image-tag }}
+      IMAGE_REF_LATEST: ${{ inputs.image-path }}/${{ inputs.image-name }}:latest
