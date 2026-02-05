@@ -84,7 +84,7 @@ jobs:
       - name: Set additional variables
         run: |
           if [[ -z "${{ secrets.extra-vars }}" ]]; then
-            echo "No additional-vars bundle provided - skipping."
+            echo "No extra-vars bundle provided - skipping."
           else
             echo "${{ secrets.extra-vars }}" | while IFS='=' read -r key val; do
               if [[ -n "$val" ]]; then
