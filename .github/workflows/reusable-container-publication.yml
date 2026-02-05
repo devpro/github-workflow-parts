@@ -21,6 +21,11 @@ on:
         type: boolean
         required: false
         default: false
+      extra-build-arguments:
+        description: Container build additional arguments
+        type: string
+        required: false
+        default: ""
       image-definition:
         description: Path to the container definition file (Dockerfile, Containerfile)
         type: string
@@ -64,8 +69,8 @@ on:
       container-registry-password:
         description: Container registry password
         required: true
-      extra-build-arguments:
-        description: Container build additional arguments
+      extra-vars:
+        description: "Additional environment variables"
         required: false
 
 jobs:
@@ -76,6 +81,18 @@ jobs:
       run:
         working-directory: ${{ inputs.working-directory }}
     steps:
+      - name: Set additional variables
+        run: |
+          if [[ -z "${{ secrets.extra-vars }}" ]]; then
+            echo "No additional-vars bundle provided - skipping."
+          else
+            echo "${{ secrets.extra-vars }}" | while IFS='=' read -r key val; do
+              if [[ -n "$val" ]]; then
+                echo "::add-mask::$val"
+              fi
+            done
+            echo "${{ secrets.extra-vars }}" >> "$GITHUB_ENV"
+          fi
       - name: Clone repository
         uses: actions/checkout@v6
       - name: Checkout workflow parts
