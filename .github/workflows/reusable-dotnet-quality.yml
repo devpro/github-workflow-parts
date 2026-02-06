@@ -3,6 +3,11 @@ name: Reusable - .NET quality
 on:
   workflow_call:
     inputs:
+      custom-commands:
+        description: "Optional shell commands to run before build & test"
+        type: string
+        required: false
+        default: ""
       dotnet-version:
         description: .NET version
         type: string
@@ -107,6 +112,10 @@ jobs:
       - name: Start MongoDB
         if: ${{ inputs.mongodb-enabled }}
         uses: ./workflow-parts/actions/mongodb/start
+      - name: Run optional custom commands
+        if: ${{ inputs.custom-commands != '' }}
+        run: |
+          ${{ inputs.custom-commands }}
       - name: Build & test
         if: ${{ ! inputs.sonar-enabled }}
         uses: ./workflow-parts/actions/dotnet/build-test
