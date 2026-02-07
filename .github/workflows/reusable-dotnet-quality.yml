@@ -130,10 +130,14 @@ jobs:
           sonar-token: ${{ secrets.sonar-token }}
       - name: Check license compliance with FOSSA
         if: ${{ inputs.fossa-enabled }}
-        uses: fossas/fossa-action@v1
+        uses: fossas/fossa-action@v1.8.0
+        id: fossa
         with:
           api-key: "${{ secrets.fossa-api-key }}"
-          run-tests: false
+          run-tests: ${{ github.event_name == 'pull_request' }}
+          test-diff-revision: ${{ github.event.pull_request.base.sha }}
+          generate-report: html
+      - run: echo '${{ steps.fossa.outputs.report }}' > report/fossa.html
       - name: Generate SBOM with Syft
         uses: anchore/sbom-action@v0
         # with:
@@ -150,6 +154,7 @@ jobs:
             ./test/*/TestResults/*/coverage.cobertura.xml
             ./**/SonarQube.xml
             ./**/Summary.txt
+            ./**/fossa.html
     env:
       # https://docs.github.com/en/actions/reference/workflows-and-actions/contexts
       GITHUB_TOKEN: ${{ github.token }}
