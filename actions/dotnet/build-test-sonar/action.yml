@@ -66,7 +66,7 @@ runs:
           /d:sonar.coverageReportPaths="${{ inputs.report-folder }}/SonarQube.xml"
       shell: bash
     - name: Build .NET solution
-      run: dotnet build --no-restore
+      run: dotnet build --no-restore --configuration Debug
       shell: bash
     - name: Run tests
       run: |
