@@ -36,7 +36,7 @@ on:
         default: 0
       neuvector-enabled:
         description: "Use NeuVector to scan the image?"
-        type: string
+        type: boolean
         required: false
         default: false
       operating-system:
