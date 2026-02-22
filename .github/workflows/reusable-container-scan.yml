@@ -68,15 +68,16 @@ jobs:
       - name: Build container image
         run: docker build . --file ${{ inputs.image-definition }} --tag ${{ env.IMAGE_REF }}
         shell: bash
-      - name: Scan container image with NeuVector
-        if: ${{ inputs.neuvector-enabled }}
-        uses: neuvector/scan-action@main
-        with:
-          image-repository: ${{ inputs.image-path }}/${{ inputs.image-name }}
-          image-tag: ${{ inputs.image-tag }}
-          min-high-cves-to-fail: '${{ inputs.max-high-cves }}'
-          min-medium-cves-to-fail: '${{ inputs.max-medium-cves }}'
-          nv-scanner-image: neuvector/scanner:5
+      # deactivated 2026-02-22: "Build container for action use... process "/bin/sh -c zypper in -y jq docker && zypper clean" did not complete successfully: exit code: 8"
+      # - name: Scan container image with NeuVector
+      #   if: ${{ inputs.neuvector-enabled }}
+      #   uses: neuvector/scan-action@main
+      #   with:
+      #     image-repository: ${{ inputs.image-path }}/${{ inputs.image-name }}
+      #     image-tag: ${{ inputs.image-tag }}
+      #     min-high-cves-to-fail: '${{ inputs.max-high-cves }}'
+      #     min-medium-cves-to-fail: '${{ inputs.max-medium-cves }}'
+      #     nv-scanner-image: neuvector/scanner:5
       - name: Scan container image with Trivy
         if: ${{ inputs.trivy-enabled }}
         uses: aquasecurity/trivy-action@master
