@@ -140,7 +140,7 @@ jobs:
         with:
           api-key: "${{ secrets.fossa-api-key }}"
           run-tests: ${{ inputs.fossa-test && github.event_name == 'pull_request' }}
-          test-diff-revision: ${{ github.event.pull_request.base.ref }}
+          test-diff-revision: ${{ github.event.pull_request.base.sha }}
           generate-report: html
       - name: Create FOSSA report file
         run: echo '${{ steps.fossa.outputs.report }}' > report/fossa.html
