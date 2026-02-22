@@ -22,6 +22,11 @@ on:
         type: boolean
         required: false
         default: false
+      fossa-test:
+        description: Run FOSSA test on PR
+        type: boolean
+        required: false
+        default: false
       job-name:
         description: Job name
         type: string
@@ -134,10 +139,11 @@ jobs:
         id: fossa
         with:
           api-key: "${{ secrets.fossa-api-key }}"
-          run-tests: ${{ github.event_name == 'pull_request' }}
-          test-diff-revision: ${{ github.event.pull_request.base.sha }}
+          run-tests: ${{ inputs.fossa-test && github.event_name == 'pull_request' }}
+          test-diff-revision: ${{ github.event.pull_request.base.ref }}
           generate-report: html
       - run: echo '${{ steps.fossa.outputs.report }}' > report/fossa.html
+        if: ${{ inputs.fossa-enabled }}
       - name: Generate SBOM with Syft
         uses: anchore/sbom-action@v0
         # with:
@@ -152,6 +158,7 @@ jobs:
           path: |
             ./**/*test-result.xml
             ./test/*/TestResults/*/coverage.cobertura.xml
+            ./**/failure_*.png*
             ./**/SonarQube.xml
             ./**/Summary.txt
             ./**/fossa.html
