@@ -142,7 +142,8 @@ jobs:
           run-tests: ${{ inputs.fossa-test && github.event_name == 'pull_request' }}
           test-diff-revision: ${{ github.event.pull_request.base.ref }}
           generate-report: html
-      - run: echo '${{ steps.fossa.outputs.report }}' > report/fossa.html
+      - name: Create FOSSA report file
+        run: echo '${{ steps.fossa.outputs.report }}' > report/fossa.html
         if: ${{ inputs.fossa-enabled }}
       - name: Generate SBOM with Syft
         uses: anchore/sbom-action@v0
