@@ -76,7 +76,7 @@ jobs:
           image-tag: ${{ inputs.image-tag }}
           min-high-cves-to-fail: '${{ inputs.max-high-cves }}'
           min-medium-cves-to-fail: '${{ inputs.max-medium-cves }}'
-          # nv-scanner-image: neuvector/scanner:5
+          nv-scanner-image: neuvector/scanner:5
       - name: Scan container image with Trivy
         if: ${{ inputs.trivy-enabled }}
         uses: aquasecurity/trivy-action@master
