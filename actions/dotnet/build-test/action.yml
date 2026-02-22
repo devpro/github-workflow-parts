@@ -11,7 +11,7 @@ runs:
   using: "composite"
   steps:
     - name: Build .NET code
-      run: dotnet build --no-restore
+      run: dotnet build --no-restore --configuration Debug
       shell: bash
     - name: Run .NET tests
       run: |
