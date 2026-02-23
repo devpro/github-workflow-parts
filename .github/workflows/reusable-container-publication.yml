@@ -122,7 +122,7 @@ jobs:
         run: docker push ${{ env.IMAGE_REF }}
         shell: bash
       - name: Push latest tag to container registry
-        if: ${{ inputs.create_latest }}
+        if: ${{ inputs.create-latest }}
         run: |
           docker tag ${{ env.IMAGE_REF }} ${{ env.IMAGE_REF_LATEST }}
           docker push ${{ env.IMAGE_REF_LATEST }}
