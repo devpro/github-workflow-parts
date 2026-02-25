@@ -137,6 +137,7 @@ jobs:
         if: ${{ inputs.fossa-enabled }}
         uses: fossas/fossa-action@v1.8.0
         id: fossa
+        # https://status.fossa.com/
         continue-on-error: true
         timeout-minutes: 3
         with:
