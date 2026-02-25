@@ -60,10 +60,16 @@ runs:
       shell: bash
     - name: Start code analysis
       run: |
-        ./.sonar/scanner/dotnet-sonarscanner begin /k:"${{ inputs.sonar-project-key }}" /o:"${{ inputs.sonar-organization }}" \
-          /n:"${{ inputs.sonar-project-name }}" /d:sonar.token="${{ inputs.sonar-token}}" /d:sonar.host.url="${{ inputs.sonar-host-url }}" \
-          /d:sonar.cpd.exclusions="**/*Generated*.cs,${{ inputs.report-folder }}/**" /d:sonar.exclusions="${{ inputs.report-folder }}/**/*" \
-          /d:sonar.coverageReportPaths="${{ inputs.report-folder }}/SonarQube.xml"
+        ./.sonar/scanner/dotnet-sonarscanner begin \
+          /k:"${{ inputs.sonar-project-key }}" \
+          /o:"${{ inputs.sonar-organization }}" \
+          /n:"${{ inputs.sonar-project-name }}" \
+          /d:sonar.token="${{ inputs.sonar-token}}" \
+          /d:sonar.host.url="${{ inputs.sonar-host-url }}" \
+          /d:sonar.cpd.exclusions="**/*Generated*.cs,${{ inputs.report-folder }}/**" \
+          /d:sonar.exclusions="${{ inputs.report-folder }}/**/*" \
+          /d:sonar.coverageReportPaths="${{ inputs.report-folder }}/SonarQube.xml" \
+          /d:sonar.cs.vstest.reportsPaths="${{ inputs.report-folder }}/TestResults/*.trx"
       shell: bash
     - name: Build .NET solution
       run: dotnet build --no-restore --configuration Debug
@@ -71,14 +77,15 @@ runs:
     - name: Run tests
       run: |
         dotnet test --no-build --verbosity normal --configuration Debug \
-          --logger:"junit;LogFilePath=..\..\artifacts\{assembly}-test-result.xml;MethodFormat=Class;FailureBodyFormat=Verbose" \
-          --collect:"XPlat Code Coverage"
+          --results-directory "${{ inputs.report-folder }}/TestResults" \
+          --report-xunit-trx \
+          --coverage --coverage-output-format cobertura
       shell: bash
       env:
         ASPNETCORE_ENVIRONMENT: Development
     - name: Generate test report
       run: |
-        reportgenerator "-reports:./test/*/TestResults/*/coverage.cobertura.xml" \
+        reportgenerator "-reports:${{ inputs.report-folder }}/TestResults/*.cobertura.xml" \
           "-targetdir:${{ inputs.report-folder }}" \
           "-reporttypes:Cobertura;Html;TextSummary;SonarQube"
       shell: bash
