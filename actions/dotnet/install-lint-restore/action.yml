@@ -23,9 +23,9 @@ runs:
         dotnet tool install --global dotnet-reportgenerator-globaltool
         export PATH="$PATH:/root/.dotnet/tools"
       shell: bash
-    - name: Lint .NET code
-      run: dotnet format --verify-no-changes --severity warn --verbosity:diagnostic
-      shell: bash
     - name: Restore .NET packages
       run: dotnet restore
+      shell: bash
+    - name: Lint .NET code
+      run: dotnet format --verify-no-changes --severity warn --verbosity:diagnostic
       shell: bash
