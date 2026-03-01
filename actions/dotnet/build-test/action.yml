@@ -2,6 +2,10 @@ name: Build & Test
 description: Builds and runs tests on a .NET codebase
 
 inputs:
+  dotnet-test-args:
+    description: .NET test arguments
+    required: false
+    default: ""
   report-folder:
     description: Folder where report files will be generated
     required: false
@@ -13,17 +17,18 @@ runs:
     - name: Build .NET code
       run: dotnet build --no-restore --configuration Debug
       shell: bash
-    - name: Run .NET tests
+    - name: Run tests
       run: |
         dotnet test --no-build --verbosity normal --configuration Debug \
-          --logger:"junit;LogFilePath=..\..\artifacts\{assembly}-test-result.xml;MethodFormat=Class;FailureBodyFormat=Verbose" \
-          --collect:"XPlat Code Coverage"
+          --results-directory "${{ inputs.report-folder }}/TestResults" \
+          ${{ inputs.dotnet-test-args }}
       shell: bash
       env:
         ASPNETCORE_ENVIRONMENT: Development
     - name: Generate test report
+      if: ${{ always() && hashFiles(format('{0}/TestResults/*.cobertura.xml', inputs.report-folder)) != '' }}
       run: |
-        reportgenerator "-reports:./test/*/TestResults/*/coverage.cobertura.xml" \
+        reportgenerator "-reports:${{ inputs.report-folder }}/TestResults/*.cobertura.xml" \
           "-targetdir:${{ inputs.report-folder }}" \
           "-reporttypes:Cobertura;Html;TextSummary"
       shell: bash

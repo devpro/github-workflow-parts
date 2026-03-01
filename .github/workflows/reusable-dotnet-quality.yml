@@ -8,9 +8,15 @@ on:
         type: string
         required: false
         default: ""
+      dotnet-test-args:
+        description: ".NET test arguments (for example \"--report-xunit-trx --coverage --coverage-output-format cobertura\")"
+        type: string
+        required: false
+        default: ""
       dotnet-version:
         description: .NET version
         type: string
+        required: false
         default: "10.0"
       extra-vars:
         description: "Additional environment variables at the start of the pipeline"
@@ -32,11 +38,6 @@ on:
         type: string
         required: false
         default: Quality
-      mongodb-enabled:
-        description: "Start MongoDB for integration tests?"
-        type: boolean
-        required: false
-        default: false
       operating-system:
         description: Operating system executing the runner
         type: string
@@ -94,12 +95,15 @@ jobs:
         working-directory: ${{ inputs.working-directory }}
     steps:
       - name: Set additional variables
+        shell: bash
         run: |
-          if [[ -z "${{ secrets.extra-vars }}" ]]; then
-            echo "No extra-vars provided - skipping"
-          else
-            echo "${{ secrets.extra-vars }}" >> "$GITHUB_ENV"
+          if [[ -n "${{ inputs.extra-vars }}" ]]; then
+            echo "${{ inputs.extra-vars }}" >> "$GITHUB_ENV"
           fi
+      - name: Disable git autocrlf
+        if: ${{ inputs.operating-system == 'windows-latest' }}
+        run: git config --global core.autocrlf false
+        shell: bash
       - name: Clone repository
         uses: actions/checkout@v6
         with:
@@ -114,9 +118,6 @@ jobs:
         uses: ./workflow-parts/actions/dotnet/install-lint-restore
         with:
           dotnet-version: ${{ inputs.dotnet-version }}
-      - name: Start MongoDB
-        if: ${{ inputs.mongodb-enabled }}
-        uses: ./workflow-parts/actions/mongodb/start
       - name: Run optional custom commands
         if: ${{ inputs.custom-commands != '' }}
         run: |
@@ -124,10 +125,13 @@ jobs:
       - name: Build & test
         if: ${{ ! inputs.sonar-enabled }}
         uses: ./workflow-parts/actions/dotnet/build-test
+        with:
+          dotnet-test-args: ${{ inputs.dotnet-test-args }}
       - name: Build, test & analyze
         if: ${{ inputs.sonar-enabled }}
         uses: ./workflow-parts/actions/dotnet/build-test-sonar
         with:
+          dotnet-test-args: ${{ inputs.dotnet-test-args }}
           sonar-organization: ${{ inputs.sonar-organization }}
           sonar-host-url: ${{ inputs.sonar-host-url }}
           sonar-project-name: ${{ inputs.sonar-project-name }}
