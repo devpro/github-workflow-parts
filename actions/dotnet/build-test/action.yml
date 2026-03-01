@@ -13,17 +13,19 @@ runs:
     - name: Build .NET code
       run: dotnet build --no-restore --configuration Debug
       shell: bash
-    - name: Run .NET tests
+    - name: Run tests
       run: |
         dotnet test --no-build --verbosity normal --configuration Debug \
-          --logger:"junit;LogFilePath=..\..\artifacts\{assembly}-test-result.xml;MethodFormat=Class;FailureBodyFormat=Verbose" \
-          --collect:"XPlat Code Coverage"
+          --results-directory "${{ inputs.report-folder }}/TestResults" \
+          --report-xunit-trx \
+          --coverage --coverage-output-format cobertura
       shell: bash
       env:
         ASPNETCORE_ENVIRONMENT: Development
     - name: Generate test report
+      if: hashFiles(format('{0}/TestResults/**/*.cobertura.xml', inputs.report-folder)) != ''
       run: |
-        reportgenerator "-reports:./test/*/TestResults/*/coverage.cobertura.xml" \
+        reportgenerator "-reports:${{ inputs.report-folder }}/TestResults/*.cobertura.xml" \
           "-targetdir:${{ inputs.report-folder }}" \
-          "-reporttypes:Cobertura;Html;TextSummary"
+          "-reporttypes:Cobertura;Html;TextSummary;SonarQube"
       shell: bash
