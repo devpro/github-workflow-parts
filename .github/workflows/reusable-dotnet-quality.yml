@@ -95,10 +95,10 @@ jobs:
     steps:
       - name: Set additional variables
         run: |
-          if [[ -z "${{ secrets.extra-vars }}" ]]; then
+          if [[ -z "${{ inputs.extra-vars }}" ]]; then
             echo "No extra-vars provided - skipping"
           else
-            echo "${{ secrets.extra-vars }}" >> "$GITHUB_ENV"
+            echo "${{ inputs.extra-vars }}" >> "$GITHUB_ENV"
           fi
       - name: Clone repository
         uses: actions/checkout@v6
