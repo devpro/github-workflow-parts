@@ -89,10 +89,9 @@ jobs:
         working-directory: ${{ inputs.working-directory }}
     steps:
       - name: Set additional variables
+        shell: bash
         run: |
-          if [[ -z "${{ inputs.extra-vars }}" ]]; then
-            echo "No extra-vars provided - skipping"
-          else
+          if [[ -n "${{ inputs.extra-vars }}" ]]; then
             echo "${{ inputs.extra-vars }}" >> "$GITHUB_ENV"
           fi
       - name: Clone repository
