@@ -131,6 +131,7 @@ jobs:
         if: ${{ inputs.sonar-enabled }}
         uses: ./workflow-parts/actions/dotnet/build-test-sonar
         with:
+          dotnet-test-args: ${{ inputs.dotnet-test-args }}
           sonar-organization: ${{ inputs.sonar-organization }}
           sonar-host-url: ${{ inputs.sonar-host-url }}
           sonar-project-name: ${{ inputs.sonar-project-name }}

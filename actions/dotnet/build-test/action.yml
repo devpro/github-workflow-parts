@@ -30,5 +30,5 @@ runs:
       run: |
         reportgenerator "-reports:${{ inputs.report-folder }}/TestResults/*.cobertura.xml" \
           "-targetdir:${{ inputs.report-folder }}" \
-          "-reporttypes:Cobertura;Html;TextSummary;SonarQube"
+          "-reporttypes:Cobertura;Html;TextSummary"
       shell: bash
