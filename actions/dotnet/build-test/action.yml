@@ -23,7 +23,7 @@ runs:
       env:
         ASPNETCORE_ENVIRONMENT: Development
     - name: Generate test report
-      if: hashFiles(format('{0}/TestResults/**/*.cobertura.xml', inputs.report-folder)) != ''
+      if: ${{ always() && hashFiles('report/TestResults/*.cobertura.xml') != '' }}
       run: |
         reportgenerator "-reports:${{ inputs.report-folder }}/TestResults/*.cobertura.xml" \
           "-targetdir:${{ inputs.report-folder }}" \
