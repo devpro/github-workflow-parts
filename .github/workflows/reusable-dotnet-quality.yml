@@ -8,9 +8,15 @@ on:
         type: string
         required: false
         default: ""
+      dotnet-test-args:
+        description: ".NET test arguments (for example \"--report-xunit-trx --coverage --coverage-output-format cobertura\")"
+        type: string
+        required: false
+        default: ""
       dotnet-version:
         description: .NET version
         type: string
+        required: false
         default: "10.0"
       extra-vars:
         description: "Additional environment variables at the start of the pipeline"
@@ -95,6 +101,7 @@ jobs:
             echo "${{ inputs.extra-vars }}" >> "$GITHUB_ENV"
           fi
       - name: Disable git autocrlf
+        if: ${{ inputs.operating-system == 'windows-latest' }}
         run: git config --global core.autocrlf false
         shell: bash
       - name: Clone repository
@@ -118,6 +125,8 @@ jobs:
       - name: Build & test
         if: ${{ ! inputs.sonar-enabled }}
         uses: ./workflow-parts/actions/dotnet/build-test
+        with:
+          dotnet-test-args: ${{ inputs.dotnet-test-args }}
       - name: Build, test & analyze
         if: ${{ inputs.sonar-enabled }}
         uses: ./workflow-parts/actions/dotnet/build-test-sonar

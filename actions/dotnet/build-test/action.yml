@@ -2,6 +2,10 @@ name: Build & Test
 description: Builds and runs tests on a .NET codebase
 
 inputs:
+  dotnet-test-args:
+    description: .NET test arguments
+    required: false
+    default: ""
   report-folder:
     description: Folder where report files will be generated
     required: false
@@ -17,13 +21,12 @@ runs:
       run: |
         dotnet test --no-build --verbosity normal --configuration Debug \
           --results-directory "${{ inputs.report-folder }}/TestResults" \
-          --report-xunit-trx \
-          --coverage --coverage-output-format cobertura
+          ${{ inputs.dotnet-test-args }}
       shell: bash
       env:
         ASPNETCORE_ENVIRONMENT: Development
     - name: Generate test report
-      if: ${{ always() && hashFiles('report/TestResults/*.cobertura.xml') != '' }}
+      if: ${{ always() && hashFiles(format('{0}/TestResults/*.cobertura.xml', inputs.report-folder)) != '' }}
       run: |
         reportgenerator "-reports:${{ inputs.report-folder }}/TestResults/*.cobertura.xml" \
           "-targetdir:${{ inputs.report-folder }}" \
