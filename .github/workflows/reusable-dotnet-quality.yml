@@ -32,11 +32,6 @@ on:
         type: string
         required: false
         default: Quality
-      mongodb-enabled:
-        description: "Start MongoDB for integration tests?"
-        type: boolean
-        required: false
-        default: false
       operating-system:
         description: Operating system executing the runner
         type: string
@@ -114,9 +109,6 @@ jobs:
         uses: ./workflow-parts/actions/dotnet/install-lint-restore
         with:
           dotnet-version: ${{ inputs.dotnet-version }}
-      - name: Start MongoDB
-        if: ${{ inputs.mongodb-enabled }}
-        uses: ./workflow-parts/actions/mongodb/start
       - name: Run optional custom commands
         if: ${{ inputs.custom-commands != '' }}
         run: |
