@@ -2,6 +2,10 @@ name: Build, Test & Analyze
 description: Builds, runs tests on a .NET codebase and run analysis with Sonar
 
 inputs:
+  dotnet-test-args:
+    description: .NET test arguments
+    required: false
+    default: ""
   java-version:
     description: Java version that will be installed (for Sonar CLI)
     required: false
@@ -78,12 +82,12 @@ runs:
       run: |
         dotnet test --no-build --verbosity normal --configuration Debug \
           --results-directory "${{ inputs.report-folder }}/TestResults" \
-          --report-xunit-trx \
-          --coverage --coverage-output-format cobertura
+          ${{ inputs.dotnet-test-args }}
       shell: bash
       env:
         ASPNETCORE_ENVIRONMENT: Development
     - name: Generate test report
+      if: ${{ always() && hashFiles(format('{0}/TestResults/*.cobertura.xml', inputs.report-folder)) != '' }}
       run: |
         reportgenerator "-reports:${{ inputs.report-folder }}/TestResults/*.cobertura.xml" \
           "-targetdir:${{ inputs.report-folder }}" \
