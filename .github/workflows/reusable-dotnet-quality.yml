@@ -94,6 +94,9 @@ jobs:
           if [[ -n "${{ inputs.extra-vars }}" ]]; then
             echo "${{ inputs.extra-vars }}" >> "$GITHUB_ENV"
           fi
+      - name: Disable git autocrlf
+        run: git config --global core.autocrlf false
+        shell: bash
       - name: Clone repository
         uses: actions/checkout@v6
         with:
