@@ -98,7 +98,6 @@ jobs:
           ref: ${{ inputs.workflow-parts-version }}
           path: workflow-parts
       - name: Add runner ID to MongoDB Atlas
-        # uses: devpro/github-workflow-parts/actions/mongodb-atlas/add-runner-ip@... cannot be used with an input parameter in it (must be static) so checkout is mandatory
         uses: ./workflow-parts/actions/mongodb-atlas/add-runner-ip
         with:
           atlas-publickey: ${{ secrets.atlas-publickey }}
