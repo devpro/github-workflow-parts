@@ -32,8 +32,8 @@ runs:
       env:
         DOTNET_CLI_TELEMETRY_OPTOUT: 1
         DOTNET_NOLOGO: 1
-        BUILD_SOURCEBRANCHNAME: ${{ github.run_id }}
-        BUILD_BUILDID: ${{ github.ref_name }}
+        BUILD_SOURCEBRANCHNAME: ${{ github.ref_name }}
+        BUILD_BUILDID: ${{ github.run_id }}
     - name: Push to registry
       if: ${{ inputs.push-enabled == 'true' }}
       # "$(Build.ArtifactStagingDirectory)/**/*.nupkg;!$(Build.ArtifactStagingDirectory)/**/*.symbols.nupkg"
