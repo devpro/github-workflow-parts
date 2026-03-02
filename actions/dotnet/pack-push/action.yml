@@ -1,0 +1,41 @@
+name: Pack & Push
+description: Package .NET projects and push to the registry
+
+inputs:
+  dotnet-version:
+    description: .NET SDK version to be used
+    required: false
+    default: "10.0"
+  registry-token:
+    description: Registry
+    required: true
+  registry-address:
+    description: Registry address (NuGet.org by default)
+    required: false
+    default: "https://api.nuget.org/v3/index.json"
+  push-enabled:
+    description: Push
+    required: false
+    default: "false"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install .NET
+      uses: actions/setup-dotnet@v5
+      with:
+        dotnet-version: ${{ inputs.dotnet-version }}
+    - name: Package
+      # "**/*.csproj;!**/*Tests.csproj"
+      run: dotnet pack --configuration Release -o output
+      shell: bash
+      env:
+        DOTNET_CLI_TELEMETRY_OPTOUT: 1
+        DOTNET_NOLOGO: 1
+        BUILD_SOURCEBRANCHNAME: ${{ github.ref_name }}
+        BUILD_BUILDID: ${{ github.run_id }}
+    - name: Push to registry
+      if: ${{ inputs.push-enabled == 'true' }}
+      # "$(Build.ArtifactStagingDirectory)/**/*.nupkg;!$(Build.ArtifactStagingDirectory)/**/*.symbols.nupkg"
+      run: for f in output/*.nupkg; do dotnet nuget push "$f" --api-key ${{ inputs.registry-token }} --source ${{ inputs.registry-address }} ; done
+      shell: bash
