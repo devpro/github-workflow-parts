@@ -171,5 +171,7 @@ jobs:
             ./**/Summary.txt
             ./**/fossa.html
     env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: 1
+      DOTNET_NOLOGO: 1
       # https://docs.github.com/en/actions/reference/workflows-and-actions/contexts
       GITHUB_TOKEN: ${{ github.token }}

@@ -78,6 +78,9 @@ runs:
     - name: Build .NET solution
       run: dotnet build --no-restore --configuration Debug
       shell: bash
+      env:
+        BUILD_SOURCEBRANCHNAME: ${{ github.run_id }}
+        BUILD_BUILDID: ${{ github.ref_name }}
     - name: Run tests
       run: |
         dotnet test --no-build --verbosity normal --configuration Debug \
