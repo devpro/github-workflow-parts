@@ -89,5 +89,6 @@ jobs:
           vuln-type: 'os,library'
           severity: 'CRITICAL,HIGH'
     env:
-      IMAGE_REF: ${{ inputs.image-path }}/${{ inputs.image-name }}:${{ inputs.image-tag }}
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
       GITHUB_TOKEN: ${{ github.token }}
+      IMAGE_REF: ${{ inputs.image-path }}/${{ inputs.image-name }}:${{ inputs.image-tag }}

@@ -44,3 +44,5 @@ jobs:
           python -m pip install --upgrade pip
           pip install yamllint
           yamllint .
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
