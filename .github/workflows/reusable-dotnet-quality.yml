@@ -85,6 +85,9 @@ on:
       sonar-token:
         description: Sonar token for login
         required: false
+      additional-vars:
+        description: "Additional variables"
+        required: false
 
 jobs:
   dotnet-quality:
@@ -99,6 +102,16 @@ jobs:
         run: |
           if [[ -n "${{ inputs.extra-vars }}" ]]; then
             echo "${{ inputs.extra-vars }}" >> "$GITHUB_ENV"
+          fi
+      - name: Set additional secrets
+        run: |
+          if [[ -n "${{ inputs.additional-vars }}" ]]; then
+            echo "${{ secrets.additional-vars }}" | while IFS='=' read -r key val; do
+              if [[ -n "$val" ]]; then
+                echo "::add-mask::$val"
+              fi
+            done
+            echo "${{ secrets.additional-vars }}" >> "$GITHUB_ENV"
           fi
       - name: Disable git autocrlf
         if: ${{ inputs.operating-system == 'windows-latest' }}
