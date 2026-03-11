@@ -10,6 +10,10 @@ inputs:
     description: Java version that will be installed (for Sonar CLI)
     required: false
     default: "21"
+  sonar-exclusions:
+    description: Files or directories that should be excluded from Sonar analysis
+    required: false
+    default: "node_modules"
   report-folder:
     description: Folder where report files will be generated
     required: false
@@ -71,7 +75,7 @@ runs:
           /d:sonar.token="${{ inputs.sonar-token}}" \
           /d:sonar.host.url="${{ inputs.sonar-host-url }}" \
           /d:sonar.cpd.exclusions="**/*Generated*.cs,${{ inputs.report-folder }}/**" \
-          /d:sonar.exclusions="${{ inputs.report-folder }}/**/*" \
+          /d:sonar.exclusions="${{ inputs.report-folder }}/**,${{ inputs.sonar-exclusions }}" \
           /d:sonar.coverageReportPaths="${{ inputs.report-folder }}/SonarQube.xml" \
           /d:sonar.cs.vstest.reportsPaths="${{ inputs.report-folder }}/TestResults/*.trx"
       shell: bash
