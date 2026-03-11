@@ -85,6 +85,9 @@ on:
       sonar-token:
         description: Sonar token for login
         required: false
+      additional-vars:
+        description: "Additional variables"
+        required: false
 
 jobs:
   dotnet-quality:
@@ -96,9 +99,24 @@ jobs:
     steps:
       - name: Set additional variables
         shell: bash
+        env:
+          EXTRA_VARS: ${{ inputs.extra-vars }}
         run: |
-          if [[ -n "${{ inputs.extra-vars }}" ]]; then
-            echo "${{ inputs.extra-vars }}" >> "$GITHUB_ENV"
+          if [[ -n "$EXTRA_VARS" ]]; then
+            echo "$EXTRA_VARS" >> "$GITHUB_ENV"
+          fi
+      - name: Set additional secrets
+        shell: bash
+        env:
+          ADDITIONAL_VARS: ${{ secrets.additional-vars }}
+        run: |
+          if [[ -n "$ADDITIONAL_VARS" ]]; then
+            echo "$ADDITIONAL_VARS" | while IFS='=' read -r key val; do
+              if [[ -n "$val" ]]; then
+                echo "::add-mask::$val"
+              fi
+            done
+            echo "$ADDITIONAL_VARS" >> "$GITHUB_ENV"
           fi
       - name: Disable git autocrlf
         if: ${{ inputs.operating-system == 'windows-latest' }}
@@ -152,6 +170,7 @@ jobs:
       - name: Create FOSSA report file
         if: ${{ inputs.fossa-enabled && steps.fossa.outputs.report != '' }}
         run: echo '${{ steps.fossa.outputs.report }}' > report/fossa.html
+        continue-on-error: true
       - name: Generate SBOM with Syft
         uses: anchore/sbom-action@v0
         # with:
@@ -160,6 +179,7 @@ jobs:
         #   output-file: sbom.json
         #   upload-artifact: true # Auto-upload to workflow artifacts
       - name: Archive test results
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: dotnet-test-results
@@ -173,5 +193,4 @@ jobs:
     env:
       DOTNET_CLI_TELEMETRY_OPTOUT: 1
       DOTNET_NOLOGO: 1
-      # https://docs.github.com/en/actions/reference/workflows-and-actions/contexts
       GITHUB_TOKEN: ${{ github.token }}
