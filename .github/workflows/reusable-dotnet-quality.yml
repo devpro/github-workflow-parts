@@ -170,6 +170,7 @@ jobs:
       - name: Create FOSSA report file
         if: ${{ inputs.fossa-enabled && steps.fossa.outputs.report != '' }}
         run: echo '${{ steps.fossa.outputs.report }}' > report/fossa.html
+        continue-on-error: true
       - name: Generate SBOM with Syft
         uses: anchore/sbom-action@v0
         # with:
@@ -178,6 +179,7 @@ jobs:
         #   output-file: sbom.json
         #   upload-artifact: true # Auto-upload to workflow artifacts
       - name: Archive test results
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: dotnet-test-results
