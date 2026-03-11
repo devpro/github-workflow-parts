@@ -105,7 +105,7 @@ jobs:
           fi
       - name: Set additional secrets
         run: |
-          if [[ -n "${{ inputs.additional-vars }}" ]]; then
+          if [[ -n "${{ secrets.additional-vars }}" ]]; then
             echo "${{ secrets.additional-vars }}" | while IFS='=' read -r key val; do
               if [[ -n "$val" ]]; then
                 echo "::add-mask::$val"
