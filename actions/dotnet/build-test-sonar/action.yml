@@ -13,7 +13,7 @@ inputs:
   sonar-exclusions:
     description: Files or directories that should be excluded from Sonar analysis
     required: false
-    default: "node_modules"
+    default: "**/node_modules/**"
   report-folder:
     description: Folder where report files will be generated
     required: false
