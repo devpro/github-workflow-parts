@@ -48,6 +48,11 @@ on:
         type: boolean
         required: false
         default: false
+      sonar-exclusions:
+        description: Files or directories that should be excluded from Sonar analysis
+        type: string
+        required: false
+        default: "node_modules"
       sonar-host-url:
         description: Sonar host URL
         type: string
@@ -150,10 +155,11 @@ jobs:
         uses: ./workflow-parts/actions/dotnet/build-test-sonar
         with:
           dotnet-test-args: ${{ inputs.dotnet-test-args }}
-          sonar-organization: ${{ inputs.sonar-organization }}
+          sonar-exclusions: ${{ inputs.sonar-exclusions }}
           sonar-host-url: ${{ inputs.sonar-host-url }}
-          sonar-project-name: ${{ inputs.sonar-project-name }}
+          sonar-organization: ${{ inputs.sonar-organization }}
           sonar-project-key: ${{ inputs.sonar-project-key }}
+          sonar-project-name: ${{ inputs.sonar-project-name }}
           sonar-token: ${{ secrets.sonar-token }}
       - name: Check license compliance with FOSSA
         if: ${{ inputs.fossa-enabled }}
