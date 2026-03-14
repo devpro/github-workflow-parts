@@ -107,41 +107,39 @@ jobs:
           repository: devpro/github-workflow-parts
           ref: ${{ inputs.workflow-parts-version }}
           path: workflow-parts
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v4
-      - name: Set up Buildx
-        uses: docker/setup-buildx-action@v4
       - name: Login to container registry
         uses: docker/login-action@v4
         with:
           registry: ${{ inputs.container-registry }}
           username: ${{ secrets.container-registry-username }}
           password: ${{ secrets.container-registry-password }}
-      - name: Build container image
-        run: |
-          docker buildx build . \
-            --file ${{ inputs.image-definition }} \
-            --tag ${{ env.IMAGE_REF }} \
-            --platform ${{ inputs.image-platform }} \
-            ${{ inputs.extra-build-arguments }}
-        shell: bash
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v4
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v4
+      - name: Build and push container image
+        id: build-push
+        uses: docker/build-push-action@v7
+        with:
+          context: ${{ inputs.working-directory }}
+          file: ${{ inputs.image-definition }}
+          platforms: ${{ inputs.image-platform }}
+          push: true
+          tags: ${{ env.IMAGE_REF }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: ${{ inputs.extra-build-arguments }}
       - name: Generate SBOM with Syft
         uses: anchore/sbom-action@v0
         continue-on-error: true
         with:
           image: ${{ env.IMAGE_REF }}
-          # format: spdx-json # Or cyclonedx-json
-          # output-file: sbom.json
-          # upload-artifact: true # Auto-upload to workflow artifacts
-      - name: Push image to container registry
-        run: docker push ${{ env.IMAGE_REF }}
-        shell: bash
-      - name: Push latest tag to container registry
+      - name: Push latest tag
         if: ${{ inputs.create-latest }}
         run: |
-          docker tag ${{ env.IMAGE_REF }} ${{ env.IMAGE_REF_LATEST }}
-          docker push ${{ env.IMAGE_REF_LATEST }}
-        shell: bash
+          docker buildx imagetools create \
+            --tag ${{ env.IMAGE_REF_LATEST }} \
+            ${{ env.IMAGE_REF }}
       - name: Sign container image with Cosign
         uses: ./workflow-parts/actions/cosign/sign
         with:
