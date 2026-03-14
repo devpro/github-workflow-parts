@@ -42,6 +42,11 @@ on:
         description: Image tag
         type: string
         required: true
+      image-platform:
+        description: Image platform
+        type: string
+        required: false
+        default: "linux/amd64,linux/arm64"
       job-name:
         description: Job name
         type: string
@@ -69,7 +74,7 @@ on:
       container-registry-password:
         description: Container registry password
         required: true
-      extra-vars:
+      secret-vars:
         description: "Additional environment variables"
         required: false
 
@@ -81,17 +86,18 @@ jobs:
       run:
         working-directory: ${{ inputs.working-directory }}
     steps:
-      - name: Set additional variables
+      - name: Set secret variables
+        shell: bash
+        env:
+          SECRET_VARS: ${{ secrets.secret-vars }}
         run: |
-          if [[ -z "${{ secrets.extra-vars }}" ]]; then
-            echo "No extra-vars bundle provided - skipping."
-          else
-            echo "${{ secrets.extra-vars }}" | while IFS='=' read -r key val; do
+          if [[ -n "$SECRET_VARS" ]]; then
+            echo "$SECRET_VARS" | while IFS='=' read -r key val; do
               if [[ -n "$val" ]]; then
                 echo "::add-mask::$val"
               fi
             done
-            echo "${{ secrets.extra-vars }}" >> "$GITHUB_ENV"
+            echo "$SECRET_VARS" >> "$GITHUB_ENV"
           fi
       - name: Clone repository
         uses: actions/checkout@v6
@@ -102,31 +108,38 @@ jobs:
           ref: ${{ inputs.workflow-parts-version }}
           path: workflow-parts
       - name: Login to container registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ inputs.container-registry }}
           username: ${{ secrets.container-registry-username }}
           password: ${{ secrets.container-registry-password }}
-      - name: Build container image
-        run: docker build . --file ${{ inputs.image-definition }} --tag ${{ env.IMAGE_REF }} ${{ inputs.extra-build-arguments }}
-        shell: bash
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v4
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v4
+      - name: Build and push container image
+        id: build-push
+        uses: docker/build-push-action@v7
+        with:
+          context: ${{ inputs.working-directory }}
+          file: ${{ inputs.image-definition }}
+          platforms: ${{ inputs.image-platform }}
+          push: true
+          tags: ${{ env.IMAGE_REF }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: ${{ inputs.extra-build-arguments }}
       - name: Generate SBOM with Syft
         uses: anchore/sbom-action@v0
         continue-on-error: true
         with:
           image: ${{ env.IMAGE_REF }}
-          # format: spdx-json # Or cyclonedx-json
-          # output-file: sbom.json
-          # upload-artifact: true # Auto-upload to workflow artifacts
-      - name: Push image to container registry
-        run: docker push ${{ env.IMAGE_REF }}
-        shell: bash
-      - name: Push latest tag to container registry
+      - name: Push latest tag
         if: ${{ inputs.create-latest }}
         run: |
-          docker tag ${{ env.IMAGE_REF }} ${{ env.IMAGE_REF_LATEST }}
-          docker push ${{ env.IMAGE_REF_LATEST }}
-        shell: bash
+          docker buildx imagetools create \
+            --tag ${{ env.IMAGE_REF_LATEST }} \
+            ${{ env.IMAGE_REF }}
       - name: Sign container image with Cosign
         uses: ./workflow-parts/actions/cosign/sign
         with:
