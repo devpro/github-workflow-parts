@@ -36,36 +36,27 @@ jobs:
             ~/.terraform.d/plugin-cache
           key: terraform-${{ hashFiles('**/.terraform.lock.hcl') }}
       - name: Install terraform
-        uses: hashicorp/setup-terraform@v3
+        uses: hashicorp/setup-terraform@5e8dbf3c6d9deaf4193ca7a8fb23f2ac83bb6c85
       - name: Check Terraform format
         run: terraform fmt -recursive -check
       - name: Terraform Init
         run: terraform init -backend=false
       - name: Terraform Validate
         run: terraform validate
-      # Checkov is a static code analysis tool for infrastructure as code (IaC) and also a software composition analysis (SCA) tool for images and open source packages (ref. https://github.com/bridgecrewio/checkov)
+      # Checkov is a static code analysis tool for infrastructure as code (IaC) and also a software composition analysis (SCA) tool for images and open source packages
       - name: Run Checkov
-        uses: bridgecrewio/checkov-action@v12
-        with:
-          soft_fail: true
-          output_format: cli,sarif
-          output_file_path: console,results.sarif
-          # quiet: true
-          # directory: .
-          # framework: terraform kubernetes helm
+        run: |
+          pipx run checkov -d . \
+            --soft-fail \
+            --output cli --output sarif \
+            --output-file-path console,results.sarif
+        continue-on-error: true
       # needs GitHub code security > code scanning, not available on private repos
       # - name: Upload SARIF file
       #   uses: github/codeql-action/upload-sarif@v3
       #   if: success() || failure()
       #   with:
       #     sarif_file: results.sarif
-      - name: Upload SARIF as artifact
-        uses: actions/upload-artifact@v6
-        if: always()
-        with:
-          name: checkov-sarif-results
-          path: results.sarif
-          retention-days: 14
       # TFLint is a pluggable terraform linter (ref. https://github.com/terraform-linters/tflint)
       - name: Cache TFLint plugins
         uses: actions/cache@v5
@@ -73,22 +64,34 @@ jobs:
           path: ~/.tflint.d/plugins
           key: tflint-${{ hashFiles('**/.tflint.hcl') }}
       - name: Setup TFLint
-        uses: terraform-linters/setup-tflint@v6
+        uses: terraform-linters/setup-tflint@b480b8fcdaa6f2c577f8e4fa799e89e756bb7c93
         with:
-          tflint_version: v0.60.0 # ref. https://github.com/terraform-linters/tflint/pkgs/container/tflint
+          # ref. https://github.com/terraform-linters/tflint/pkgs/container/tflint
+          tflint_version: v0.60.0
       - name: Initialize TFLint
         run: tflint --init --recursive
         env:
-          GITHUB_TOKEN: ${{ github.token }} # ref. https://github.com/terraform-linters/tflint/blob/master/docs/user-guide/plugins.md#avoiding-rate-limiting
+          # ref. https://github.com/terraform-linters/tflint/blob/master/docs/user-guide/plugins.md#avoiding-rate-limiting
+          GITHUB_TOKEN: ${{ github.token }}
       - name: Run TFLint
         run: tflint --recursive --format compact
       - name: Run Trivy IaC scan
-        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1    # v0.35.0
+        # v0.35.0
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1
         with:
           scan-type: "config"
           format: "sarif"
           output: "trivy-results.sarif"
           ignore-unfixed: true
           severity: "HIGH,CRITICAL"
+      - name: Upload SARIF as artifact
+        uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: security-results
+          path: |
+            results.sarif
+            trivy-results.sarif
+          retention-days: 14
     env:
       TF_IN_AUTOMATION: true
