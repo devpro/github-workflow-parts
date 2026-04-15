@@ -21,11 +21,13 @@ jobs:
     steps:
       - name: Clone repository
         uses: actions/checkout@v6
-      - name: Cosign Alpine (Read-only)
+      - name: Pull Alpine image
+        run: docker pull ghcr.io/linuxcontainers/alpine:latest
+      - name: Cosign Alpine image (read-only)
         uses: ./actions/cosign/sign
         with:
           image-name: 'alpine'
-          image-path: 'docker.io/library'
+          image-path: 'ghcr.io/linuxcontainers'
           image-tag: 'latest'
           readonly: 'true'
     permissions:
