@@ -21,6 +21,10 @@ inputs:
   image-tag:
     description: Image tag
     required: true
+  readonly:
+    description: If true, skip the signing step
+    required: false
+    default: 'false'
 
 runs:
   using: "composite"
@@ -56,6 +60,7 @@ runs:
         echo "DIGEST=$DIGEST" >> $GITHUB_OUTPUT
       shell: bash
     - name: Sign image with Cosign
+      if: inputs.readonly != 'true'
       env:
         COSIGN_EXPERIMENTAL: 1
       run: |
