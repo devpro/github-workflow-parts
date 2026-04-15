@@ -8,6 +8,10 @@ description: |
   ```
 
 inputs:
+  cosign-version:
+    description: Version of cosign (check latest from https://github.com/sigstore/cosign/releases)
+    required: false
+    default: 'v3.0.6'
   image-name:
     description: Image name
     required: true
@@ -17,14 +21,38 @@ inputs:
   image-tag:
     description: Image tag
     required: true
+  readonly:
+    description: If true, skip the signing step
+    required: false
+    default: 'false'
 
 runs:
   using: "composite"
   steps:
     - name: Install Cosign
-      uses: sigstore/cosign-installer@v4.0.0
-      with:
-        cosign-release: 'v3.0.3'
+      run: |
+        echo "Downloading Cosign binary and checksums..."
+        curl -sL -O https://github.com/sigstore/cosign/releases/download/${COSIGN_VERSION}/${COSIGN_BINARY}
+        curl -sL -O "https://github.com/sigstore/cosign/releases/download/${COSIGN_VERSION}/${COSIGN_CHECKSUM_FILE}"
+
+        echo "Verifying checksum..."
+        grep "${COSIGN_BINARY}$" "${COSIGN_CHECKSUM_FILE}" | sha256sum --check --status
+
+        if [ $? -eq 0 ]; then
+          echo "Verification successful!"
+          rm $COSIGN_CHECKSUM_FILE
+          chmod +x $COSIGN_BINARY
+          sudo mv $COSIGN_BINARY /usr/local/bin/cosign
+          cosign version
+        else
+          echo "ERROR: Checksum verification failed!" >&2
+          exit 1
+        fi
+      shell: bash
+      env:
+        COSIGN_BINARY: cosign-linux-amd64
+        COSIGN_CHECKSUM_FILE: cosign_checksums.txt
+        COSIGN_VERSION: ${{ inputs.cosign-version }}
     - name: Get image digest
       id: digest
       run: |
@@ -32,6 +60,7 @@ runs:
         echo "DIGEST=$DIGEST" >> $GITHUB_OUTPUT
       shell: bash
     - name: Sign image with Cosign
+      if: inputs.readonly != 'true'
       env:
         COSIGN_EXPERIMENTAL: 1
       run: |

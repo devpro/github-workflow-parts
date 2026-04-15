@@ -14,3 +14,22 @@ jobs:
   markup-lint:
     name: Markup
     uses: ./.github/workflows/reusable-markup-lint.yml
+
+  validate-cosign:
+    name: Validate / Cosign
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v6
+      - name: Pull Alpine image
+        run: docker pull ghcr.io/linuxcontainers/alpine:latest
+      - name: Cosign Alpine image (read-only)
+        uses: ./actions/cosign/sign
+        with:
+          image-name: 'alpine'
+          image-path: 'ghcr.io/linuxcontainers'
+          image-tag: 'latest'
+          readonly: 'true'
+    permissions:
+      id-token: write
+      contents: read
