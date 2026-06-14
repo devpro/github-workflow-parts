@@ -56,7 +56,9 @@ runs:
     - name: Get image digest
       id: digest
       run: |
-        DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' ${{ inputs.image-path }}/${{ inputs.image-name }}:${{ inputs.image-tag }} | cut -d'@' -f2)
+        DIGEST=$(docker buildx imagetools inspect \
+          ${{ inputs.image-path }}/${{ inputs.image-name }}:${{ inputs.image-tag }} \
+          --format '{{json .Manifest}}' | jq -r '.digest')
         echo "DIGEST=$DIGEST" >> $GITHUB_OUTPUT
       shell: bash
     - name: Sign image with Cosign
