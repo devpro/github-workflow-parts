@@ -174,7 +174,7 @@ jobs:
           test-diff-revision: ${{ github.event.pull_request.base.sha }}
           generate-report: html
       - name: Create FOSSA report file
-        if: ${{ inputs.fossa-enabled && steps.fossa.outputs.report != '' }}
+        if: ${{ inputs.fossa-enabled && steps.fossa.outcome == 'success' }}
         run: echo '${{ steps.fossa.outputs.report }}' > report/fossa.html
         continue-on-error: true
       # TODO: replace with more secure action
