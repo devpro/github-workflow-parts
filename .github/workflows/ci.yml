@@ -14,3 +14,55 @@ jobs:
   markup-lint:
     name: Markup
     uses: ./.github/workflows/reusable-markup-lint.yml
+
+  test-terraform-setup:
+    name: "Test: Terraform setup action"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v7
+      - name: Install terraform
+        uses: ./actions/terraform/setup
+      - name: Verify terraform is installed
+        run: |
+          terraform version
+          command -v terraform
+
+  test-tflint-setup:
+    name: "Test: TFLint setup action"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v7
+      - name: Setup TFLint
+        uses: ./actions/tflint/setup
+      - name: Verify tflint is installed
+        run: |
+          tflint --version
+          command -v tflint
+
+  test-syft-generate-sbom:
+    name: "Test: Syft generate-sbom action"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v7
+      - name: Generate SBOM for this repository
+        uses: ./actions/syft/generate-sbom
+        with:
+          target-path: actions
+          output-file: sbom-test.spdx.json
+          upload-artifact: "false"
+      - name: Verify SBOM was generated
+        run: |
+          test -s sbom-test.spdx.json
+          grep -q '"spdxVersion"' sbom-test.spdx.json
+
+  test-terraform-quality:
+    name: "Test: Terraform quality reusable workflow"
+    uses: ./.github/workflows/reusable-terraform-quality.yml
+    with:
+      working-directory: test/fixtures/terraform
+      # github.ref (not github.sha) so the "checkout workflow parts" step inside the reusable
+      # workflow can fetch by ref name: refs/heads/<branch> on push, refs/pull/<n>/merge on PRs.
+      workflow-parts-version: ${{ github.ref }}

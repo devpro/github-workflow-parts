@@ -126,7 +126,7 @@ jobs:
             ~/.terraform.d/plugin-cache
           key: terraform-${{ hashFiles('**/.terraform.lock.hcl') }}
       - name: Install terraform
-        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e
+        uses: ./workflow-parts/actions/terraform/setup
       - name: Terraform init
         run: terraform init
       - name: Terraform validate

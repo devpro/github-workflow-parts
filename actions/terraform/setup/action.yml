@@ -1,0 +1,43 @@
+name: Setup Terraform
+description: |
+  Installs the Terraform CLI by downloading the official binary from HashiCorp's release
+  server and verifying its SHA256 checksum (replacement for hashicorp/setup-terraform, to
+  reduce third-party GitHub Action supply-chain risk).
+  Linux runners only (for example ubuntu-latest).
+
+inputs:
+  terraform-version:
+    description: Version of Terraform to install (check latest from https://releases.hashicorp.com/terraform/)
+    required: false
+    default: "1.15.8"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install Terraform
+      shell: bash
+      env:
+        TERRAFORM_VERSION: ${{ inputs.terraform-version }}
+        TERRAFORM_ZIP: terraform_${{ inputs.terraform-version }}_linux_amd64.zip
+        TERRAFORM_SHA256SUMS: terraform_${{ inputs.terraform-version }}_SHA256SUMS
+      run: |
+        BASE_URL="https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}"
+
+        echo "Downloading Terraform binary and checksums..."
+        curl -sSL -O "${BASE_URL}/${TERRAFORM_ZIP}"
+        curl -sSL -O "${BASE_URL}/${TERRAFORM_SHA256SUMS}"
+
+        echo "Verifying checksum..."
+        grep " ${TERRAFORM_ZIP}$" "${TERRAFORM_SHA256SUMS}" | sha256sum --check --status
+
+        if [ $? -eq 0 ]; then
+          echo "Verification successful!"
+          unzip -o "${TERRAFORM_ZIP}"
+          chmod +x terraform
+          sudo mv terraform /usr/local/bin/terraform
+          rm -f "${TERRAFORM_ZIP}" "${TERRAFORM_SHA256SUMS}"
+          terraform version
+        else
+          echo "ERROR: Checksum verification failed!" >&2
+          exit 1
+        fi

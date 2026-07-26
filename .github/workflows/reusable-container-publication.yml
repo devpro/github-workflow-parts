@@ -129,12 +129,11 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           build-args: ${{ inputs.extra-build-arguments }}
-      # TODO: replace with a more secure action
       - name: Generate SBOM with Syft
-        uses: anchore/sbom-action@v0
+        uses: ./workflow-parts/actions/syft/generate-sbom
         continue-on-error: true
         with:
-          image: ${{ env.IMAGE_REF }}
+          target-image: ${{ env.IMAGE_REF }}
       - name: Push latest tag
         if: ${{ inputs.create-latest }}
         run: |
