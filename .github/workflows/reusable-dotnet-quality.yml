@@ -48,6 +48,11 @@ on:
         type: boolean
         required: false
         default: false
+      sonar-cpd-exclusions:
+        description: Files or directories that should be excluded from Sonar code duplication analysis
+        type: string
+        required: false
+        default: "**/*Generated*.cs"
       sonar-exclusions:
         description: Files or directories that should be excluded from Sonar analysis
         type: string
@@ -155,6 +160,7 @@ jobs:
         uses: ./workflow-parts/actions/dotnet/build-test-sonar
         with:
           dotnet-test-args: ${{ inputs.dotnet-test-args }}
+          sonar-cpd-exclusions: ${{ inputs.sonar-cpd-exclusions }}
           sonar-exclusions: ${{ inputs.sonar-exclusions }}
           sonar-host-url: ${{ inputs.sonar-host-url }}
           sonar-organization: ${{ inputs.sonar-organization }}
