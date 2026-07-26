@@ -63,6 +63,5 @@ jobs:
     uses: ./.github/workflows/reusable-terraform-quality.yml
     with:
       working-directory: test/fixtures/terraform
-      # github.ref (not github.sha) so the "checkout workflow parts" step inside the reusable
-      # workflow can fetch by ref name: refs/heads/<branch> on push, refs/pull/<n>/merge on PRs.
+      # github.ref (not github.sha) so the "checkout workflow parts" step inside the reusable workflow can fetch by ref name: refs/heads/<branch> on push, refs/pull/<n>/merge on PRs.
       workflow-parts-version: ${{ github.ref }}
