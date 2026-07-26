@@ -10,6 +10,10 @@ inputs:
     description: Java version that will be installed (for Sonar CLI)
     required: false
     default: "21"
+  sonar-cpd-exclusions:
+    description: Files or directories that should be excluded from Sonar code duplication analysis
+    required: false
+    default: "**/*Generated*.cs"
   sonar-exclusions:
     description: Files or directories that should be excluded from Sonar analysis
     required: false
@@ -48,14 +52,14 @@ runs:
         java-version: ${{ inputs.java-version }}
         distribution: "zulu"
     - name: Cache Sonar packages
-      uses: actions/cache@v5
+      uses: actions/cache@v6
       with:
         path: ~/sonar/cache
         key: ${{ runner.os }}-sonar
         restore-keys: ${{ runner.os }}-sonar
     - name: Cache Sonar scanner
       id: cache-sonar-scanner
-      uses: actions/cache@v5
+      uses: actions/cache@v6
       with:
         path: ./.sonar/scanner
         key: ${{ runner.os }}-sonar-scanner
@@ -74,7 +78,7 @@ runs:
           /n:"${{ inputs.sonar-project-name }}" \
           /d:sonar.token="${{ inputs.sonar-token}}" \
           /d:sonar.host.url="${{ inputs.sonar-host-url }}" \
-          /d:sonar.cpd.exclusions="**/*Generated*.cs,${{ inputs.report-folder }}/**" \
+          /d:sonar.cpd.exclusions="${{ inputs.report-folder }}/**,${{ inputs.sonar-cpd-exclusions }}" \
           /d:sonar.exclusions="${{ inputs.report-folder }}/**,${{ inputs.sonar-exclusions }}" \
           /d:sonar.coverageReportPaths="${{ inputs.report-folder }}/SonarQube.xml" \
           /d:sonar.cs.vstest.reportsPaths="${{ inputs.report-folder }}/TestResults/*.trx"

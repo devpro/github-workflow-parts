@@ -58,7 +58,7 @@ on:
         required: false
         default: ubuntu-latest
       workflow-parts-version:
-        description: GitHub workflow parts version (branch/tag/SHA)
+        description: GitHub workflow parts version (branch/tag/SHA). Should match the ref/tag/SHA the caller pinned for this reusable workflow itself.
         type: string
         required: false
         default: main
@@ -100,9 +100,9 @@ jobs:
             echo "$SECRET_VARS" >> "$GITHUB_ENV"
           fi
       - name: Clone repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: Checkout workflow parts
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: devpro/github-workflow-parts
           ref: ${{ inputs.workflow-parts-version }}
@@ -129,12 +129,11 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           build-args: ${{ inputs.extra-build-arguments }}
-      # TODO: replace with a more secure action
-      # - name: Generate SBOM with Syft
-      #   uses: anchore/sbom-action@v0
-      #   continue-on-error: true
-      #   with:
-      #     image: ${{ env.IMAGE_REF }}
+      - name: Generate SBOM with Syft
+        uses: ./workflow-parts/actions/syft/generate-sbom
+        continue-on-error: true
+        with:
+          target-image: ${{ env.IMAGE_REF }}
       - name: Push latest tag
         if: ${{ inputs.create-latest }}
         run: |

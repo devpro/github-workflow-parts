@@ -49,6 +49,11 @@ on:
         type: boolean
         required: false
         default: true
+      workflow-parts-version:
+        description: "GitHub workflow parts version (branch/tag/SHA). Should match the ref/tag/SHA the caller pinned for this reusable workflow itself."
+        type: string
+        required: false
+        default: "main"
       working-directory:
         description: Working directory
         type: string
@@ -64,7 +69,13 @@ jobs:
         working-directory: ${{ inputs.working-directory }}
     steps:
       - name: Clone repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
+      - name: Checkout workflow parts
+        uses: actions/checkout@v7
+        with:
+          repository: devpro/github-workflow-parts
+          ref: ${{ inputs.workflow-parts-version }}
+          path: workflow-parts
       - name: Build container image
         run: docker build . --file ${{ inputs.image-definition }} --tag ${{ env.IMAGE_REF }}
         shell: bash
@@ -80,14 +91,15 @@ jobs:
       #     nv-scanner-image: neuvector/scanner:5
       - name: Scan container image with Trivy
         if: ${{ inputs.trivy-enabled }}
-        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1    # v0.35.0
+        uses: ./workflow-parts/actions/trivy/scan
         with:
-          image-ref: ${{ env.IMAGE_REF }}
-          format: 'table'
-          exit-code: '1'
-          ignore-unfixed: true
-          vuln-type: 'os,library'
-          severity: 'CRITICAL,HIGH'
+          scan-type: image
+          target: ${{ env.IMAGE_REF }}
+          format: table
+          exit-code: "1"
+          ignore-unfixed: "true"
+          pkg-types: os,library
+          severity: CRITICAL,HIGH
     env:
       GITHUB_TOKEN: ${{ github.token }}
       IMAGE_REF: ${{ inputs.image-path }}/${{ inputs.image-name }}:${{ inputs.image-tag }}

@@ -1,0 +1,89 @@
+name: Generate SBOM with Syft
+description: |
+  Installs Syft by downloading the official binary from its GitHub release, verifying its SHA256 checksum,
+  and uses it to generate a Software Bill of Materials for a container image or a source directory
+  (replacement for anchore/sbom-action, to reduce third-party GitHub Action supply-chain risk).
+  Linux runners only (for example ubuntu-latest).
+
+inputs:
+  syft-version:
+    description: Version of Syft to install (check latest from https://github.com/anchore/syft/releases)
+    required: false
+    default: "1.49.0"
+  target-image:
+    description: Container image reference to scan (mutually exclusive with target-path)
+    required: false
+    default: ""
+  target-path:
+    description: Source directory to scan, used only when target-image is not set
+    required: false
+    default: "."
+  output-format:
+    description: SBOM format (see https://github.com/anchore/syft#supported-output-formats)
+    required: false
+    default: "spdx-json"
+  output-file:
+    description: Path of the generated SBOM file
+    required: false
+    default: "sbom.spdx.json"
+  upload-artifact:
+    description: Upload the generated SBOM as a workflow artifact
+    required: false
+    default: "true"
+  artifact-name:
+    description: Name of the uploaded workflow artifact
+    required: false
+    default: "sbom"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install Syft
+      shell: bash
+      env:
+        SYFT_VERSION: ${{ inputs.syft-version }}
+        SYFT_TARBALL: syft_${{ inputs.syft-version }}_linux_amd64.tar.gz
+        SYFT_CHECKSUMS: syft_${{ inputs.syft-version }}_checksums.txt
+      run: |
+        BASE_URL="https://github.com/anchore/syft/releases/download/v${SYFT_VERSION}"
+
+        echo "Downloading Syft binary and checksums..."
+        curl -sSL -O "${BASE_URL}/${SYFT_TARBALL}"
+        curl -sSL -O "${BASE_URL}/${SYFT_CHECKSUMS}"
+
+        echo "Verifying checksum..."
+        grep " ${SYFT_TARBALL}$" "${SYFT_CHECKSUMS}" | sha256sum --check --status
+
+        if [ $? -eq 0 ]; then
+          echo "Verification successful!"
+          tar -xzf "${SYFT_TARBALL}" syft
+          chmod +x syft
+          sudo mv syft /usr/local/bin/syft
+          rm -f "${SYFT_TARBALL}" "${SYFT_CHECKSUMS}"
+          syft version
+        else
+          echo "ERROR: Checksum verification failed!" >&2
+          exit 1
+        fi
+    - name: Generate SBOM
+      shell: bash
+      env:
+        TARGET_IMAGE: ${{ inputs.target-image }}
+        TARGET_PATH: ${{ inputs.target-path }}
+        OUTPUT_FORMAT: ${{ inputs.output-format }}
+        OUTPUT_FILE: ${{ inputs.output-file }}
+      run: |
+        if [ -n "$TARGET_IMAGE" ]; then
+          SOURCE="$TARGET_IMAGE"
+        else
+          SOURCE="dir:${TARGET_PATH}"
+        fi
+
+        echo "Scanning ${SOURCE} with Syft..."
+        syft "$SOURCE" -o "${OUTPUT_FORMAT}=${OUTPUT_FILE}"
+    - name: Upload SBOM as artifact
+      if: ${{ inputs.upload-artifact == 'true' }}
+      uses: actions/upload-artifact@v7
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: ${{ inputs.output-file }}

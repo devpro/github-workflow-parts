@@ -48,6 +48,11 @@ on:
         type: boolean
         required: false
         default: false
+      sonar-cpd-exclusions:
+        description: Files or directories that should be excluded from Sonar code duplication analysis
+        type: string
+        required: false
+        default: "**/*Generated*.cs"
       sonar-exclusions:
         description: Files or directories that should be excluded from Sonar analysis
         type: string
@@ -74,7 +79,7 @@ on:
         required: false
         default: ""
       workflow-parts-version:
-        description: GitHub workflow parts version (branch/tag/SHA)
+        description: GitHub workflow parts version (branch/tag/SHA). Should match the ref/tag/SHA the caller pinned for this reusable workflow itself.
         type: string
         required: false
         default: main
@@ -128,11 +133,11 @@ jobs:
         run: git config --global core.autocrlf false
         shell: bash
       - name: Clone repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Checkout workflow parts
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: devpro/github-workflow-parts
           ref: ${{ inputs.workflow-parts-version }}
@@ -155,6 +160,7 @@ jobs:
         uses: ./workflow-parts/actions/dotnet/build-test-sonar
         with:
           dotnet-test-args: ${{ inputs.dotnet-test-args }}
+          sonar-cpd-exclusions: ${{ inputs.sonar-cpd-exclusions }}
           sonar-exclusions: ${{ inputs.sonar-exclusions }}
           sonar-host-url: ${{ inputs.sonar-host-url }}
           sonar-organization: ${{ inputs.sonar-organization }}
@@ -177,17 +183,12 @@ jobs:
         if: ${{ inputs.fossa-enabled && steps.fossa.outcome == 'success' }}
         run: echo '${{ steps.fossa.outputs.report }}' > report/fossa.html
         continue-on-error: true
-      # TODO: replace with more secure action
-      # - name: Generate SBOM with Syft
-      #   uses: anchore/sbom-action@v0
-      #   # with:
-      #   #   path: . # Or Dockerfile path
-      #   #   format: spdx-json # Or cyclonedx-json
-      #   #   output-file: sbom.json
-      #   #   upload-artifact: true # Auto-upload to workflow artifacts
+      - name: Generate SBOM with Syft
+        uses: ./workflow-parts/actions/syft/generate-sbom
+        continue-on-error: true
       - name: Archive test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: dotnet-test-results
           path: |

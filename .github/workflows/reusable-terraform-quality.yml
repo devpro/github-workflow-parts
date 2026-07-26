@@ -18,6 +18,11 @@ on:
         type: string
         required: false
         default: "ubuntu-latest"
+      workflow-parts-version:
+        description: "GitHub workflow parts version (branch/tag/SHA). Should match the ref/tag/SHA the caller pinned for this reusable workflow itself."
+        type: string
+        required: false
+        default: "main"
 
 jobs:
   terraform-validate:
@@ -28,15 +33,21 @@ jobs:
         working-directory: ${{ inputs.working-directory }}
     steps:
       - name: Clone repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
+      - name: Checkout workflow parts
+        uses: actions/checkout@v7
+        with:
+          repository: devpro/github-workflow-parts
+          ref: ${{ inputs.workflow-parts-version }}
+          path: workflow-parts
       - name: Cache Terraform plugins
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: |
             ~/.terraform.d/plugin-cache
           key: terraform-${{ hashFiles('**/.terraform.lock.hcl') }}
       - name: Install terraform
-        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e
+        uses: ./workflow-parts/actions/terraform/setup
       - name: Check Terraform format
         run: terraform fmt -recursive -check
       - name: Terraform Init
@@ -59,15 +70,15 @@ jobs:
       #     sarif_file: results.sarif
       # TFLint is a pluggable terraform linter (ref. https://github.com/terraform-linters/tflint)
       - name: Cache TFLint plugins
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ~/.tflint.d/plugins
           key: tflint-${{ hashFiles('**/.tflint.hcl') }}
       - name: Setup TFLint
-        uses: terraform-linters/setup-tflint@b480b8fcdaa6f2c577f8e4fa799e89e756bb7c93
+        uses: ./workflow-parts/actions/tflint/setup
         with:
-          # ref. https://github.com/terraform-linters/tflint/pkgs/container/tflint
-          tflint_version: v0.60.0
+          # ref. https://github.com/terraform-linters/tflint/releases
+          tflint-version: v0.60.0
       - name: Initialize TFLint
         run: tflint --init --recursive
         env:
@@ -76,16 +87,15 @@ jobs:
       - name: Run TFLint
         run: tflint --recursive --format compact
       - name: Run Trivy IaC scan
-        # v0.35.0
-        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1
+        uses: ./workflow-parts/actions/trivy/scan
         with:
-          scan-type: "config"
-          format: "sarif"
-          output: "trivy-results.sarif"
-          ignore-unfixed: true
-          severity: "HIGH,CRITICAL"
+          scan-type: config
+          target: .
+          format: sarif
+          output-file: trivy-results.sarif
+          severity: HIGH,CRITICAL
       - name: Upload SARIF as artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: security-results

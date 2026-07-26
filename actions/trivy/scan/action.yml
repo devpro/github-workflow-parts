@@ -1,0 +1,106 @@
+name: Scan with Trivy
+description: |
+  Installs Trivy by downloading the official binary from its GitHub release and verifying its SHA256 checksum,
+  then scans a container image or a source directory for vulnerabilities or misconfigurations (replacement for aquasecurity/trivy-action,
+  to reduce third-party GitHub Action supply-chain risk).
+  Linux runners only (for example ubuntu-latest).
+
+inputs:
+  trivy-version:
+    description: Version of Trivy to install (check latest from https://github.com/aquasecurity/trivy/releases)
+    required: false
+    default: "0.72.0"
+  scan-type:
+    description: What to scan, "image" (container image reference) or "config" (misconfiguration/IaC scan of a directory)
+    required: false
+    default: "image"
+  target:
+    description: Container image reference (scan-type "image") or directory path (scan-type "config") to scan
+    required: true
+  format:
+    description: Trivy report format (table, json, sarif, cyclonedx, spdx-json...)
+    required: false
+    default: "table"
+  output-file:
+    description: Path of the generated report file (empty prints to stdout)
+    required: false
+    default: ""
+  severity:
+    description: Comma-separated list of severities to report
+    required: false
+    default: "CRITICAL,HIGH"
+  exit-code:
+    description: Exit code to use when findings matching the severity filter are detected (0 = never fail the step)
+    required: false
+    default: "0"
+  ignore-unfixed:
+    description: Only report vulnerabilities with a fix available (scan-type "image" only)
+    required: false
+    default: "false"
+  pkg-types:
+    description: Comma-separated package types to scan, os and/or library (scan-type "image" only)
+    required: false
+    default: "os,library"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install Trivy
+      shell: bash
+      env:
+        TRIVY_VERSION: ${{ inputs.trivy-version }}
+        TRIVY_TARBALL: trivy_${{ inputs.trivy-version }}_Linux-64bit.tar.gz
+        TRIVY_CHECKSUMS: trivy_${{ inputs.trivy-version }}_checksums.txt
+      run: |
+        BASE_URL="https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}"
+
+        echo "Downloading Trivy binary and checksums..."
+        curl -sSL -O "${BASE_URL}/${TRIVY_TARBALL}"
+        curl -sSL -O "${BASE_URL}/${TRIVY_CHECKSUMS}"
+
+        echo "Verifying checksum..."
+        grep " ${TRIVY_TARBALL}$" "${TRIVY_CHECKSUMS}" | sha256sum --check --status
+
+        if [ $? -eq 0 ]; then
+          echo "Verification successful!"
+          tar -xzf "${TRIVY_TARBALL}" trivy
+          chmod +x trivy
+          sudo mv trivy /usr/local/bin/trivy
+          rm -f "${TRIVY_TARBALL}" "${TRIVY_CHECKSUMS}"
+          trivy version
+        else
+          echo "ERROR: Checksum verification failed!" >&2
+          exit 1
+        fi
+    - name: Run Trivy scan
+      shell: bash
+      env:
+        SCAN_TYPE: ${{ inputs.scan-type }}
+        TARGET: ${{ inputs.target }}
+        FORMAT: ${{ inputs.format }}
+        OUTPUT_FILE: ${{ inputs.output-file }}
+        SEVERITY: ${{ inputs.severity }}
+        EXIT_CODE: ${{ inputs.exit-code }}
+        IGNORE_UNFIXED: ${{ inputs.ignore-unfixed }}
+        PKG_TYPES: ${{ inputs.pkg-types }}
+      run: |
+        args=("$SCAN_TYPE" --format "$FORMAT" --severity "$SEVERITY" --exit-code "$EXIT_CODE")
+
+        if [ -n "$OUTPUT_FILE" ]; then
+          args+=(--output "$OUTPUT_FILE")
+        fi
+
+        # ignore-unfixed and pkg-types only make sense for vulnerability (image) scans
+        if [ "$SCAN_TYPE" = "image" ]; then
+          if [ "$IGNORE_UNFIXED" = "true" ]; then
+            args+=(--ignore-unfixed)
+          fi
+          if [ -n "$PKG_TYPES" ]; then
+            args+=(--pkg-types "$PKG_TYPES")
+          fi
+        fi
+
+        args+=("$TARGET")
+
+        echo "Running: trivy ${args[*]}"
+        trivy "${args[@]}"

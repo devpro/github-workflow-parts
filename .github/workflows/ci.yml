@@ -14,3 +14,79 @@ jobs:
   markup-lint:
     name: Markup
     uses: ./.github/workflows/reusable-markup-lint.yml
+
+  test-terraform-setup:
+    name: "Test / Terraform setup action"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v7
+      - name: Install terraform
+        uses: ./actions/terraform/setup
+      - name: Verify terraform is installed
+        run: |
+          terraform version
+          command -v terraform
+
+  test-tflint-setup:
+    name: "Test / TFLint setup action"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v7
+      - name: Setup TFLint
+        uses: ./actions/tflint/setup
+      - name: Verify tflint is installed
+        run: |
+          tflint --version
+          command -v tflint
+
+  test-syft-generate-sbom:
+    name: "Test / Syft generate-sbom action"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v7
+      - name: Generate SBOM for this repository
+        uses: ./actions/syft/generate-sbom
+        with:
+          target-path: actions
+          output-file: sbom-test.spdx.json
+          upload-artifact: "false"
+      - name: Verify SBOM was generated
+        run: |
+          test -s sbom-test.spdx.json
+          grep -q '"spdxVersion"' sbom-test.spdx.json
+
+  test-trivy-scan:
+    name: "Test / Trivy scan action"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v7
+      - name: Scan a real image with Trivy
+        uses: ./actions/trivy/scan
+        with:
+          scan-type: image
+          target: devprofr/terraform-backend-mongodb:latest
+          severity: CRITICAL,HIGH
+          exit-code: "0"
+      - name: Scan a directory with Trivy
+        uses: ./actions/trivy/scan
+        with:
+          scan-type: config
+          target: test/fixtures/terraform
+          format: sarif
+          output-file: trivy-test.sarif
+          severity: HIGH,CRITICAL
+      - name: Verify SARIF report was generated
+        run: test -s trivy-test.sarif
+
+  test-terraform-quality:
+    name: "Test / Terraform quality reusable workflow"
+    uses: ./.github/workflows/reusable-terraform-quality.yml
+    with:
+      working-directory: test/fixtures/terraform
+      # explicit override: for this same-repo local "./" call, github.workflow_sha's behavior is unverified,
+      # so pin to a ref we know is fetchable (branch on push, PR merge ref on PRs)
+      workflow-parts-version: ${{ github.ref }}
