@@ -62,6 +62,5 @@ Terraform:
 - [Setup TFLint](actions/tflint/setup/action.yml)
 
 > [!NOTE]
-> These composite actions download official release binaries directly (with SHA256 checksum verification)
-> instead of relying on third-party marketplace actions (`hashicorp/setup-terraform`, `terraform-linters/setup-tflint`, `anchore/sbom-action`), reducing supply-chain exposure.
+> These composite actions download official release binaries directly (with SHA256 checksum verification) instead of relying on third-party marketplace actions, reducing supply-chain exposure.
 > Linux runners only (for example `ubuntu-latest`).

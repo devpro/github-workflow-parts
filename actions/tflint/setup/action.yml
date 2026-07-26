@@ -1,8 +1,7 @@
 name: Setup TFLint
 description: |
-  Installs TFLint by downloading the official binary from its GitHub release and verifying
-  its SHA256 checksum (replacement for terraform-linters/setup-tflint, to reduce third-party
-  GitHub Action supply-chain risk).
+  Installs TFLint by downloading the official binary from its GitHub release and verifying its SHA256 checksum (replacement for terraform-linters/setup-tflint,
+  to reduce third-party GitHub Action supply-chain risk).
   Linux runners only (for example ubuntu-latest).
 
 inputs:

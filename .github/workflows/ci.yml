@@ -58,10 +58,37 @@ jobs:
           test -s sbom-test.spdx.json
           grep -q '"spdxVersion"' sbom-test.spdx.json
 
+  test-trivy-scan:
+    name: "Test: Trivy scan action"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v7
+      - name: Scan a real image with Trivy
+        uses: ./actions/trivy/scan
+        with:
+          scan-type: image
+          # a real image used elsewhere in this repo (reusable-terraform-deployment.yml), so this
+          # doubles as a smoke test against realistic content instead of a throwaway public image
+          target: devprofr/terraform-backend-mongodb:latest
+          severity: CRITICAL,HIGH
+          exit-code: "0"
+      - name: Scan a directory with Trivy
+        uses: ./actions/trivy/scan
+        with:
+          scan-type: config
+          target: test/fixtures/terraform
+          format: sarif
+          output-file: trivy-test.sarif
+          severity: HIGH,CRITICAL
+      - name: Verify SARIF report was generated
+        run: test -s trivy-test.sarif
+
   test-terraform-quality:
     name: "Test: Terraform quality reusable workflow"
     uses: ./.github/workflows/reusable-terraform-quality.yml
     with:
       working-directory: test/fixtures/terraform
-      # github.ref (not github.sha) so the "checkout workflow parts" step inside the reusable workflow can fetch by ref name: refs/heads/<branch> on push, refs/pull/<n>/merge on PRs.
+      # explicit override: for this same-repo local "./" call, github.workflow_sha's behavior
+      # is unverified, so pin to a ref we know is fetchable (branch on push, PR merge ref on PRs)
       workflow-parts-version: ${{ github.ref }}

@@ -1,8 +1,7 @@
 name: Setup Terraform
 description: |
-  Installs the Terraform CLI by downloading the official binary from HashiCorp's release
-  server and verifying its SHA256 checksum (replacement for hashicorp/setup-terraform, to
-  reduce third-party GitHub Action supply-chain risk).
+  Installs the Terraform CLI by downloading the official binary from HashiCorp's release server and verifying its SHA256 checksum
+  (replacement for hashicorp/setup-terraform, to reduce third-party GitHub Action supply-chain risk).
   Linux runners only (for example ubuntu-latest).
 
 inputs:

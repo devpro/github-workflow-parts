@@ -37,10 +37,10 @@ on:
         required: false
         default: ""
       workflow-parts-version:
-        description: "GitHub workflow parts version (branch/tag/SHA)"
+        description: "GitHub workflow parts version (branch/tag/SHA). Defaults to this reusable workflow's own pinned ref/SHA."
         type: string
         required: false
-        default: "main"
+        default: ""
     secrets:
       atlas-publickey:
         description: "Atlas public key"
@@ -95,7 +95,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           repository: devpro/github-workflow-parts
-          ref: ${{ inputs.workflow-parts-version }}
+          ref: ${{ inputs.workflow-parts-version || github.workflow_sha }}
           path: workflow-parts
       - name: Add runner ID to MongoDB Atlas
         uses: ./workflow-parts/actions/mongodb-atlas/add-runner-ip

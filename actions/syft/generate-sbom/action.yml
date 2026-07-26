@@ -1,9 +1,8 @@
 name: Generate SBOM with Syft
 description: |
-  Installs Syft by downloading the official binary from its GitHub release, verifying its
-  SHA256 checksum, and uses it to generate a Software Bill of Materials for a container image
-  or a source directory (replacement for anchore/sbom-action, to reduce third-party GitHub
-  Action supply-chain risk).
+  Installs Syft by downloading the official binary from its GitHub release, verifying its SHA256 checksum,
+  and uses it to generate a Software Bill of Materials for a container image or a source directory
+  (replacement for anchore/sbom-action, to reduce third-party GitHub Action supply-chain risk).
   Linux runners only (for example ubuntu-latest).
 
 inputs:
