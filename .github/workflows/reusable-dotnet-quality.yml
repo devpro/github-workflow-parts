@@ -178,13 +178,13 @@ jobs:
         run: echo '${{ steps.fossa.outputs.report }}' > report/fossa.html
         continue-on-error: true
       # TODO: replace with more secure action
-      # - name: Generate SBOM with Syft
-      #   uses: anchore/sbom-action@v0
-      #   # with:
-      #   #   path: . # Or Dockerfile path
-      #   #   format: spdx-json # Or cyclonedx-json
-      #   #   output-file: sbom.json
-      #   #   upload-artifact: true # Auto-upload to workflow artifacts
+      - name: Generate SBOM with Syft
+        uses: anchore/sbom-action@v0
+        # with:
+        #   path: . # Or Dockerfile path
+        #   format: spdx-json # Or cyclonedx-json
+        #   output-file: sbom.json
+        #   upload-artifact: true # Auto-upload to workflow artifacts
       - name: Archive test results
         if: always()
         uses: actions/upload-artifact@v7
