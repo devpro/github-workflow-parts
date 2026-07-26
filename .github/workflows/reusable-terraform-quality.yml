@@ -28,9 +28,9 @@ jobs:
         working-directory: ${{ inputs.working-directory }}
     steps:
       - name: Clone repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: Cache Terraform plugins
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: |
             ~/.terraform.d/plugin-cache
@@ -59,7 +59,7 @@ jobs:
       #     sarif_file: results.sarif
       # TFLint is a pluggable terraform linter (ref. https://github.com/terraform-linters/tflint)
       - name: Cache TFLint plugins
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ~/.tflint.d/plugins
           key: tflint-${{ hashFiles('**/.tflint.hcl') }}
@@ -85,7 +85,7 @@ jobs:
           ignore-unfixed: true
           severity: "HIGH,CRITICAL"
       - name: Upload SARIF as artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: security-results
