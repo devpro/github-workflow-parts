@@ -1,0 +1,91 @@
+name: Analyze with FOSSA
+description: |
+  Installs the FOSSA CLI by downloading the official binary from its GitHub release and verifying its SHA256 checksum,
+  then analyzes the dependencies for license compliance, optionally tests them against the policy, and writes an HTML report
+  (replacement for fossas/fossa-action, to reduce third-party GitHub Action supply-chain risk).
+  Linux runners only (for example ubuntu-latest).
+
+inputs:
+  fossa-version:
+    description: Version of the FOSSA CLI to install (check latest from https://github.com/fossas/fossa-cli/releases)
+    required: false
+    default: "3.19.3"
+  api-key:
+    description: FOSSA API key
+    required: true
+  run-tests:
+    description: Test the analyzed dependencies against the FOSSA policy
+    required: false
+    default: "false"
+  test-diff-revision:
+    description: Revision to report only the issues introduced since (empty tests everything)
+    required: false
+    default: ""
+  report-file:
+    description: Path of the generated HTML report (empty writes none)
+    required: false
+    default: "report/fossa.html"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install FOSSA CLI
+      shell: bash
+      env:
+        FOSSA_VERSION: ${{ inputs.fossa-version }}
+        FOSSA_TARBALL: fossa_${{ inputs.fossa-version }}_linux_amd64.tar.gz
+      run: |
+        BASE_URL="https://github.com/fossas/fossa-cli/releases/download/v${FOSSA_VERSION}"
+
+        echo "Downloading FOSSA CLI binary and checksum..."
+        curl -sSL -O "${BASE_URL}/${FOSSA_TARBALL}"
+        curl -sSL -O "${BASE_URL}/${FOSSA_TARBALL}.sha256"
+
+        echo "Verifying checksum..."
+        # The checksum file holds the hash, with or without the file name after it.
+        echo "$(cut -d ' ' -f 1 "${FOSSA_TARBALL}.sha256")  ${FOSSA_TARBALL}" | sha256sum --check --status
+
+        if [ $? -eq 0 ]; then
+          echo "Verification successful!"
+          tar -xzf "${FOSSA_TARBALL}" fossa
+          chmod +x fossa
+          # Installed where the job owns the directory, so neither root nor sudo is needed, on a hosted runner or in a container.
+          mkdir -p "${RUNNER_TEMP}/bin"
+          mv fossa "${RUNNER_TEMP}/bin/fossa"
+          echo "${RUNNER_TEMP}/bin" >> "$GITHUB_PATH"
+          export PATH="${RUNNER_TEMP}/bin:$PATH"
+          rm -f "${FOSSA_TARBALL}" "${FOSSA_TARBALL}.sha256"
+          fossa --version
+        else
+          echo "ERROR: Checksum verification failed!" >&2
+          exit 1
+        fi
+
+    - name: Analyze dependencies
+      shell: bash
+      env:
+        FOSSA_API_KEY: ${{ inputs.api-key }}
+      run: fossa analyze
+
+    - name: Test dependencies against the policy
+      if: ${{ inputs.run-tests == 'true' }}
+      shell: bash
+      env:
+        FOSSA_API_KEY: ${{ inputs.api-key }}
+        DIFF_REVISION: ${{ inputs.test-diff-revision }}
+      run: |
+        if [ -n "$DIFF_REVISION" ]; then
+          fossa test --diff "$DIFF_REVISION"
+        else
+          fossa test
+        fi
+
+    - name: Write HTML report
+      if: ${{ inputs.report-file != '' }}
+      shell: bash
+      env:
+        FOSSA_API_KEY: ${{ inputs.api-key }}
+        REPORT_FILE: ${{ inputs.report-file }}
+      run: |
+        mkdir -p "$(dirname "$REPORT_FILE")"
+        fossa report attribution --format html > "$REPORT_FILE"

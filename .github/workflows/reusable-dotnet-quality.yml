@@ -169,8 +169,7 @@ jobs:
           sonar-token: ${{ secrets.sonar-token }}
       - name: Check license compliance with FOSSA
         if: ${{ inputs.fossa-enabled }}
-        uses: fossas/fossa-action@ff70fe9fe17cbd2040648f1c45e8ec4e4884dcf3
-        id: fossa
+        uses: ./workflow-parts/actions/fossa/analyze
         # https://status.fossa.com/
         continue-on-error: true
         timeout-minutes: 3
@@ -178,11 +177,7 @@ jobs:
           api-key: "${{ secrets.fossa-api-key }}"
           run-tests: ${{ inputs.fossa-test && github.event_name == 'pull_request' }}
           test-diff-revision: ${{ github.event.pull_request.base.sha }}
-          generate-report: html
-      - name: Create FOSSA report file
-        if: ${{ inputs.fossa-enabled && steps.fossa.outcome == 'success' }}
-        run: echo '${{ steps.fossa.outputs.report }}' > report/fossa.html
-        continue-on-error: true
+          report-file: report/fossa.html
       - name: Generate SBOM with Syft
         uses: ./workflow-parts/actions/syft/generate-sbom
         continue-on-error: true

@@ -107,28 +107,31 @@ jobs:
           repository: devpro/github-workflow-parts
           ref: ${{ inputs.workflow-parts-version }}
           path: workflow-parts
+      # The Docker CLI of the runner does what the docker/* actions wrapped, with no third party action in between.
       - name: Login to container registry
-        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee
-        with:
-          registry: ${{ inputs.container-registry }}
-          username: ${{ secrets.container-registry-username }}
-          password: ${{ secrets.container-registry-password }}
+        env:
+          REGISTRY: ${{ inputs.container-registry }}
+          REGISTRY_USERNAME: ${{ secrets.container-registry-username }}
+          REGISTRY_PASSWORD: ${{ secrets.container-registry-password }}
+        run: echo "$REGISTRY_PASSWORD" | docker login "$REGISTRY" --username "$REGISTRY_USERNAME" --password-stdin
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@06116385d9baf250c9f4dcb4858b16962ea869c3
+        # Emulation is only needed for a platform other than the runner's own.
+        if: ${{ inputs.image-platform != 'linux/amd64' }}
+        run: docker run --privileged --rm tonistiigi/binfmt --install all
       - name: Set up Buildx
-        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5
+        run: docker buildx create --use --driver docker-container
       - name: Build and push container image
-        id: build-push
-        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf
-        with:
-          context: ${{ inputs.working-directory }}
-          file: ${{ inputs.image-definition }}
-          platforms: ${{ inputs.image-platform }}
-          push: true
-          tags: ${{ env.IMAGE_REF }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          build-args: ${{ inputs.extra-build-arguments }}
+        # The gha cache backend is reachable from JavaScript actions only, so the build runs without a cache.
+        env:
+          IMAGE_DEFINITION: ${{ inputs.image-definition }}
+          IMAGE_PLATFORM: ${{ inputs.image-platform }}
+          BUILD_ARGUMENTS: ${{ inputs.extra-build-arguments }}
+        run: |
+          args=(--file "$IMAGE_DEFINITION" --platform "$IMAGE_PLATFORM" --tag "$IMAGE_REF" --push)
+          while IFS= read -r argument; do
+            [ -n "$argument" ] && args+=(--build-arg "$argument")
+          done <<< "$BUILD_ARGUMENTS"
+          docker buildx build "${args[@]}" .
       - name: Generate SBOM with Syft
         uses: ./workflow-parts/actions/syft/generate-sbom
         continue-on-error: true
