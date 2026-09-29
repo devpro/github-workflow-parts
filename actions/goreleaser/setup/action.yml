@@ -19,6 +19,8 @@ runs:
         GORELEASER_VERSION: ${{ inputs.goreleaser-version }}
         GORELEASER_TARBALL: goreleaser_Linux_x86_64.tar.gz
       run: |
+        # Downloaded into a directory of its own, since the repository may hold a file or a directory named like the binary.
+        cd "$(mktemp -d)"
         BASE_URL="https://github.com/goreleaser/goreleaser/releases/download/v${GORELEASER_VERSION}"
 
         echo "Downloading GoReleaser binary and checksums..."

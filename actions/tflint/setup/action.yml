@@ -19,6 +19,8 @@ runs:
         TFLINT_VERSION: ${{ inputs.tflint-version }}
         TFLINT_ZIP: tflint_linux_amd64.zip
       run: |
+        # Downloaded into a directory of its own, since the repository may hold a file or a directory named like the binary.
+        cd "$(mktemp -d)"
         BASE_URL="https://github.com/terraform-linters/tflint/releases/download/${TFLINT_VERSION}"
 
         echo "Downloading TFLint binary and checksums..."

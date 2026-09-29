@@ -52,6 +52,8 @@ runs:
         TRIVY_TARBALL: trivy_${{ inputs.trivy-version }}_Linux-64bit.tar.gz
         TRIVY_CHECKSUMS: trivy_${{ inputs.trivy-version }}_checksums.txt
       run: |
+        # Downloaded into a directory of its own, since the repository may hold a file or a directory named like the binary.
+        cd "$(mktemp -d)"
         BASE_URL="https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}"
 
         echo "Downloading Trivy binary and checksums..."

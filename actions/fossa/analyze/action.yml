@@ -35,6 +35,8 @@ runs:
         FOSSA_VERSION: ${{ inputs.fossa-version }}
         FOSSA_TARBALL: fossa_${{ inputs.fossa-version }}_linux_amd64.tar.gz
       run: |
+        # Downloaded into a directory of its own, since the repository may hold a file or a directory named like the binary.
+        cd "$(mktemp -d)"
         BASE_URL="https://github.com/fossas/fossa-cli/releases/download/v${FOSSA_VERSION}"
 
         echo "Downloading FOSSA CLI binary and checksum..."

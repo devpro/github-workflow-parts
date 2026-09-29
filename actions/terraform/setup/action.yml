@@ -20,6 +20,8 @@ runs:
         TERRAFORM_ZIP: terraform_${{ inputs.terraform-version }}_linux_amd64.zip
         TERRAFORM_SHA256SUMS: terraform_${{ inputs.terraform-version }}_SHA256SUMS
       run: |
+        # Downloaded into a directory of its own, since the repository may hold a file or a directory named like the binary.
+        cd "$(mktemp -d)"
         BASE_URL="https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}"
 
         echo "Downloading Terraform binary and checksums..."

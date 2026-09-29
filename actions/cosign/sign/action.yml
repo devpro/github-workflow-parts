@@ -31,6 +31,8 @@ runs:
   steps:
     - name: Install Cosign
       run: |
+        # Downloaded into a directory of its own, since the repository may hold a file or a directory named like the binary.
+        cd "$(mktemp -d)"
         echo "Downloading Cosign binary and checksums..."
         curl -sL -O https://github.com/sigstore/cosign/releases/download/${COSIGN_VERSION}/${COSIGN_BINARY}
         curl -sL -O "https://github.com/sigstore/cosign/releases/download/${COSIGN_VERSION}/${COSIGN_CHECKSUM_FILE}"

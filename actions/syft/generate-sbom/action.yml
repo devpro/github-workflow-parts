@@ -45,6 +45,8 @@ runs:
         SYFT_TARBALL: syft_${{ inputs.syft-version }}_linux_amd64.tar.gz
         SYFT_CHECKSUMS: syft_${{ inputs.syft-version }}_checksums.txt
       run: |
+        # Downloaded into a directory of its own, since the repository may hold a file or a directory named like the binary.
+        cd "$(mktemp -d)"
         BASE_URL="https://github.com/anchore/syft/releases/download/v${SYFT_VERSION}"
 
         echo "Downloading Syft binary and checksums..."
