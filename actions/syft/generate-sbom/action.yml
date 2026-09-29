@@ -58,7 +58,11 @@ runs:
           echo "Verification successful!"
           tar -xzf "${SYFT_TARBALL}" syft
           chmod +x syft
-          sudo mv syft /usr/local/bin/syft
+          # Installed where the job owns the directory, so neither root nor sudo is needed, on a hosted runner or in a container.
+          mkdir -p "${RUNNER_TEMP}/bin"
+          mv syft "${RUNNER_TEMP}/bin/syft"
+          echo "${RUNNER_TEMP}/bin" >> "$GITHUB_PATH"
+          export PATH="${RUNNER_TEMP}/bin:$PATH"
           rm -f "${SYFT_TARBALL}" "${SYFT_CHECKSUMS}"
           syft version
         else

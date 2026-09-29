@@ -33,7 +33,11 @@ runs:
           echo "Verification successful!"
           unzip -o "${TERRAFORM_ZIP}"
           chmod +x terraform
-          sudo mv terraform /usr/local/bin/terraform
+          # Installed where the job owns the directory, so neither root nor sudo is needed, on a hosted runner or in a container.
+          mkdir -p "${RUNNER_TEMP}/bin"
+          mv terraform "${RUNNER_TEMP}/bin/terraform"
+          echo "${RUNNER_TEMP}/bin" >> "$GITHUB_PATH"
+          export PATH="${RUNNER_TEMP}/bin:$PATH"
           rm -f "${TERRAFORM_ZIP}" "${TERRAFORM_SHA256SUMS}"
           terraform version
         else

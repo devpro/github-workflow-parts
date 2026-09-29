@@ -42,7 +42,11 @@ runs:
           echo "Verification successful!"
           rm $COSIGN_CHECKSUM_FILE
           chmod +x $COSIGN_BINARY
-          sudo mv $COSIGN_BINARY /usr/local/bin/cosign
+          # Installed where the job owns the directory, so neither root nor sudo is needed, on a hosted runner or in a container.
+          mkdir -p "${RUNNER_TEMP}/bin"
+          mv $COSIGN_BINARY "${RUNNER_TEMP}/bin/cosign"
+          echo "${RUNNER_TEMP}/bin" >> "$GITHUB_PATH"
+          export PATH="${RUNNER_TEMP}/bin:$PATH"
           cosign version
         else
           echo "ERROR: Checksum verification failed!" >&2

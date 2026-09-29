@@ -65,7 +65,11 @@ runs:
           echo "Verification successful!"
           tar -xzf "${TRIVY_TARBALL}" trivy
           chmod +x trivy
-          sudo mv trivy /usr/local/bin/trivy
+          # Installed where the job owns the directory, so neither root nor sudo is needed, on a hosted runner or in a container.
+          mkdir -p "${RUNNER_TEMP}/bin"
+          mv trivy "${RUNNER_TEMP}/bin/trivy"
+          echo "${RUNNER_TEMP}/bin" >> "$GITHUB_PATH"
+          export PATH="${RUNNER_TEMP}/bin:$PATH"
           rm -f "${TRIVY_TARBALL}" "${TRIVY_CHECKSUMS}"
           trivy version
         else
