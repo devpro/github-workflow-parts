@@ -21,7 +21,7 @@ runs:
     - name: Install .NET tools
       run: |
         dotnet tool install --global dotnet-reportgenerator-globaltool
-        export PATH="$PATH:/root/.dotnet/tools"
+        echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
       shell: bash
     - name: Restore .NET packages
       run: dotnet restore
