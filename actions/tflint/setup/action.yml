@@ -19,6 +19,8 @@ runs:
         TFLINT_VERSION: ${{ inputs.tflint-version }}
         TFLINT_ZIP: tflint_linux_amd64.zip
       run: |
+        # Downloaded into a directory of its own, since the repository may hold a file or a directory named like the binary.
+        cd "$(mktemp -d)"
         BASE_URL="https://github.com/terraform-linters/tflint/releases/download/${TFLINT_VERSION}"
 
         echo "Downloading TFLint binary and checksums..."
@@ -32,7 +34,11 @@ runs:
           echo "Verification successful!"
           unzip -o "${TFLINT_ZIP}"
           chmod +x tflint
-          sudo mv tflint /usr/local/bin/tflint
+          # Installed where the job owns the directory, so neither root nor sudo is needed, on a hosted runner or in a container.
+          mkdir -p "${RUNNER_TEMP}/bin"
+          mv tflint "${RUNNER_TEMP}/bin/tflint"
+          echo "${RUNNER_TEMP}/bin" >> "$GITHUB_PATH"
+          export PATH="${RUNNER_TEMP}/bin:$PATH"
           rm -f "${TFLINT_ZIP}" checksums.txt
           tflint --version
         else

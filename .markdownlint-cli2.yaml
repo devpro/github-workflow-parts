@@ -1,6 +1,7 @@
 gitignore: true
 ignores:
-  - "**/node_modules/**"
+  - node_modules
+  - CLAUDE.md
 config:
   # ref. https://github.com/DavidAnson/markdownlint
   default: true

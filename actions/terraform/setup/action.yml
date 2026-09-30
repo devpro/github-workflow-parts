@@ -20,6 +20,8 @@ runs:
         TERRAFORM_ZIP: terraform_${{ inputs.terraform-version }}_linux_amd64.zip
         TERRAFORM_SHA256SUMS: terraform_${{ inputs.terraform-version }}_SHA256SUMS
       run: |
+        # Downloaded into a directory of its own, since the repository may hold a file or a directory named like the binary.
+        cd "$(mktemp -d)"
         BASE_URL="https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}"
 
         echo "Downloading Terraform binary and checksums..."
@@ -33,7 +35,11 @@ runs:
           echo "Verification successful!"
           unzip -o "${TERRAFORM_ZIP}"
           chmod +x terraform
-          sudo mv terraform /usr/local/bin/terraform
+          # Installed where the job owns the directory, so neither root nor sudo is needed, on a hosted runner or in a container.
+          mkdir -p "${RUNNER_TEMP}/bin"
+          mv terraform "${RUNNER_TEMP}/bin/terraform"
+          echo "${RUNNER_TEMP}/bin" >> "$GITHUB_PATH"
+          export PATH="${RUNNER_TEMP}/bin:$PATH"
           rm -f "${TERRAFORM_ZIP}" "${TERRAFORM_SHA256SUMS}"
           terraform version
         else

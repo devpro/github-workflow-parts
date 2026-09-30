@@ -1,0 +1,47 @@
+name: Setup GoReleaser
+description: |
+  Installs GoReleaser by downloading the official binary from its GitHub release and verifying its SHA256 checksum
+  (replacement for goreleaser/goreleaser-action, to reduce third-party GitHub Action supply-chain risk).
+  Linux runners only (for example ubuntu-latest).
+
+inputs:
+  goreleaser-version:
+    description: Version of GoReleaser to install (check latest from https://github.com/goreleaser/goreleaser/releases)
+    required: false
+    default: "2.18.2"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install GoReleaser
+      shell: bash
+      env:
+        GORELEASER_VERSION: ${{ inputs.goreleaser-version }}
+        GORELEASER_TARBALL: goreleaser_Linux_x86_64.tar.gz
+      run: |
+        # Downloaded into a directory of its own, since the repository may hold a file or a directory named like the binary.
+        cd "$(mktemp -d)"
+        BASE_URL="https://github.com/goreleaser/goreleaser/releases/download/v${GORELEASER_VERSION}"
+
+        echo "Downloading GoReleaser binary and checksums..."
+        curl -sSL -O "${BASE_URL}/${GORELEASER_TARBALL}"
+        curl -sSL -O "${BASE_URL}/checksums.txt"
+
+        echo "Verifying checksum..."
+        grep " ${GORELEASER_TARBALL}$" checksums.txt | sha256sum --check --status
+
+        if [ $? -eq 0 ]; then
+          echo "Verification successful!"
+          tar -xzf "${GORELEASER_TARBALL}" goreleaser
+          chmod +x goreleaser
+          # Installed where the job owns the directory, so neither root nor sudo is needed, on a hosted runner or in a container.
+          mkdir -p "${RUNNER_TEMP}/bin"
+          mv goreleaser "${RUNNER_TEMP}/bin/goreleaser"
+          echo "${RUNNER_TEMP}/bin" >> "$GITHUB_PATH"
+          export PATH="${RUNNER_TEMP}/bin:$PATH"
+          rm -f "${GORELEASER_TARBALL}" checksums.txt
+          goreleaser --version
+        else
+          echo "ERROR: Checksum verification failed!" >&2
+          exit 1
+        fi
