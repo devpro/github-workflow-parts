@@ -90,7 +90,8 @@ runs:
         IGNORE_UNFIXED: ${{ inputs.ignore-unfixed }}
         PKG_TYPES: ${{ inputs.pkg-types }}
       run: |
-        args=("$SCAN_TYPE" --format "$FORMAT" --severity "$SEVERITY" --exit-code "$EXIT_CODE")
+        # --no-progress: a CI log is not a terminal, and every redraw of the database download bar becomes log text
+        args=("$SCAN_TYPE" --no-progress --format "$FORMAT" --severity "$SEVERITY" --exit-code "$EXIT_CODE")
 
         if [ -n "$OUTPUT_FILE" ]; then
           args+=(--output "$OUTPUT_FILE")

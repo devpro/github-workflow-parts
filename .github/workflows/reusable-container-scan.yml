@@ -76,8 +76,10 @@ jobs:
           repository: devpro/github-workflow-parts
           ref: ${{ inputs.workflow-parts-version }}
           path: workflow-parts
+      # A scan judges what a clean build produces today.
+      # A cached `apt-get upgrade` layer or a stale base image keeps an already fixed package version, on a runner whose Docker daemon outlives the job.
       - name: Build container image
-        run: docker build . --file ${{ inputs.image-definition }} --tag ${{ env.IMAGE_REF }}
+        run: docker build . --pull --no-cache --file ${{ inputs.image-definition }} --tag ${{ env.IMAGE_REF }}
         shell: bash
       # deactivated 2026-02-22: "Build container for action use... process "/bin/sh -c zypper in -y jq docker && zypper clean" did not complete successfully: exit code: 8"
       # - name: Scan container image with NeuVector
