@@ -1,0 +1,44 @@
+name: Setup Helm
+description: |
+  Installs the Helm CLI by downloading the official binary from get.helm.sh and verifying its SHA256 checksum
+  (replacement for azure/setup-helm, to reduce third-party GitHub Action supply-chain risk).
+  Linux runners only (for example ubuntu-latest).
+
+inputs:
+  helm-version:
+    description: Version of Helm to install (check latest from https://github.com/helm/helm/releases)
+    required: false
+    default: "v4.3.0"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install Helm
+      shell: bash
+      env:
+        HELM_VERSION: ${{ inputs.helm-version }}
+      run: |
+        # Downloaded into a directory of its own, since the repository may hold a file or a directory named like the binary.
+        cd "$(mktemp -d)"
+        HELM_TAR="helm-${HELM_VERSION}-linux-amd64.tar.gz"
+        BASE_URL="https://get.helm.sh"
+
+        echo "Downloading Helm binary and checksum..."
+        curl -sSL -O "${BASE_URL}/${HELM_TAR}"
+        curl -sSL -O "${BASE_URL}/${HELM_TAR}.sha256sum"
+
+        echo "Verifying checksum..."
+        if sha256sum --check --status "${HELM_TAR}.sha256sum"; then
+          echo "Verification successful!"
+          tar -xzf "${HELM_TAR}" linux-amd64/helm
+          # Installed where the job owns the directory, so neither root nor sudo is needed, on a hosted runner or in a container.
+          mkdir -p "${RUNNER_TEMP}/bin"
+          mv linux-amd64/helm "${RUNNER_TEMP}/bin/helm"
+          echo "${RUNNER_TEMP}/bin" >> "$GITHUB_PATH"
+          export PATH="${RUNNER_TEMP}/bin:$PATH"
+          rm -rf linux-amd64 "${HELM_TAR}" "${HELM_TAR}.sha256sum"
+          helm version
+        else
+          echo "ERROR: Checksum verification failed!" >&2
+          exit 1
+        fi
