@@ -45,6 +45,34 @@ jobs:
           tflint --version
           command -v tflint
 
+  test-helm-setup:
+    name: "Test / Helm setup action"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v7
+      - name: Setup Helm
+        uses: ./actions/helm/setup
+      - name: Verify helm is installed
+        run: |
+          helm version
+          command -v helm
+
+  test-chart-testing-setup:
+    name: "Test / chart-testing setup action"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v7
+      - name: Setup Helm
+        uses: ./actions/helm/setup
+      - name: Setup chart-testing
+        uses: ./actions/chart-testing/setup
+      - name: Verify chart-testing is installed
+        run: |
+          ct version
+          command -v ct yamllint yamale
+
   test-syft-generate-sbom:
     name: "Test / Syft generate-sbom action"
     runs-on: ubuntu-latest
