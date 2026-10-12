@@ -26,6 +26,11 @@ Markup (Markdown, YAML):
 
 - [Ensure the quality of your content](.github/workflows/reusable-markup-lint.yml)
 
+Helm:
+
+- [Setup Helm](actions/helm/setup/action.yml)
+- [Setup chart-testing](actions/chart-testing/setup/action.yml)
+
 Terraform:
 
 - [Deploy your environment](.github/workflows/reusable-terraform-deployment.yml)
