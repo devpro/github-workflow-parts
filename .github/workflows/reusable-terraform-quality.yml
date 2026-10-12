@@ -19,7 +19,7 @@ on:
         required: false
         default: "ubuntu-latest"
       workflow-parts-version:
-        description: "GitHub workflow parts version (branch/tag/SHA). Should match the ref/tag/SHA the caller pinned for this reusable workflow itself."
+        description: "GitHub workflow parts version (branch/tag/SHA). Should match the ref/tag/SHA the caller pinned for this reusable workflow itself. Empty to use the actions of the repository being checked out, which is what this repository's own CI does."
         type: string
         required: false
         default: "main"
@@ -34,7 +34,14 @@ jobs:
     steps:
       - name: Clone repository
         uses: actions/checkout@v7
+      - name: Use the workflow parts of this repository
+        if: inputs.workflow-parts-version == ''
+        shell: bash
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/workflow-parts"
+          cp -r "$GITHUB_WORKSPACE/actions" "$GITHUB_WORKSPACE/workflow-parts/"
       - name: Checkout workflow parts
+        if: inputs.workflow-parts-version != ''
         uses: actions/checkout@v7
         with:
           repository: devpro/github-workflow-parts

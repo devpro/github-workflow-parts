@@ -90,15 +90,16 @@ runs:
         IGNORE_UNFIXED: ${{ inputs.ignore-unfixed }}
         PKG_TYPES: ${{ inputs.pkg-types }}
       run: |
-        # --no-progress: a CI log is not a terminal, and every redraw of the database download bar becomes log text
-        args=("$SCAN_TYPE" --no-progress --format "$FORMAT" --severity "$SEVERITY" --exit-code "$EXIT_CODE")
+        args=("$SCAN_TYPE" --format "$FORMAT" --severity "$SEVERITY" --exit-code "$EXIT_CODE")
 
         if [ -n "$OUTPUT_FILE" ]; then
           args+=(--output "$OUTPUT_FILE")
         fi
 
-        # ignore-unfixed and pkg-types only make sense for vulnerability (image) scans
+        # no-progress, ignore-unfixed and pkg-types only exist for vulnerability (image) scans
         if [ "$SCAN_TYPE" = "image" ]; then
+          # A CI log is not a terminal, and every redraw of the database download bar becomes log text.
+          args+=(--no-progress)
           if [ "$IGNORE_UNFIXED" = "true" ]; then
             args+=(--ignore-unfixed)
           fi

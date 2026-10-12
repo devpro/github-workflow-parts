@@ -119,6 +119,5 @@ jobs:
     uses: ./.github/workflows/reusable-terraform-quality.yml
     with:
       working-directory: test/fixtures/terraform
-      # explicit override: for this same-repo local "./" call, github.workflow_sha's behavior is unverified,
-      # so pin to a ref we know is fetchable (branch on push, PR merge ref on PRs)
-      workflow-parts-version: ${{ github.ref }}
+      # empty: the actions under test are the ones in the checkout, not a copy fetched from GitHub that may not hold the change yet
+      workflow-parts-version: ""
