@@ -119,5 +119,3 @@ jobs:
     uses: ./.github/workflows/reusable-terraform-quality.yml
     with:
       working-directory: test/fixtures/terraform
-      # empty: the actions under test are the ones in the checkout, not a copy fetched from GitHub that may not hold the change yet
-      workflow-parts-version: ""
