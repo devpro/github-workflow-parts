@@ -73,6 +73,17 @@ jobs:
           ct version
           command -v ct yamllint yamale
 
+  test-mongodb-start:
+    name: "Test / MongoDB start action"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v7
+      - name: Start MongoDB
+        uses: ./actions/mongodb/start
+      - name: Verify MongoDB answers
+        run: mongosh --quiet --eval 'db.runCommand({ ping: 1 }).ok' mongodb://127.0.0.1:27017 | grep -qx 1
+
   test-syft-generate-sbom:
     name: "Test / Syft generate-sbom action"
     runs-on: ubuntu-latest
