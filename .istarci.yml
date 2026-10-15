@@ -1,0 +1,5 @@
+# IstarCI configuration, read from the root of the repository.
+
+runner:
+  # The container scan workflow builds an image through the host Docker daemon, as a hosted runner does.
+  docker: true
