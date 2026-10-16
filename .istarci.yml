@@ -1,5 +1,8 @@
 # IstarCI configuration, read from the root of the repository.
 
 runner:
+  # The .NET quality workflow needs the SDK, which a hosted runner has and the default image does not.
+  images:
+    "test-dotnet-quality*": ghcr.io/devpro/ubuntu-dotnet:latest
   # The container scan workflow builds an image through the host Docker daemon, as a hosted runner does.
   docker: ["test-container-scan-on-base*"]

@@ -10,6 +10,10 @@ inputs:
     description: Folder where report files will be generated
     required: false
     default: report
+  working-directory:
+    description: Directory of the .NET code, relative to the workspace, which a composite action does not take from the defaults of the calling job
+    required: false
+    default: "."
 
 runs:
   using: "composite"
@@ -17,6 +21,7 @@ runs:
     - name: Build .NET code
       run: dotnet build --no-restore --configuration Debug
       shell: bash
+      working-directory: ${{ inputs.working-directory }}
       env:
         BUILD_SOURCEBRANCHNAME: ${{ github.ref_name }}
         BUILD_BUILDID: ${{ github.run_id }}
@@ -26,12 +31,14 @@ runs:
           --results-directory "${{ inputs.report-folder }}/TestResults" \
           ${{ inputs.dotnet-test-args }}
       shell: bash
+      working-directory: ${{ inputs.working-directory }}
       env:
         ASPNETCORE_ENVIRONMENT: Development
     - name: Generate test report
-      if: ${{ always() && hashFiles(format('{0}/TestResults/*.cobertura.xml', inputs.report-folder)) != '' }}
+      if: ${{ always() && hashFiles(format('{0}/{1}/TestResults/*.cobertura.xml', inputs.working-directory, inputs.report-folder)) != '' }}
       run: |
         reportgenerator "-reports:${{ inputs.report-folder }}/TestResults/*.cobertura.xml" \
           "-targetdir:${{ inputs.report-folder }}" \
           "-reporttypes:Cobertura;Html;TextSummary"
       shell: bash
+      working-directory: ${{ inputs.working-directory }}

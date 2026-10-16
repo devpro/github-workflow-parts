@@ -132,6 +132,14 @@ jobs:
     with:
       working-directory: test/fixtures/terraform
 
+  test-dotnet-quality:
+    name: "Test / .NET quality reusable workflow"
+    uses: ./.github/workflows/reusable-dotnet-quality.yml
+    with:
+      working-directory: test/fixtures/dotnet
+      # The fixture holds a test that fails, which only the filter keeps the job from running.
+      dotnet-test-filter: --filter-not-namespace Fixture.Tests.LeftOut*
+
   test-container-scan-on-base:
     name: "Test / Container scan reusable workflow on a base built in the run"
     uses: ./.github/workflows/reusable-container-scan.yml

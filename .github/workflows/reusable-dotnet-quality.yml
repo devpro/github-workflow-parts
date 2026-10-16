@@ -13,6 +13,11 @@ on:
         type: string
         required: false
         default: ""
+      dotnet-test-filter:
+        description: "Arguments appended to the test arguments to leave tests out (for example \"--filter-not-namespace App.IntegrationTests*\"), the caller's DOTNET_TEST_FILTER variable when empty"
+        type: string
+        required: false
+        default: ""
       dotnet-version:
         description: .NET version
         type: string
@@ -24,7 +29,7 @@ on:
         required: false
         default: ""
       fossa-enabled:
-        description: Enable license compliance with FOSSA
+        description: Enable license compliance with FOSSA, unless the caller's FOSSA_ENABLED variable is "false"
         type: boolean
         required: false
         default: false
@@ -64,10 +69,10 @@ on:
         required: false
         default: "node_modules"
       sonar-host-url:
-        description: Sonar host URL
+        description: Sonar host URL, the caller's SONAR_HOST_URL variable when empty, then SonarCloud
         type: string
         required: false
-        default: "https://sonarcloud.io"
+        default: ""
       sonar-organization:
         description: Sonar organization
         type: string
@@ -84,7 +89,7 @@ on:
         required: false
         default: ""
       workflow-parts-version:
-        description: GitHub workflow parts version (branch/tag/SHA). Should match the ref/tag/SHA the caller pinned for this reusable workflow itself.
+        description: GitHub workflow parts version (branch/tag/SHA). Should match the ref/tag/SHA the caller pinned for this reusable workflow itself. Ignored when the caller is this repository, whose checkout already holds the actions under test.
         type: string
         required: false
         default: main
@@ -141,7 +146,15 @@ jobs:
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
+      - name: Use the workflow parts of this repository
+        if: github.repository == 'devpro/github-workflow-parts'
+        shell: bash
+        working-directory: .
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/workflow-parts"
+          cp -r "$GITHUB_WORKSPACE/actions" "$GITHUB_WORKSPACE/workflow-parts/"
       - name: Checkout workflow parts
+        if: github.repository != 'devpro/github-workflow-parts'
         uses: actions/checkout@v7
         with:
           repository: devpro/github-workflow-parts
@@ -151,6 +164,7 @@ jobs:
         uses: ./workflow-parts/actions/dotnet/install-lint-restore
         with:
           dotnet-version: ${{ inputs.dotnet-version }}
+          working-directory: ${{ inputs.working-directory }}
       - name: Start MongoDB
         if: ${{ inputs.mongodb-enabled }}
         uses: ./workflow-parts/actions/mongodb/start
@@ -162,21 +176,24 @@ jobs:
         if: ${{ ! inputs.sonar-enabled }}
         uses: ./workflow-parts/actions/dotnet/build-test
         with:
-          dotnet-test-args: ${{ inputs.dotnet-test-args }}
+          dotnet-test-args: ${{ format('{0} {1}', inputs.dotnet-test-args, inputs.dotnet-test-filter || vars.DOTNET_TEST_FILTER) }}
+          working-directory: ${{ inputs.working-directory }}
       - name: Build, test & analyze
         if: ${{ inputs.sonar-enabled }}
         uses: ./workflow-parts/actions/dotnet/build-test-sonar
         with:
-          dotnet-test-args: ${{ inputs.dotnet-test-args }}
+          dotnet-test-args: ${{ format('{0} {1}', inputs.dotnet-test-args, inputs.dotnet-test-filter || vars.DOTNET_TEST_FILTER) }}
+          working-directory: ${{ inputs.working-directory }}
           sonar-cpd-exclusions: ${{ inputs.sonar-cpd-exclusions }}
           sonar-exclusions: ${{ inputs.sonar-exclusions }}
-          sonar-host-url: ${{ inputs.sonar-host-url }}
+          sonar-host-url: ${{ inputs.sonar-host-url || vars.SONAR_HOST_URL || 'https://sonarcloud.io' }}
           sonar-organization: ${{ inputs.sonar-organization }}
           sonar-project-key: ${{ inputs.sonar-project-key }}
           sonar-project-name: ${{ inputs.sonar-project-name }}
           sonar-token: ${{ secrets.sonar-token }}
       - name: Check license compliance with FOSSA
-        if: ${{ inputs.fossa-enabled }}
+        # A repository turns it off where FOSSA cannot be reached, a local run holding no API key.
+        if: ${{ inputs.fossa-enabled && vars.FOSSA_ENABLED != 'false' }}
         uses: ./workflow-parts/actions/fossa/analyze
         # https://status.fossa.com/
         continue-on-error: true
