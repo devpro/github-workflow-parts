@@ -34,18 +34,12 @@ jobs:
     steps:
       - name: Clone repository
         uses: actions/checkout@v7
-      - name: Use the workflow parts of this repository
-        if: github.repository == 'devpro/github-workflow-parts'
-        shell: bash
-        run: |
-          mkdir -p "$GITHUB_WORKSPACE/workflow-parts"
-          cp -r "$GITHUB_WORKSPACE/actions" "$GITHUB_WORKSPACE/workflow-parts/"
       - name: Checkout workflow parts
-        if: github.repository != 'devpro/github-workflow-parts'
         uses: actions/checkout@v7
         with:
           repository: devpro/github-workflow-parts
-          ref: ${{ inputs.workflow-parts-version }}
+          # The caller being this repository, the actions under test are those of the commit under test.
+          ref: ${{ github.repository == 'devpro/github-workflow-parts' && github.sha || inputs.workflow-parts-version }}
           path: workflow-parts
       - name: Cache Terraform plugins
         uses: actions/cache@v6
