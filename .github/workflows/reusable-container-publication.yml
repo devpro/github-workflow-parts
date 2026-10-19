@@ -58,7 +58,7 @@ on:
         required: false
         default: ubuntu-latest
       workflow-parts-version:
-        description: GitHub workflow parts version (branch/tag/SHA). Should match the ref/tag/SHA the caller pinned for this reusable workflow itself.
+        description: GitHub workflow parts version (branch/tag/SHA). Should match the ref/tag/SHA the caller pinned for this reusable workflow itself. Ignored when the caller is this repository, whose checkout already holds the actions under test.
         type: string
         required: false
         default: main
@@ -92,7 +92,7 @@ jobs:
           SECRET_VARS: ${{ secrets.secret-vars }}
         run: |
           if [[ -n "$SECRET_VARS" ]]; then
-            echo "$SECRET_VARS" | while IFS='=' read -r key val; do
+            echo "$SECRET_VARS" | while IFS='=' read -r _ val; do
               if [[ -n "$val" ]]; then
                 echo "::add-mask::$val"
               fi
@@ -100,12 +100,13 @@ jobs:
             echo "$SECRET_VARS" >> "$GITHUB_ENV"
           fi
       - name: Clone repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Checkout workflow parts
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: devpro/github-workflow-parts
-          ref: ${{ inputs.workflow-parts-version }}
+          # The caller being this repository, the actions under test are those of the commit under test.
+          ref: ${{ github.repository == 'devpro/github-workflow-parts' && github.sha || inputs.workflow-parts-version }}
           path: workflow-parts
       # The Docker CLI of the runner does what the docker/* actions wrapped, with no third party action in between.
       - name: Login to container registry
@@ -140,9 +141,7 @@ jobs:
       - name: Push latest tag
         if: ${{ inputs.create-latest }}
         run: |
-          docker buildx imagetools create \
-            --tag ${{ env.IMAGE_REF_LATEST }} \
-            ${{ env.IMAGE_REF }}
+          docker buildx imagetools create --tag "$IMAGE_REF_LATEST" "$IMAGE_REF"
       - name: Sign container image with Cosign
         uses: ./workflow-parts/actions/cosign/sign
         with:

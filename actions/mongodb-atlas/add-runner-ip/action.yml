@@ -17,9 +17,13 @@ runs:
   steps:
     - name: Add runner IP to MongoDB Atlas
       shell: bash
+      env:
+        ATLAS_GROUP_ID: ${{ inputs.atlas-groupid }}
+        ATLAS_PRIVATE_KEY: ${{ inputs.atlas-privatekey }}
+        ATLAS_PUBLIC_KEY: ${{ inputs.atlas-publickey }}
       run: |
         # gets current outbound IP of this runner
-        RUNNER_IP=$(curl -s https://api.ipify.org || curl -s https://ifconfig.me)
+        RUNNER_IP=$(curl -fsS https://api.ipify.org || curl -fsS https://ifconfig.me)
         if [ -z "$RUNNER_IP" ]; then
           echo "Failed to detect runner IP"
           exit 1
@@ -33,11 +37,11 @@ runs:
         PAYLOAD="[{\"ipAddress\": \"$RUNNER_IP\", \"comment\": \"GH Actions temp - run ${{ github.run_id }}\", \"deleteAfterDate\": \"$DELETE_AFTER\"}]"
 
         # calls Atlas API v2 to add the entry (uses digest Auth via curl)
-        RESPONSE=$(curl -s -w "%{http_code}" --user "${{ inputs.atlas-publickey }}:${{ inputs.atlas-privatekey }}" --digest \
+        RESPONSE=$(curl -s -w "%{http_code}" --user "${ATLAS_PUBLIC_KEY}:${ATLAS_PRIVATE_KEY}" --digest \
           -H "Accept: application/vnd.atlas.2023-01-01+json" \
           -H "Content-Type: application/json" \
           --data "$PAYLOAD" \
-          "https://cloud.mongodb.com/api/atlas/v2/groups/${{ inputs.atlas-groupid }}/accessList")
+          "https://cloud.mongodb.com/api/atlas/v2/groups/${ATLAS_GROUP_ID}/accessList")
 
         HTTP_CODE=${RESPONSE: -3}
 

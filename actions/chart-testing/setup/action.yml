@@ -35,8 +35,8 @@ runs:
         BASE_URL="https://github.com/helm/chart-testing/releases/download/${CT_VERSION}"
 
         echo "Downloading chart-testing binary and checksums..."
-        curl -sSL -O "${BASE_URL}/${CT_TAR}"
-        curl -sSL -O "${BASE_URL}/checksums.txt"
+        curl -fsSL -O "${BASE_URL}/${CT_TAR}"
+        curl -fsSL -O "${BASE_URL}/checksums.txt"
 
         echo "Verifying checksum..."
         if grep " ${CT_TAR}$" checksums.txt | sha256sum --check --status; then

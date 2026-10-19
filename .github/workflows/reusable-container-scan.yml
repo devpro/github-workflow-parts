@@ -79,19 +79,13 @@ jobs:
         working-directory: ${{ inputs.working-directory }}
     steps:
       - name: Clone repository
-        uses: actions/checkout@v7
-      - name: Use the workflow parts of this repository
-        if: github.repository == 'devpro/github-workflow-parts'
-        shell: bash
-        run: |
-          mkdir -p "$GITHUB_WORKSPACE/workflow-parts"
-          cp -r "$GITHUB_WORKSPACE/actions" "$GITHUB_WORKSPACE/workflow-parts/"
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Checkout workflow parts
-        if: github.repository != 'devpro/github-workflow-parts'
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: devpro/github-workflow-parts
-          ref: ${{ inputs.workflow-parts-version }}
+          # The caller being this repository, the actions under test are those of the commit under test.
+          ref: ${{ github.repository == 'devpro/github-workflow-parts' && github.sha || inputs.workflow-parts-version }}
           path: workflow-parts
       # A scan judges what a clean build produces today.
       # A cached `apt-get upgrade` layer or a stale base image keeps an already fixed package version, on a runner whose Docker daemon outlives the job.

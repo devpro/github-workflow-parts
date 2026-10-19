@@ -28,8 +28,9 @@ jobs:
         working-directory: ${{ inputs.working-directory }}
     steps:
       - name: Check out repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # The linters are pinned, so that a new release changes the verdict on a repository only when this one moves to it.
       - name: Lint Markdown files
-        run: npx markdownlint-cli2 "**/*.md"
+        run: npx --yes markdownlint-cli2@0.23.3 "**/*.md"
       - name: Lint YAML files
-        run: pipx run yamllint .
+        run: pipx run --spec yamllint==1.38.0 yamllint .

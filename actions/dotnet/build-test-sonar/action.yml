@@ -51,19 +51,19 @@ runs:
   using: "composite"
   steps:
     - name: Set up JDK for Sonar
-      uses: actions/setup-java@v5
+      uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
       with:
         java-version: ${{ inputs.java-version }}
         distribution: "zulu"
     - name: Cache Sonar packages
-      uses: actions/cache@v6
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ~/sonar/cache
         key: ${{ runner.os }}-sonar
         restore-keys: ${{ runner.os }}-sonar
     - name: Cache Sonar scanner
       id: cache-sonar-scanner
-      uses: actions/cache@v6
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ./.sonar/scanner
         key: ${{ runner.os }}-sonar-scanner
@@ -77,17 +77,26 @@ runs:
     - name: Start code analysis
       run: |
         "$GITHUB_WORKSPACE/.sonar/scanner/dotnet-sonarscanner" begin \
-          /k:"${{ inputs.sonar-project-key }}" \
-          /o:"${{ inputs.sonar-organization }}" \
-          /n:"${{ inputs.sonar-project-name }}" \
-          /d:sonar.token="${{ inputs.sonar-token}}" \
-          /d:sonar.host.url="${{ inputs.sonar-host-url }}" \
-          /d:sonar.cpd.exclusions="${{ inputs.report-folder }}/**,${{ inputs.sonar-cpd-exclusions }}" \
-          /d:sonar.exclusions="${{ inputs.report-folder }}/**,${{ inputs.sonar-exclusions }}" \
-          /d:sonar.coverageReportPaths="${{ inputs.report-folder }}/SonarQube.xml" \
-          /d:sonar.cs.vstest.reportsPaths="${{ inputs.report-folder }}/TestResults/*.trx"
+          /k:"$SONAR_PROJECT_KEY" \
+          /o:"$SONAR_ORGANIZATION" \
+          /n:"$SONAR_PROJECT_NAME" \
+          /d:sonar.token="$SONAR_TOKEN" \
+          /d:sonar.host.url="$SONAR_HOST_URL" \
+          /d:sonar.cpd.exclusions="$REPORT_FOLDER/**,$SONAR_CPD_EXCLUSIONS" \
+          /d:sonar.exclusions="$REPORT_FOLDER/**,$SONAR_EXCLUSIONS" \
+          /d:sonar.coverageReportPaths="$REPORT_FOLDER/SonarQube.xml" \
+          /d:sonar.cs.vstest.reportsPaths="$REPORT_FOLDER/TestResults/*.trx"
       shell: bash
       working-directory: ${{ inputs.working-directory }}
+      env:
+        REPORT_FOLDER: ${{ inputs.report-folder }}
+        SONAR_CPD_EXCLUSIONS: ${{ inputs.sonar-cpd-exclusions }}
+        SONAR_EXCLUSIONS: ${{ inputs.sonar-exclusions }}
+        SONAR_HOST_URL: ${{ inputs.sonar-host-url }}
+        SONAR_ORGANIZATION: ${{ inputs.sonar-organization }}
+        SONAR_PROJECT_KEY: ${{ inputs.sonar-project-key }}
+        SONAR_PROJECT_NAME: ${{ inputs.sonar-project-name }}
+        SONAR_TOKEN: ${{ inputs.sonar-token }}
     - name: Build .NET solution
       run: dotnet build --no-restore --configuration Debug
       shell: bash
@@ -98,21 +107,26 @@ runs:
     - name: Run tests
       run: |
         dotnet test --no-build --verbosity normal --configuration Debug \
-          --results-directory "${{ inputs.report-folder }}/TestResults" \
+          --results-directory "$REPORT_FOLDER/TestResults" \
           ${{ inputs.dotnet-test-args }}
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       env:
         ASPNETCORE_ENVIRONMENT: Development
+        REPORT_FOLDER: ${{ inputs.report-folder }}
     - name: Generate test report
       if: ${{ always() && hashFiles(format('{0}/{1}/TestResults/*.cobertura.xml', inputs.working-directory, inputs.report-folder)) != '' }}
       run: |
-        reportgenerator "-reports:${{ inputs.report-folder }}/TestResults/*.cobertura.xml" \
-          "-targetdir:${{ inputs.report-folder }}" \
+        reportgenerator "-reports:$REPORT_FOLDER/TestResults/*.cobertura.xml" \
+          "-targetdir:$REPORT_FOLDER" \
           "-reporttypes:Cobertura;Html;TextSummary;SonarQube"
       shell: bash
       working-directory: ${{ inputs.working-directory }}
+      env:
+        REPORT_FOLDER: ${{ inputs.report-folder }}
     - name: Complete code analysis
-      run: '"$GITHUB_WORKSPACE/.sonar/scanner/dotnet-sonarscanner" end /d:sonar.token="${{ inputs.sonar-token }}"'
+      run: '"$GITHUB_WORKSPACE/.sonar/scanner/dotnet-sonarscanner" end /d:sonar.token="$SONAR_TOKEN"'
       shell: bash
       working-directory: ${{ inputs.working-directory }}
+      env:
+        SONAR_TOKEN: ${{ inputs.sonar-token }}

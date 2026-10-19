@@ -57,13 +57,11 @@ runs:
         BASE_URL="https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}"
 
         echo "Downloading Trivy binary and checksums..."
-        curl -sSL -O "${BASE_URL}/${TRIVY_TARBALL}"
-        curl -sSL -O "${BASE_URL}/${TRIVY_CHECKSUMS}"
+        curl -fsSL -O "${BASE_URL}/${TRIVY_TARBALL}"
+        curl -fsSL -O "${BASE_URL}/${TRIVY_CHECKSUMS}"
 
         echo "Verifying checksum..."
-        grep " ${TRIVY_TARBALL}$" "${TRIVY_CHECKSUMS}" | sha256sum --check --status
-
-        if [ $? -eq 0 ]; then
+        if grep " ${TRIVY_TARBALL}$" "${TRIVY_CHECKSUMS}" | sha256sum --check --status; then
           echo "Verification successful!"
           tar -xzf "${TRIVY_TARBALL}" trivy
           chmod +x trivy

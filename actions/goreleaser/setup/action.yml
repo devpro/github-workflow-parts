@@ -24,13 +24,11 @@ runs:
         BASE_URL="https://github.com/goreleaser/goreleaser/releases/download/v${GORELEASER_VERSION}"
 
         echo "Downloading GoReleaser binary and checksums..."
-        curl -sSL -O "${BASE_URL}/${GORELEASER_TARBALL}"
-        curl -sSL -O "${BASE_URL}/checksums.txt"
+        curl -fsSL -O "${BASE_URL}/${GORELEASER_TARBALL}"
+        curl -fsSL -O "${BASE_URL}/checksums.txt"
 
         echo "Verifying checksum..."
-        grep " ${GORELEASER_TARBALL}$" checksums.txt | sha256sum --check --status
-
-        if [ $? -eq 0 ]; then
+        if grep " ${GORELEASER_TARBALL}$" checksums.txt | sha256sum --check --status; then
           echo "Verification successful!"
           tar -xzf "${GORELEASER_TARBALL}" goreleaser
           chmod +x goreleaser

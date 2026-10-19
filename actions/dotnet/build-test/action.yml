@@ -28,17 +28,20 @@ runs:
     - name: Run tests
       run: |
         dotnet test --no-build --verbosity normal --configuration Debug \
-          --results-directory "${{ inputs.report-folder }}/TestResults" \
+          --results-directory "$REPORT_FOLDER/TestResults" \
           ${{ inputs.dotnet-test-args }}
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       env:
         ASPNETCORE_ENVIRONMENT: Development
+        REPORT_FOLDER: ${{ inputs.report-folder }}
     - name: Generate test report
       if: ${{ always() && hashFiles(format('{0}/{1}/TestResults/*.cobertura.xml', inputs.working-directory, inputs.report-folder)) != '' }}
       run: |
-        reportgenerator "-reports:${{ inputs.report-folder }}/TestResults/*.cobertura.xml" \
-          "-targetdir:${{ inputs.report-folder }}" \
+        reportgenerator "-reports:$REPORT_FOLDER/TestResults/*.cobertura.xml" \
+          "-targetdir:$REPORT_FOLDER" \
           "-reporttypes:Cobertura;Html;TextSummary"
       shell: bash
       working-directory: ${{ inputs.working-directory }}
+      env:
+        REPORT_FOLDER: ${{ inputs.report-folder }}

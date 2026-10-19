@@ -1,4 +1,4 @@
-﻿name: Reusable - Terraform apply
+name: Reusable - Terraform apply
 
 on:
   workflow_call:
@@ -37,7 +37,7 @@ on:
         required: false
         default: ""
       workflow-parts-version:
-        description: "GitHub workflow parts version (branch/tag/SHA). Should match the ref/tag/SHA the caller pinned for this reusable workflow itself."
+        description: "GitHub workflow parts version (branch/tag/SHA). Should match the ref/tag/SHA the caller pinned for this reusable workflow itself. Ignored when the caller is this repository, whose checkout already holds the actions under test."
         type: string
         required: false
         default: "main"
@@ -49,7 +49,7 @@ on:
         description: "Atlas private key"
         required: true
       atlas-groupid:
-        description: "Atlas group IP"
+        description: "Atlas group ID"
         required: true
       tfbackend-connstring:
         description: "Terraform backend connection string"
@@ -90,12 +90,13 @@ jobs:
           - 8080:8080
     steps:
       - name: Clone repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Checkout workflow parts
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: devpro/github-workflow-parts
-          ref: ${{ inputs.workflow-parts-version }}
+          # The caller being this repository, the actions under test are those of the commit under test.
+          ref: ${{ github.repository == 'devpro/github-workflow-parts' && github.sha || inputs.workflow-parts-version }}
           path: workflow-parts
       - name: Add runner ID to MongoDB Atlas
         uses: ./workflow-parts/actions/mongodb-atlas/add-runner-ip
@@ -104,23 +105,23 @@ jobs:
           atlas-privatekey: ${{ secrets.atlas-privatekey }}
           atlas-groupid: ${{ secrets.atlas-groupid }}
       - name: Set additional variables
+        env:
+          ADDITIONAL_VARS: ${{ secrets.additional-vars }}
         run: |
-          if [[ -z "${{ secrets.additional-vars }}" ]]; then
-            echo "No additional-vars bundle provided - skipping."
-          else
-            echo "${{ secrets.additional-vars }}" | while IFS='=' read -r key val; do
+          if [[ -n "$ADDITIONAL_VARS" ]]; then
+            echo "$ADDITIONAL_VARS" | while IFS='=' read -r _ val; do
               if [[ -n "$val" ]]; then
                 echo "::add-mask::$val"
               fi
             done
-            echo "${{ secrets.additional-vars }}" >> "$GITHUB_ENV"
+            echo "$ADDITIONAL_VARS" >> "$GITHUB_ENV"
           fi
       - name: Run optional custom commands
         if: ${{ inputs.custom-commands != '' }}
         run: |
           ${{ inputs.custom-commands }}
       - name: Cache Terraform plugins
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.terraform.d/plugin-cache

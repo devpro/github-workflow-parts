@@ -1,0 +1,11 @@
+# C# is indented by four, where the rest of this repository is indented by two.
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+
+[*.cs]
+indent_style = space
+indent_size = 4

@@ -24,13 +24,11 @@ runs:
         BASE_URL="https://github.com/terraform-linters/tflint/releases/download/${TFLINT_VERSION}"
 
         echo "Downloading TFLint binary and checksums..."
-        curl -sSL -O "${BASE_URL}/${TFLINT_ZIP}"
-        curl -sSL -O "${BASE_URL}/checksums.txt"
+        curl -fsSL -O "${BASE_URL}/${TFLINT_ZIP}"
+        curl -fsSL -O "${BASE_URL}/checksums.txt"
 
         echo "Verifying checksum..."
-        grep " ${TFLINT_ZIP}$" checksums.txt | sha256sum --check --status
-
-        if [ $? -eq 0 ]; then
+        if grep " ${TFLINT_ZIP}$" checksums.txt | sha256sum --check --status; then
           echo "Verification successful!"
           unzip -o "${TFLINT_ZIP}"
           chmod +x tflint

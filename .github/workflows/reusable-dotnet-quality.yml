@@ -131,7 +131,7 @@ jobs:
           ADDITIONAL_VARS: ${{ secrets.additional-vars }}
         run: |
           if [[ -n "$ADDITIONAL_VARS" ]]; then
-            echo "$ADDITIONAL_VARS" | while IFS='=' read -r key val; do
+            echo "$ADDITIONAL_VARS" | while IFS='=' read -r _ val; do
               if [[ -n "$val" ]]; then
                 echo "::add-mask::$val"
               fi
@@ -143,11 +143,11 @@ jobs:
         run: git config --global core.autocrlf false
         shell: bash
       - name: Clone repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
       - name: Checkout workflow parts
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: devpro/github-workflow-parts
           # The caller being this repository, the actions under test are those of the commit under test.
@@ -201,7 +201,7 @@ jobs:
         continue-on-error: true
       - name: Archive test results
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: dotnet-test-results
           path: |

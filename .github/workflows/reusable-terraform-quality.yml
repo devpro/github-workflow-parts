@@ -33,16 +33,16 @@ jobs:
         working-directory: ${{ inputs.working-directory }}
     steps:
       - name: Clone repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Checkout workflow parts
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: devpro/github-workflow-parts
           # The caller being this repository, the actions under test are those of the commit under test.
           ref: ${{ github.repository == 'devpro/github-workflow-parts' && github.sha || inputs.workflow-parts-version }}
           path: workflow-parts
       - name: Cache Terraform plugins
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.terraform.d/plugin-cache
@@ -58,7 +58,7 @@ jobs:
       # Checkov is a static code analysis tool for infrastructure as code (IaC) and also a software composition analysis (SCA) tool for images and open source packages
       - name: Run Checkov
         run: |
-          pipx run checkov -d . \
+          pipx run --spec checkov==3.3.21 checkov -d . \
             --soft-fail \
             --output cli --output sarif \
             --output-file-path console,results.sarif
@@ -71,7 +71,7 @@ jobs:
       #     sarif_file: results.sarif
       # TFLint is a pluggable terraform linter (ref. https://github.com/terraform-linters/tflint)
       - name: Cache TFLint plugins
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.tflint.d/plugins
           key: tflint-${{ hashFiles('**/.tflint.hcl') }}
@@ -96,7 +96,7 @@ jobs:
           output-file: trivy-results.sarif
           severity: HIGH,CRITICAL
       - name: Upload SARIF as artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: security-results

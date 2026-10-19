@@ -24,8 +24,8 @@ runs:
         BASE_URL="https://get.helm.sh"
 
         echo "Downloading Helm binary and checksum..."
-        curl -sSL -O "${BASE_URL}/${HELM_TAR}"
-        curl -sSL -O "${BASE_URL}/${HELM_TAR}.sha256sum"
+        curl -fsSL -O "${BASE_URL}/${HELM_TAR}"
+        curl -fsSL -O "${BASE_URL}/${HELM_TAR}.sha256sum"
 
         echo "Verifying checksum..."
         if sha256sum --check --status "${HELM_TAR}.sha256sum"; then

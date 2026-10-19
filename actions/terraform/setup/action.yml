@@ -25,13 +25,11 @@ runs:
         BASE_URL="https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}"
 
         echo "Downloading Terraform binary and checksums..."
-        curl -sSL -O "${BASE_URL}/${TERRAFORM_ZIP}"
-        curl -sSL -O "${BASE_URL}/${TERRAFORM_SHA256SUMS}"
+        curl -fsSL -O "${BASE_URL}/${TERRAFORM_ZIP}"
+        curl -fsSL -O "${BASE_URL}/${TERRAFORM_SHA256SUMS}"
 
         echo "Verifying checksum..."
-        grep " ${TERRAFORM_ZIP}$" "${TERRAFORM_SHA256SUMS}" | sha256sum --check --status
-
-        if [ $? -eq 0 ]; then
+        if grep " ${TERRAFORM_ZIP}$" "${TERRAFORM_SHA256SUMS}" | sha256sum --check --status; then
           echo "Verification successful!"
           unzip -o "${TERRAFORM_ZIP}"
           chmod +x terraform

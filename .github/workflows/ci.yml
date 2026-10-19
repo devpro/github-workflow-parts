@@ -19,12 +19,21 @@ jobs:
     name: Markup
     uses: ./.github/workflows/reusable-markup-lint.yml
 
+  static-checks:
+    name: "Test / Static checks of the actions and workflows"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Run actionlint, shellcheck and the conventions of this repository
+        run: test/run_static_checks.sh
+
   test-terraform-setup:
     name: "Test / Terraform setup action"
     runs-on: ubuntu-latest
     steps:
       - name: Clone repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install terraform
         uses: ./actions/terraform/setup
       - name: Verify terraform is installed
@@ -37,7 +46,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Clone repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Setup TFLint
         uses: ./actions/tflint/setup
       - name: Verify tflint is installed
@@ -45,12 +54,83 @@ jobs:
           tflint --version
           command -v tflint
 
+  test-setup-versions:
+    name: "Test / Setup actions install the version asked for"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install terraform
+        uses: ./actions/terraform/setup
+        with:
+          terraform-version: 1.9.8
+      - name: Setup TFLint
+        uses: ./actions/tflint/setup
+        with:
+          tflint-version: v0.53.0
+      - name: Setup Helm
+        uses: ./actions/helm/setup
+        with:
+          helm-version: v3.16.4
+      - name: Verify the versions
+        run: |
+          terraform version | head -1 | grep -qx 'Terraform v1.9.8'
+          tflint --version | grep -q 'version 0.53.0'
+          helm version --short | grep -q '^v3.16.4+'
+
+  # A setup action that cannot verify what it downloaded stops the job rather than running it.
+  test-setup-fails-closed:
+    name: "Test / Setup actions fail on a missing release or a wrong checksum"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install a terraform release that does not exist
+        id: terraform-missing-release
+        continue-on-error: true
+        uses: ./actions/terraform/setup
+        with:
+          terraform-version: 0.0.0
+      - name: Install a Trivy release that does not exist
+        id: trivy-missing-release
+        continue-on-error: true
+        uses: ./actions/trivy/scan
+        with:
+          trivy-version: 0.0.0
+          scan-type: config
+          target: test/fixtures/terraform
+      - name: Install a Cosign release that does not exist
+        id: cosign-missing-release
+        continue-on-error: true
+        uses: ./actions/cosign/sign
+        with:
+          cosign-version: v0.0.0
+          image-name: busybox
+          image-path: docker.io/library
+          image-tag: "1.37"
+          readonly: "true"
+      - name: Start MongoDB with a mongosh archive whose checksum does not match
+        id: mongodb-wrong-checksum
+        continue-on-error: true
+        uses: ./actions/mongodb/start
+        with:
+          mongosh-sha256: "0000000000000000000000000000000000000000000000000000000000000000"
+      - name: Verify every step failed
+        env:
+          STEPS: ${{ toJSON(steps) }}
+        run: |
+          passed=$(jq -r 'to_entries[] | select(.value.outcome != "failure") | .key' <<< "$STEPS")
+          if [ -n "$passed" ]; then
+            echo "Steps that did not fail: $passed" >&2
+            exit 1
+          fi
+
   test-helm-setup:
     name: "Test / Helm setup action"
     runs-on: ubuntu-latest
     steps:
       - name: Clone repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Setup Helm
         uses: ./actions/helm/setup
       - name: Verify helm is installed
@@ -63,7 +143,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Clone repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Setup Helm
         uses: ./actions/helm/setup
       - name: Setup chart-testing
@@ -73,12 +153,72 @@ jobs:
           ct version
           command -v ct yamllint yamale
 
+  test-goreleaser-setup:
+    name: "Test / GoReleaser setup action"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup GoReleaser
+        uses: ./actions/goreleaser/setup
+      - name: Verify goreleaser is installed
+        run: |
+          goreleaser --version
+          command -v goreleaser
+
+  test-cosign-sign:
+    name: "Test / Cosign sign action, without signing"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # Signing needs an OIDC token and a registry to push to, so the run stops short of it.
+      - name: Install Cosign and read the digest of a public image
+        id: cosign
+        uses: ./actions/cosign/sign
+        with:
+          image-name: busybox
+          image-path: docker.io/library
+          image-tag: "1.37"
+          readonly: "true"
+      - name: Read the digest of an image that does not exist
+        id: missing-image
+        continue-on-error: true
+        uses: ./actions/cosign/sign
+        with:
+          image-name: busybox
+          image-path: docker.io/library
+          image-tag: tag-that-does-not-exist
+          readonly: "true"
+      - name: Verify the digest and the failure
+        env:
+          DIGEST: ${{ steps.cosign.outputs.digest }}
+          MISSING_IMAGE_OUTCOME: ${{ steps.missing-image.outcome }}
+        run: |
+          command -v cosign
+          [[ "$DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+          [ "$MISSING_IMAGE_OUTCOME" = failure ]
+
+  test-dotnet-pack-push:
+    name: "Test / .NET pack-push action, without pushing"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Package the library fixture
+        uses: ./actions/dotnet/pack-push
+        with:
+          registry-token: unused
+          working-directory: test/fixtures/dotnet-library
+      - name: Verify the package was created
+        run: test -s test/fixtures/dotnet-library/output/Fixture.Library.1.0.0.nupkg
+
   test-mongodb-start:
     name: "Test / MongoDB start action"
     runs-on: ubuntu-latest
     steps:
       - name: Clone repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Start MongoDB
         uses: ./actions/mongodb/start
       - name: Verify MongoDB answers
@@ -90,24 +230,32 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Clone repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Generate SBOM for this repository
         uses: ./actions/syft/generate-sbom
         with:
           target-path: actions
           output-file: sbom-test.spdx.json
           upload-artifact: "false"
+      - name: Generate SBOM for a public image
+        uses: ./actions/syft/generate-sbom
+        with:
+          target-image: busybox:1.37
+          output-format: cyclonedx-json
+          output-file: sbom-image-test.cdx.json
+          upload-artifact: "false"
       - name: Verify SBOM was generated
         run: |
           test -s sbom-test.spdx.json
           grep -q '"spdxVersion"' sbom-test.spdx.json
+          jq -e '.bomFormat == "CycloneDX" and (.components | length > 0)' sbom-image-test.cdx.json
 
   test-trivy-scan:
     name: "Test / Trivy scan action"
     runs-on: ubuntu-latest
     steps:
       - name: Clone repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Scan a real image with Trivy
         uses: ./actions/trivy/scan
         with:
@@ -123,8 +271,22 @@ jobs:
           format: sarif
           output-file: trivy-test.sarif
           severity: HIGH,CRITICAL
-      - name: Verify SARIF report was generated
-        run: test -s trivy-test.sarif
+      # The base fixture runs as root, which Trivy reports as a HIGH misconfiguration.
+      - name: Scan a directory with a finding, failing on it
+        id: trivy-finding
+        continue-on-error: true
+        uses: ./actions/trivy/scan
+        with:
+          scan-type: config
+          target: test/fixtures/container/base
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+      - name: Verify SARIF report was generated and the finding failed the scan
+        env:
+          FINDING_OUTCOME: ${{ steps.trivy-finding.outcome }}
+        run: |
+          jq -e '.version == "2.1.0"' trivy-test.sarif
+          [ "$FINDING_OUTCOME" = failure ]
 
   test-terraform-quality:
     name: "Test / Terraform quality reusable workflow"

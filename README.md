@@ -5,7 +5,7 @@
 GitHub workflow components for code repositories.
 
 > [!IMPORTANT]
-> Keep your pipelines **safe** and **DRY**!
+> Keep pipelines **safe** and **DRY**!
 
 ## Reusable workflows
 
@@ -15,26 +15,21 @@ GitHub workflow components for code repositories.
 
 Containers:
 
-- [Publish your image](.github/workflows/reusable-container-publication.yml)
-- [Scan your image](.github/workflows/reusable-container-scan.yml)
+- [Publish an image](.github/workflows/reusable-container-publication.yml)
+- [Scan an image](.github/workflows/reusable-container-scan.yml)
 
 .NET:
 
-- [Ensure the quality of your code](.github/workflows/reusable-dotnet-quality.yml)
+- [Ensure the quality of the code](.github/workflows/reusable-dotnet-quality.yml)
 
 Markup (Markdown, YAML):
 
-- [Ensure the quality of your content](.github/workflows/reusable-markup-lint.yml)
-
-Helm:
-
-- [Setup Helm](actions/helm/setup/action.yml)
-- [Setup chart-testing](actions/chart-testing/setup/action.yml)
+- [Ensure the quality of the content](.github/workflows/reusable-markup-lint.yml)
 
 Terraform:
 
-- [Deploy your environment](.github/workflows/reusable-terraform-deployment.yml)
-- [Ensure the quality of your infrastructure code](.github/workflows/reusable-terraform-quality.yml)
+- [Deploy an environment](.github/workflows/reusable-terraform-deployment.yml)
+- [Ensure the quality of the infrastructure code](.github/workflows/reusable-terraform-quality.yml)
 
 ## Composite actions
 
@@ -44,18 +39,33 @@ Terraform:
 
 Containers:
 
-- [Sign your image with Cosign](actions/cosign/sign/action.yml)
+- [Sign an image with Cosign](actions/cosign/sign/action.yml)
+- [Scan an image or a directory with Trivy](actions/trivy/scan/action.yml)
 
 .NET:
 
-- [Build, test your code and analyze it with Sonar](actions/dotnet/build-test-sonar/action.yml)
-- [Build and test your code](actions/dotnet/build-test/action.yml)
-- [Install the SDK, lint the code and restore NuGet packages](actions/dotnet/install-lint-restore/)
+- [Build, test the code and analyze it with Sonar](actions/dotnet/build-test-sonar/action.yml)
+- [Build and test the code](actions/dotnet/build-test/action.yml)
+- [Install the SDK, lint the code and restore NuGet packages](actions/dotnet/install-lint-restore/action.yml)
+- [Package the projects and push them to a NuGet registry](actions/dotnet/pack-push/action.yml)
+
+Go:
+
+- [Setup GoReleaser](actions/goreleaser/setup/action.yml)
+
+Helm:
+
+- [Setup Helm](actions/helm/setup/action.yml)
+- [Setup chart-testing](actions/chart-testing/setup/action.yml)
+
+License compliance:
+
+- [Analyze the dependencies with FOSSA](actions/fossa/analyze/action.yml)
 
 MongoDB:
 
-- [Add your runner IP address to Atlas access list](actions/mongodb-atlas/add-runner-ip/action.yml)
-- [Start a server in your pipeline](actions/mongodb/start/action.yml)
+- [Add the runner IP address to the Atlas access list](actions/mongodb-atlas/add-runner-ip/action.yml)
+- [Start a server in the pipeline](actions/mongodb/start/action.yml)
 
 SBOM:
 

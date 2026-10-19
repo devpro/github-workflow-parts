@@ -40,14 +40,12 @@ runs:
         BASE_URL="https://github.com/fossas/fossa-cli/releases/download/v${FOSSA_VERSION}"
 
         echo "Downloading FOSSA CLI binary and checksum..."
-        curl -sSL -O "${BASE_URL}/${FOSSA_TARBALL}"
-        curl -sSL -O "${BASE_URL}/${FOSSA_TARBALL}.sha256"
+        curl -fsSL -O "${BASE_URL}/${FOSSA_TARBALL}"
+        curl -fsSL -O "${BASE_URL}/${FOSSA_TARBALL}.sha256"
 
         echo "Verifying checksum..."
         # The checksum file holds the hash, with or without the file name after it.
-        echo "$(cut -d ' ' -f 1 "${FOSSA_TARBALL}.sha256")  ${FOSSA_TARBALL}" | sha256sum --check --status
-
-        if [ $? -eq 0 ]; then
+        if echo "$(cut -d ' ' -f 1 "${FOSSA_TARBALL}.sha256")  ${FOSSA_TARBALL}" | sha256sum --check --status; then
           echo "Verification successful!"
           tar -xzf "${FOSSA_TARBALL}" fossa
           chmod +x fossa
