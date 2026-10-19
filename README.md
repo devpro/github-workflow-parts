@@ -40,6 +40,7 @@ Terraform:
 Containers:
 
 - [Sign an image with Cosign](actions/cosign/sign/action.yml)
+- [Setup QEMU to build images for other platforms](actions/qemu/setup/action.yml)
 - [Scan an image or a directory with Trivy](actions/trivy/scan/action.yml)
 
 .NET:

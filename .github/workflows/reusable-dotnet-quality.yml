@@ -48,6 +48,11 @@ on:
         type: string
         required: false
         default: Quality
+      timeout-minutes:
+        description: Minutes the job may run before it is cancelled
+        type: number
+        required: false
+        default: 60
       operating-system:
         description: Operating system executing the runner
         type: string
@@ -113,6 +118,7 @@ jobs:
   dotnet-quality:
     name: ${{ inputs.job-name }}
     runs-on: ${{ inputs.operating-system }}
+    timeout-minutes: ${{ inputs.timeout-minutes }}
     defaults:
       run:
         working-directory: ${{ inputs.working-directory }}
@@ -204,12 +210,11 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: dotnet-test-results
+          # The build and test actions write the results, the coverage and the reports in the report folder of the working directory.
           path: |
+            ${{ inputs.working-directory }}/report/
             ./**/*test-result.xml
-            ./test/*/TestResults/*/coverage.cobertura.xml
             ./**/failure_*.png*
-            ./**/SonarQube.xml
-            ./**/Summary.txt
             ./**/fossa.html
     env:
       DOTNET_CLI_TELEMETRY_OPTOUT: 1

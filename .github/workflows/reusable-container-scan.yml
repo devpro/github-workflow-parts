@@ -34,6 +34,11 @@ on:
         type: string
         required: false
         default: Scan
+      timeout-minutes:
+        description: Minutes the job may run before it is cancelled
+        type: number
+        required: false
+        default: 30
       max-high-cves:
         description: Maximum number of high CVEs authorized
         type: number
@@ -74,6 +79,7 @@ jobs:
   container-scan:
     name: ${{ inputs.job-name }}
     runs-on: ${{ inputs.operating-system }}
+    timeout-minutes: ${{ inputs.timeout-minutes }}
     defaults:
       run:
         working-directory: ${{ inputs.working-directory }}

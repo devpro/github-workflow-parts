@@ -22,6 +22,7 @@ jobs:
   static-checks:
     name: "Test / Static checks of the actions and workflows"
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Clone repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -31,6 +32,7 @@ jobs:
   test-terraform-setup:
     name: "Test / Terraform setup action"
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Clone repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -44,6 +46,7 @@ jobs:
   test-tflint-setup:
     name: "Test / TFLint setup action"
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Clone repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -57,6 +60,7 @@ jobs:
   test-setup-versions:
     name: "Test / Setup actions install the version asked for"
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Clone repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -83,6 +87,7 @@ jobs:
   test-setup-fails-closed:
     name: "Test / Setup actions fail on a missing release or a wrong checksum"
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Clone repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -129,6 +134,7 @@ jobs:
   test-helm-setup:
     name: "Test / Helm setup action"
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Clone repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -142,6 +148,7 @@ jobs:
   test-chart-testing-setup:
     name: "Test / chart-testing setup action"
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Clone repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -157,6 +164,7 @@ jobs:
   test-goreleaser-setup:
     name: "Test / GoReleaser setup action"
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Clone repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -170,6 +178,7 @@ jobs:
   test-cosign-sign:
     name: "Test / Cosign sign action, without signing"
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Clone repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -203,6 +212,7 @@ jobs:
   test-dotnet-pack-push:
     name: "Test / .NET pack-push action, without pushing"
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Clone repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -214,9 +224,25 @@ jobs:
       - name: Verify the package was created
         run: test -s test/fixtures/dotnet-library/output/Fixture.Library.1.0.0.nupkg
 
+  test-qemu-setup:
+    name: "Test / QEMU setup action runs an arm64 image"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup QEMU
+        uses: ./actions/qemu/setup
+        with:
+          platforms: linux/amd64,linux/arm64,linux/arm/v7
+      - name: Verify an arm64 image runs
+        run: |
+          [ "$(docker run --rm --platform linux/arm64 busybox:1.37 uname -m)" = aarch64 ]
+
   test-mongodb-start:
     name: "Test / MongoDB start action"
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Clone repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -229,6 +255,7 @@ jobs:
   test-syft-generate-sbom:
     name: "Test / Syft generate-sbom action"
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Clone repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -254,6 +281,7 @@ jobs:
   test-trivy-scan:
     name: "Test / Trivy scan action"
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Clone repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -302,6 +330,48 @@ jobs:
       working-directory: test/fixtures/dotnet
       # The fixture holds a test that fails, which only the filter keeps the job from running.
       dotnet-test-filter: --filter-not-namespace Fixture.Tests.LeftOut*
+      dotnet-test-args: --report-xunit-trx --coverage --coverage-output-format cobertura
+
+  # Runs where a SonarQube is at hand, as IstarCI provides one locally, and is skipped on GitHub, which has none for this repository.
+  test-dotnet-quality-sonar:
+    name: "Test / .NET quality reusable workflow with Sonar"
+    if: vars.SONAR_HOST_URL != ''
+    uses: ./.github/workflows/reusable-dotnet-quality.yml
+    with:
+      working-directory: test/fixtures/dotnet
+      dotnet-test-filter: --filter-not-namespace Fixture.Tests.LeftOut*
+      dotnet-test-args: --report-xunit-trx --coverage --coverage-output-format cobertura
+      sonar-enabled: true
+      sonar-project-key: github-workflow-parts-fixture
+      sonar-project-name: GitHub workflow parts fixture
+    secrets:
+      sonar-token: ${{ secrets.SONAR_TOKEN }}
+
+  test-dotnet-build-test:
+    name: "Test / .NET build-test action writes results, coverage and reports"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install .NET & lint
+        uses: ./actions/dotnet/install-lint-restore
+        with:
+          working-directory: test/fixtures/dotnet
+      - name: Build & test
+        uses: ./actions/dotnet/build-test
+        with:
+          dotnet-test-args: --report-xunit-trx --coverage --coverage-output-format cobertura --filter-not-namespace Fixture.Tests.LeftOut*
+          working-directory: test/fixtures/dotnet
+      # The paths are those the .NET quality workflow uploads as its artifact.
+      - name: Verify the results, the coverage and the reports
+        working-directory: test/fixtures/dotnet/report
+        run: |
+          compgen -G "TestResults/*.trx" >/dev/null
+          compgen -G "TestResults/*.cobertura.xml" >/dev/null
+          test -s Summary.txt
+          test -s index.html
+          grep -q 'Line coverage' Summary.txt
 
   test-container-scan-on-base:
     name: "Test / Container scan reusable workflow on a base built in the run"

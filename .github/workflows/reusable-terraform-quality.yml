@@ -8,6 +8,11 @@ on:
         type: string
         required: false
         default: "Validate"
+      timeout-minutes:
+        description: Minutes the job may run before it is cancelled
+        type: number
+        required: false
+        default: 30
       working-directory:
         description: "Working directory"
         type: string
@@ -28,6 +33,7 @@ jobs:
   terraform-validate:
     name: ${{ inputs.job-name }}
     runs-on: ${{ inputs.operating-system }}
+    timeout-minutes: ${{ inputs.timeout-minutes }}
     defaults:
       run:
         working-directory: ${{ inputs.working-directory }}

@@ -27,7 +27,6 @@ SHELL_INPUTS = {
 
 # Parts no CI job can exercise, each with the reason, which the coverage check takes as known.
 UNTESTED_PARTS = {
-    "actions/dotnet/build-test-sonar": "needs a Sonar token",
     "actions/fossa/analyze": "needs a FOSSA API key",
     "actions/mongodb-atlas/add-runner-ip": "needs MongoDB Atlas credentials",
     ".github/workflows/reusable-container-publication.yml": "needs registry credentials and an OIDC token to sign",
@@ -289,6 +288,13 @@ def check_references(path, document):
                 fail(name, f"does not pass the required input '{input_name}' to '{uses}'")
 
 
+def check_timeouts(path, document):
+    # A hung job otherwise holds a runner for the six hours GitHub allows.
+    for job_id, job in (document.get("jobs") or {}).items():
+        if "steps" in job and "timeout-minutes" not in job:
+            fail(relative(path), f"job '{job_id}' runs steps without timeout-minutes")
+
+
 def check_action_versions():
     versions = {}
     for path in [*workflow_paths(), *(action / "action.yml" for action in action_paths())]:
@@ -379,9 +385,11 @@ def check_istarci():
     path = ROOT / ".istarci.yml"
     if not path.exists():
         return
-    runner = load(path).get("runner") or {}
+    config = load(path)
+    runner = config.get("runner") or {}
     jobs = list((load(ROOT / ".github/workflows/ci.yml").get("jobs") or {}).keys())
     patterns = list((runner.get("images") or {}).keys()) + list(runner.get("docker") or [])
+    patterns += list((config.get("workflow") or {}).get("skipJobs") or [])
     for pattern in patterns:
         if not fnmatch.filter(jobs, pattern):
             fail(".istarci.yml", f"pattern '{pattern}' matches no job of the CI workflow")
@@ -400,6 +408,7 @@ def main():
             check_reusable_workflow(path)
         check_run_scripts(path, document)
         check_references(path, document)
+        check_timeouts(path, document)
     shellcheck_actions()
     check_action_versions()
     check_readme()

@@ -38,6 +38,10 @@ inputs:
     description: Sonar project name
     required: false
     default: ""
+  sonarscanner-version:
+    description: Version of the Sonar scanner for .NET (check latest from https://www.nuget.org/packages/dotnet-sonarscanner)
+    required: false
+    default: "12.0.0"
   sonar-token:
     description: Sonar token for login
     required: false
@@ -55,37 +59,47 @@ runs:
       with:
         java-version: ${{ inputs.java-version }}
         distribution: "zulu"
+    # The analyzers Sonar downloads land in its user home.
     - name: Cache Sonar packages
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
-        path: ~/sonar/cache
+        path: ~/.sonar/cache
         key: ${{ runner.os }}-sonar
         restore-keys: ${{ runner.os }}-sonar
+    # Keyed by version with no fallback, since a scanner restored from another key would be another version.
     - name: Cache Sonar scanner
       id: cache-sonar-scanner
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ./.sonar/scanner
-        key: ${{ runner.os }}-sonar-scanner
-        restore-keys: ${{ runner.os }}-sonar-scanner
+        key: ${{ runner.os }}-sonar-scanner-${{ inputs.sonarscanner-version }}
     - name: Install Sonar scanner
       if: ${{ steps.cache-sonar-scanner.outputs.cache-hit != 'true' }}
       run: |
         mkdir -p ./.sonar/scanner
-        dotnet tool update dotnet-sonarscanner --tool-path ./.sonar/scanner
+        dotnet tool install dotnet-sonarscanner --tool-path ./.sonar/scanner --version "$SONARSCANNER_VERSION"
       shell: bash
+      env:
+        SONARSCANNER_VERSION: ${{ inputs.sonarscanner-version }}
     - name: Start code analysis
       run: |
-        "$GITHUB_WORKSPACE/.sonar/scanner/dotnet-sonarscanner" begin \
-          /k:"$SONAR_PROJECT_KEY" \
-          /o:"$SONAR_ORGANIZATION" \
-          /n:"$SONAR_PROJECT_NAME" \
-          /d:sonar.token="$SONAR_TOKEN" \
-          /d:sonar.host.url="$SONAR_HOST_URL" \
-          /d:sonar.cpd.exclusions="$REPORT_FOLDER/**,$SONAR_CPD_EXCLUSIONS" \
-          /d:sonar.exclusions="$REPORT_FOLDER/**,$SONAR_EXCLUSIONS" \
-          /d:sonar.coverageReportPaths="$REPORT_FOLDER/SonarQube.xml" \
+        args=(
+          /k:"$SONAR_PROJECT_KEY"
+          /d:sonar.token="$SONAR_TOKEN"
+          /d:sonar.host.url="$SONAR_HOST_URL"
+          /d:sonar.cpd.exclusions="$REPORT_FOLDER/**,$SONAR_CPD_EXCLUSIONS"
+          /d:sonar.exclusions="$REPORT_FOLDER/**,$SONAR_EXCLUSIONS"
+          /d:sonar.coverageReportPaths="$REPORT_FOLDER/SonarQube.xml"
           /d:sonar.cs.vstest.reportsPaths="$REPORT_FOLDER/TestResults/*.trx"
+        )
+        # SonarCloud needs an organization, which a SonarQube server has no notion of.
+        if [ -n "$SONAR_ORGANIZATION" ]; then
+          args+=(/o:"$SONAR_ORGANIZATION")
+        fi
+        if [ -n "$SONAR_PROJECT_NAME" ]; then
+          args+=(/n:"$SONAR_PROJECT_NAME")
+        fi
+        "$GITHUB_WORKSPACE/.sonar/scanner/dotnet-sonarscanner" begin "${args[@]}"
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       env:

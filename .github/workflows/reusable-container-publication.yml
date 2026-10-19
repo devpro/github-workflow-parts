@@ -52,6 +52,11 @@ on:
         type: string
         required: false
         default: Publication
+      timeout-minutes:
+        description: Minutes the job may run before it is cancelled
+        type: number
+        required: false
+        default: 60
       operating-system:
         description: Operating system executing the runner
         type: string
@@ -82,6 +87,7 @@ jobs:
   container-publication:
     name: ${{ inputs.job-name }}
     runs-on: ${{ inputs.operating-system }}
+    timeout-minutes: ${{ inputs.timeout-minutes }}
     defaults:
       run:
         working-directory: ${{ inputs.working-directory }}
@@ -118,7 +124,9 @@ jobs:
       - name: Set up QEMU
         # Emulation is only needed for a platform other than the runner's own.
         if: ${{ inputs.image-platform != 'linux/amd64' }}
-        run: docker run --privileged --rm tonistiigi/binfmt --install all
+        uses: ./workflow-parts/actions/qemu/setup
+        with:
+          platforms: ${{ inputs.image-platform }}
       - name: Set up Buildx
         run: docker buildx create --use --driver docker-container
       - name: Build and push container image
