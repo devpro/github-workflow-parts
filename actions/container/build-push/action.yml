@@ -1,0 +1,75 @@
+name: Build and push a container image
+description: |
+  Builds a container image with Docker Buildx for one or more platforms and pushes it,
+  under a tag, or by digest only for a job that merges the digests of several platforms afterwards.
+  The registry login is left to the job, which holds the credentials.
+  Linux runners only (for example ubuntu-latest or ubuntu-24.04-arm).
+
+inputs:
+  image-definition:
+    description: Path to the container definition file (Dockerfile, Containerfile), relative to the working directory
+    required: true
+  image-repository:
+    description: Repository of the image, with its registry (for example docker.io/devprofr/app)
+    required: true
+  image-tag:
+    description: Tag to push, or empty to push by digest only
+    required: false
+    default: ""
+  platforms:
+    description: Comma-separated platforms to build (a platform other than the runner's own needs the Setup QEMU action first)
+    required: false
+    default: "linux/amd64"
+  build-arguments:
+    description: Build arguments, one KEY=value per line
+    required: false
+    default: ""
+  working-directory:
+    description: Directory the build runs from, relative to the workspace, which a composite action does not take from the defaults of the calling job
+    required: false
+    default: "."
+
+outputs:
+  digest:
+    description: Digest of the pushed image, a manifest list when several platforms were built
+    value: ${{ steps.build.outputs.digest }}
+
+runs:
+  using: "composite"
+  steps:
+    # The Docker CLI of the runner does what the docker/* actions wrapped, with no third party action in between.
+    # The gha cache backend is reachable from JavaScript actions only, so the build runs without a cache.
+    - name: Build and push container image
+      id: build
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        IMAGE_DEFINITION: ${{ inputs.image-definition }}
+        IMAGE_REPOSITORY: ${{ inputs.image-repository }}
+        IMAGE_TAG: ${{ inputs.image-tag }}
+        PLATFORMS: ${{ inputs.platforms }}
+        BUILD_ARGUMENTS: ${{ inputs.build-arguments }}
+      run: |
+        metadata="$(mktemp)"
+        # A builder of its own, removed afterwards, since a Docker daemon shared with other jobs keeps what a job leaves on it.
+        # It shares the network of the runner, which is how it reaches a registry listening on localhost.
+        builder="build-push-${GITHUB_RUN_ID:-local}-$$"
+        docker buildx create --name "$builder" --driver docker-container --driver-opt network=host >/dev/null
+        trap 'docker buildx rm "$builder" >/dev/null 2>&1 || true' EXIT
+        args=(--builder "$builder" --file "$IMAGE_DEFINITION" --platform "$PLATFORMS" --metadata-file "$metadata")
+        if [ -n "$IMAGE_TAG" ]; then
+          args+=(--tag "${IMAGE_REPOSITORY}:${IMAGE_TAG}" --push)
+        else
+          args+=(--output "type=image,name=${IMAGE_REPOSITORY},push-by-digest=true,name-canonical=true,push=true")
+        fi
+        while IFS= read -r argument; do
+          [ -n "$argument" ] && args+=(--build-arg "$argument")
+        done <<< "$BUILD_ARGUMENTS"
+        docker buildx build "${args[@]}" .
+        digest="$(jq -r '."containerimage.digest" // empty' "$metadata")"
+        if [[ "$digest" != sha256:* ]]; then
+          echo "ERROR: The build reported no digest for ${IMAGE_REPOSITORY}" >&2
+          exit 1
+        fi
+        echo "Pushed ${IMAGE_REPOSITORY}@${digest}"
+        echo "digest=$digest" >> "$GITHUB_OUTPUT"

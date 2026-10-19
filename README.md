@@ -39,6 +39,7 @@ Terraform:
 
 Containers:
 
+- [Build and push an image, under a tag or by digest](actions/container/build-push/action.yml)
 - [Sign an image with Cosign](actions/cosign/sign/action.yml)
 - [Setup QEMU to build images for other platforms](actions/qemu/setup/action.yml)
 - [Scan an image or a directory with Trivy](actions/trivy/scan/action.yml)

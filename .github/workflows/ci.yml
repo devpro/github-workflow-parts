@@ -228,6 +228,11 @@ jobs:
     name: "Test / QEMU setup action runs an arm64 image"
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    services:
+      registry:
+        image: registry:3.1.2
+        ports:
+          - 5000:5000
     steps:
       - name: Clone repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -238,6 +243,86 @@ jobs:
       - name: Verify an arm64 image runs
         run: |
           [ "$(docker run --rm --platform linux/arm64 busybox:1.37 uname -m)" = aarch64 ]
+      - name: Build an image for two platforms, one emulated
+        id: emulated
+        uses: ./actions/container/build-push
+        with:
+          image-definition: test/fixtures/container/base/Dockerfile
+          image-repository: localhost:5000/emulated-test
+          platforms: linux/amd64,linux/arm64
+      - name: Verify the manifest list holds both platforms
+        env:
+          DIGEST: ${{ steps.emulated.outputs.digest }}
+        run: |
+          platforms=$(docker buildx imagetools inspect "localhost:5000/emulated-test@${DIGEST}" --raw | jq -r '[.manifests[].platform | select(.os == "linux") | .architecture] | sort | join(",")')
+          [ "$platforms" = amd64,arm64 ]
+
+  test-container-build-push:
+    name: "Test / Container build-push action, under a tag and by digest"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      registry:
+        image: registry:3.1.2
+        ports:
+          - 5000:5000
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Build and push the base image under a tag
+        id: base
+        uses: ./actions/container/build-push
+        with:
+          image-definition: test/fixtures/container/base/Dockerfile
+          image-repository: localhost:5000/build-test-base
+          image-tag: ${{ github.run_id }}
+      # The derived image fails to build unless the build argument names the base pushed above.
+      - name: Build and push the derived image by digest
+        id: derived
+        uses: ./actions/container/build-push
+        with:
+          image-definition: test/fixtures/container/derived/Dockerfile
+          image-repository: localhost:5000/build-test-derived
+          build-arguments: |
+            BASE_IMAGE=localhost:5000/build-test-base:${{ github.run_id }}
+      - name: Verify both images are in the registry
+        env:
+          BASE_DIGEST: ${{ steps.base.outputs.digest }}
+          DERIVED_DIGEST: ${{ steps.derived.outputs.digest }}
+        run: |
+          [ "$(docker buildx imagetools inspect "localhost:5000/build-test-base:${GITHUB_RUN_ID}" --format '{{json .Manifest}}' | jq -r .digest)" = "$BASE_DIGEST" ]
+          docker buildx imagetools inspect "localhost:5000/build-test-derived@${DERIVED_DIGEST}" >/dev/null
+
+  test-container-build-push-arm64:
+    name: "Test / Container build-push action on an arm64 runner"
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 20
+    services:
+      registry:
+        image: registry:3.1.2
+        ports:
+          - 5000:5000
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Build and push the base image natively by digest
+        id: native
+        uses: ./actions/container/build-push
+        with:
+          image-definition: test/fixtures/container/base/Dockerfile
+          image-repository: localhost:5000/native-test
+          platforms: linux/arm64
+      - name: Verify the image is for arm64
+        env:
+          DIGEST: ${{ steps.native.outputs.digest }}
+        run: |
+          image="localhost:5000/native-test@${DIGEST}"
+          architectures=$(docker buildx imagetools inspect "$image" --raw | jq -r '[.manifests[]?.platform | select(.os == "linux") | .architecture] | join(",")')
+          # A single platform pushed without attestations is a manifest rather than a list, and names its architecture in its configuration.
+          if [ -z "$architectures" ]; then
+            architectures=$(docker buildx imagetools inspect "$image" --format '{{json .Image}}' | jq -r .architecture)
+          fi
+          [ "$architectures" = arm64 ]
 
   test-mongodb-start:
     name: "Test / MongoDB start action"
