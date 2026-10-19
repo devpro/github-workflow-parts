@@ -59,7 +59,7 @@ runs:
         fi
       shell: bash
       env:
-        COSIGN_BINARY: cosign-linux-amd64
+        COSIGN_BINARY: cosign-linux-${{ runner.arch == 'ARM64' && 'arm64' || 'amd64' }}
         COSIGN_CHECKSUM_FILE: cosign_checksums.txt
         COSIGN_VERSION: ${{ inputs.cosign-version }}
     - name: Get image digest

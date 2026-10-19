@@ -2,7 +2,7 @@ name: Setup Terraform
 description: |
   Installs the Terraform CLI by downloading the official binary from HashiCorp's release server and verifying its SHA256 checksum
   (replacement for hashicorp/setup-terraform, to reduce third-party GitHub Action supply-chain risk).
-  Linux runners only (for example ubuntu-latest).
+  Linux x64 or arm64 runners only (for example ubuntu-latest or ubuntu-24.04-arm).
 
 inputs:
   terraform-version:
@@ -17,7 +17,7 @@ runs:
       shell: bash
       env:
         TERRAFORM_VERSION: ${{ inputs.terraform-version }}
-        TERRAFORM_ZIP: terraform_${{ inputs.terraform-version }}_linux_amd64.zip
+        TERRAFORM_ZIP: terraform_${{ inputs.terraform-version }}_linux_${{ runner.arch == 'ARM64' && 'arm64' || 'amd64' }}.zip
         TERRAFORM_SHA256SUMS: terraform_${{ inputs.terraform-version }}_SHA256SUMS
       run: |
         # Downloaded into a directory of its own, since the repository may hold a file or a directory named like the binary.

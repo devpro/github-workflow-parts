@@ -8,8 +8,8 @@
 ### Jobs left to GitHub
 
 `test-qemu-setup` registers an emulator in the kernel, so `.istarci.yml` skips it, as a local run leaves the machine unchanged.
-`test-container-build-push-arm64` builds arm64 images with `RUN` steps, which only an arm64 processor executes natively.
-IstarCI runs it on an arm64 machine, emulated on an amd64 one with a `qemu-aarch64` registration holding the F flag (from `qemu-user-static`), and skips it with a warning otherwise.
+The jobs on `ubuntu-24.04-arm` run arm64 binaries, the tools installed and the `RUN` steps of the images built, which only an arm64 processor executes natively.
+IstarCI runs them on an arm64 machine, emulated on an amd64 one with a `qemu-aarch64` registration holding the F flag (from `qemu-user-static`), and skips them with a warning otherwise.
 
 ## Run the static checks
 

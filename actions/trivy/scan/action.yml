@@ -3,7 +3,7 @@ description: |
   Installs Trivy by downloading the official binary from its GitHub release and verifying its SHA256 checksum,
   then scans a container image or a source directory for vulnerabilities or misconfigurations (replacement for aquasecurity/trivy-action,
   to reduce third-party GitHub Action supply-chain risk).
-  Linux runners only (for example ubuntu-latest).
+  Linux x64 or arm64 runners only (for example ubuntu-latest or ubuntu-24.04-arm).
 
 inputs:
   trivy-version:
@@ -49,7 +49,7 @@ runs:
       shell: bash
       env:
         TRIVY_VERSION: ${{ inputs.trivy-version }}
-        TRIVY_TARBALL: trivy_${{ inputs.trivy-version }}_Linux-64bit.tar.gz
+        TRIVY_TARBALL: trivy_${{ inputs.trivy-version }}_Linux-${{ runner.arch == 'ARM64' && 'ARM64' || '64bit' }}.tar.gz
         TRIVY_CHECKSUMS: trivy_${{ inputs.trivy-version }}_checksums.txt
       run: |
         # Downloaded into a directory of its own, since the repository may hold a file or a directory named like the binary.

@@ -3,7 +3,7 @@ description: |
   Starts a local MongoDB server on 127.0.0.1:27017, with mongosh on the path,
   from the official archives with their SHA256 checksums verified rather than the apt packages,
   so neither root nor sudo is needed, on a hosted runner or in a container.
-  Linux x64 runners on Ubuntu 24.04 only (for example ubuntu-latest).
+  Linux x64 or arm64 runners on Ubuntu 24.04 only (for example ubuntu-latest or ubuntu-24.04-arm).
 
 inputs:
   mongodb-version:
@@ -15,9 +15,13 @@ inputs:
     required: false
     default: "2.13.0"
   mongosh-sha256:
-    description: SHA256 of the mongosh archive, given with any other mongosh-version, since its release publishes no checksum file
+    description: SHA256 of the mongosh archive for x64, given with any other mongosh-version, since its release publishes no checksum file
     required: false
     default: "b2089e67641a28aa621476c4d62c69f66b9a41484baba24d8a8b1f5f96e92d0b"
+  mongosh-sha256-arm64:
+    description: SHA256 of the mongosh archive for arm64, given with any other mongosh-version
+    required: false
+    default: "a124ec6680c70ceabc61696bbd110f0da05d7c52524ed402ae9511b5aec7fe32"
 
 runs:
   using: "composite"
@@ -25,10 +29,10 @@ runs:
     - name: Install & start MongoDB
       shell: bash
       env:
-        MONGODB_ARCHIVE: mongodb-linux-x86_64-ubuntu2404-${{ inputs.mongodb-version }}.tgz
+        MONGODB_ARCHIVE: mongodb-linux-${{ runner.arch == 'ARM64' && 'aarch64' || 'x86_64' }}-ubuntu2404-${{ inputs.mongodb-version }}.tgz
         MONGOSH_VERSION: ${{ inputs.mongosh-version }}
-        MONGOSH_ARCHIVE: mongosh-${{ inputs.mongosh-version }}-linux-x64.tgz
-        MONGOSH_SHA256: ${{ inputs.mongosh-sha256 }}
+        MONGOSH_ARCHIVE: mongosh-${{ inputs.mongosh-version }}-linux-${{ runner.arch == 'ARM64' && 'arm64' || 'x64' }}.tgz
+        MONGOSH_SHA256: ${{ runner.arch == 'ARM64' && inputs.mongosh-sha256-arm64 || inputs.mongosh-sha256 }}
       run: |
         # Downloaded into a directory of its own, since the repository may hold a file or a directory named like an archive.
         cd "$(mktemp -d)"

@@ -324,6 +324,43 @@ jobs:
           fi
           [ "$architectures" = arm64 ]
 
+  # Each tool runs once installed, which a binary built for another processor does not.
+  test-setup-arm64:
+    name: "Test / Setup actions install arm64 binaries on an arm64 runner"
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 20
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup Terraform
+        uses: ./actions/terraform/setup
+      - name: Setup TFLint
+        uses: ./actions/tflint/setup
+      - name: Setup Helm
+        uses: ./actions/helm/setup
+      - name: Setup chart-testing
+        uses: ./actions/chart-testing/setup
+      - name: Setup GoReleaser
+        uses: ./actions/goreleaser/setup
+      - name: Start MongoDB
+        uses: ./actions/mongodb/start
+      - name: Generate SBOM with Syft
+        uses: ./actions/syft/generate-sbom
+        with:
+          target-path: test/fixtures/container
+          upload-artifact: "false"
+      - name: Scan with Trivy
+        uses: ./actions/trivy/scan
+        with:
+          scan-type: config
+          target: test/fixtures/container
+      - name: Verify the binaries are for arm64
+        run: |
+          for tool in terraform tflint helm ct goreleaser mongod mongosh syft trivy; do
+            # The ELF machine field, 0xb7 being aarch64, read without the file command a runner image may lack.
+            [ "$(od -An -tx1 -j18 -N1 "$(command -v "$tool")" | tr -d ' ')" = b7 ]
+          done
+
   test-mongodb-start:
     name: "Test / MongoDB start action"
     runs-on: ubuntu-latest

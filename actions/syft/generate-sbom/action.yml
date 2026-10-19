@@ -3,7 +3,7 @@ description: |
   Installs Syft by downloading the official binary from its GitHub release, verifying its SHA256 checksum,
   and uses it to generate a Software Bill of Materials for a container image or a source directory
   (replacement for anchore/sbom-action, to reduce third-party GitHub Action supply-chain risk).
-  Linux runners only (for example ubuntu-latest).
+  Linux x64 or arm64 runners only (for example ubuntu-latest or ubuntu-24.04-arm).
 
 inputs:
   syft-version:
@@ -42,7 +42,7 @@ runs:
       shell: bash
       env:
         SYFT_VERSION: ${{ inputs.syft-version }}
-        SYFT_TARBALL: syft_${{ inputs.syft-version }}_linux_amd64.tar.gz
+        SYFT_TARBALL: syft_${{ inputs.syft-version }}_linux_${{ runner.arch == 'ARM64' && 'arm64' || 'amd64' }}.tar.gz
         SYFT_CHECKSUMS: syft_${{ inputs.syft-version }}_checksums.txt
       run: |
         # Downloaded into a directory of its own, since the repository may hold a file or a directory named like the binary.
