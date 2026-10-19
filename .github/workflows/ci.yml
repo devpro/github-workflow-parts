@@ -287,10 +287,11 @@ jobs:
             BASE_IMAGE=localhost:5000/build-test-base:${{ github.run_id }}
       - name: Verify both images are in the registry
         env:
+          BASE_TAG: ${{ github.run_id }}
           BASE_DIGEST: ${{ steps.base.outputs.digest }}
           DERIVED_DIGEST: ${{ steps.derived.outputs.digest }}
         run: |
-          [ "$(docker buildx imagetools inspect "localhost:5000/build-test-base:${GITHUB_RUN_ID}" --format '{{json .Manifest}}' | jq -r .digest)" = "$BASE_DIGEST" ]
+          [ "$(docker buildx imagetools inspect "localhost:5000/build-test-base:${BASE_TAG}" --format '{{json .Manifest}}' | jq -r .digest)" = "$BASE_DIGEST" ]
           docker buildx imagetools inspect "localhost:5000/build-test-derived@${DERIVED_DIGEST}" >/dev/null
 
   test-container-build-push-arm64:
