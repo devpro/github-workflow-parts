@@ -22,9 +22,13 @@ inputs:
     required: false
     default: ""
   report-file:
-    description: Path of the generated HTML report (empty writes none)
+    description: Path of the generated HTML report, relative to the working directory (empty writes none)
     required: false
     default: "report/fossa.html"
+  working-directory:
+    description: Directory of the project to analyze, relative to the workspace, which a composite action does not take from the defaults of the calling job
+    required: false
+    default: "."
 
 runs:
   using: "composite"
@@ -63,6 +67,7 @@ runs:
 
     - name: Analyze dependencies
       shell: bash
+      working-directory: ${{ inputs.working-directory }}
       env:
         FOSSA_API_KEY: ${{ inputs.api-key }}
       run: fossa analyze
@@ -70,6 +75,7 @@ runs:
     - name: Test dependencies against the policy
       if: ${{ inputs.run-tests == 'true' }}
       shell: bash
+      working-directory: ${{ inputs.working-directory }}
       env:
         FOSSA_API_KEY: ${{ inputs.api-key }}
         DIFF_REVISION: ${{ inputs.test-diff-revision }}
@@ -83,6 +89,7 @@ runs:
     - name: Write HTML report
       if: ${{ inputs.report-file != '' }}
       shell: bash
+      working-directory: ${{ inputs.working-directory }}
       env:
         FOSSA_API_KEY: ${{ inputs.api-key }}
         REPORT_FILE: ${{ inputs.report-file }}

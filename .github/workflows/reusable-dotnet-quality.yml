@@ -202,20 +202,22 @@ jobs:
           run-tests: ${{ inputs.fossa-test && github.event_name == 'pull_request' }}
           test-diff-revision: ${{ github.event.pull_request.base.sha }}
           report-file: report/fossa.html
+          working-directory: ${{ inputs.working-directory }}
       - name: Generate SBOM with Syft
         uses: ./workflow-parts/actions/syft/generate-sbom
         continue-on-error: true
+        with:
+          target-path: ${{ inputs.working-directory }}
       - name: Archive test results
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: dotnet-test-results
-          # The build and test actions write the results, the coverage and the reports in the report folder of the working directory.
+          # The build, test and FOSSA actions write the results, the coverage and the reports in the report folder of the working directory.
           path: |
             ${{ inputs.working-directory }}/report/
             ./**/*test-result.xml
             ./**/failure_*.png*
-            ./**/fossa.html
     env:
       DOTNET_CLI_TELEMETRY_OPTOUT: 1
       DOTNET_NOLOGO: 1
