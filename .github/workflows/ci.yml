@@ -74,9 +74,10 @@ jobs:
           helm-version: v3.16.4
       - name: Verify the versions
         run: |
-          terraform version | head -1 | grep -qx 'Terraform v1.9.8'
-          tflint --version | grep -q 'version 0.53.0'
-          helm version --short | grep -q '^v3.16.4+'
+          # Compared once captured, since a reader closing the pipe early fails the step with SIGPIPE under pipefail.
+          [[ "$(terraform version)" == "Terraform v1.9.8"* ]]
+          [[ "$(tflint --version)" == *"version 0.53.0"* ]]
+          [[ "$(helm version --short)" == v3.16.4+* ]]
 
   # A setup action that cannot verify what it downloaded stops the job rather than running it.
   test-setup-fails-closed:

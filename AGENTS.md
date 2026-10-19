@@ -10,6 +10,8 @@ Linux or WSL2, Docker and `bash`.
   No background commands, no subagents, no forks, no parallel tasks, even for a long commands.
 - Headers stay: short documentation still has sections.
 - Linters for YAML and Markdown are never run by an agent.
+- The IstarCI daemon runs the pipeline on every commit by itself, so an agent never starts a run with `istarci run`.
+  `istarci wait` waits for the run of `HEAD` and prints the log of each job that failed, and the `pre-push` hook gates a push on it.
 - Commit only when asked, and never push.
   Shell scripts are `snake_case` and committed with the executable bit (`git update-index --chmod=+x`).
 - Documentation is as short as possible.
