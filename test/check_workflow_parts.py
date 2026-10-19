@@ -20,8 +20,10 @@ SELF_REPOSITORY = "devpro/github-workflow-parts"
 
 # Inputs whose value is shell code or shell words by contract, so they are written into the script as they are.
 SHELL_INPUTS = {
+    "inputs.build-command",
     "inputs.custom-commands",
     "inputs.dotnet-test-args",
+    "inputs.publish-command",
     "inputs.terraform-var-flags",
 }
 

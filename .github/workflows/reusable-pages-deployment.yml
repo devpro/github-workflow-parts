@@ -1,0 +1,123 @@
+name: Reusable - Pages deployment
+
+# The caller grants the deployment job "pages: write" and "id-token: write", and the repository publishes its Pages from GitHub Actions.
+on:
+  workflow_call:
+    inputs:
+      build-command:
+        description: Commands building the site into site-path, run from the working directory
+        type: string
+        required: true
+      deploy:
+        description: Deploy the site once built, false building it only, to check a pull request for instance
+        type: boolean
+        required: false
+        default: true
+      fetch-depth:
+        description: Number of commits to clone, 0 for the whole history a site reading the date of each page needs
+        type: number
+        required: false
+        default: 1
+      job-name:
+        description: Job name
+        type: string
+        required: false
+        default: Build
+      node-version:
+        description: Version of Node.js to install, with the npm cache of the lock file, none when empty
+        type: string
+        required: false
+        default: ""
+      operating-system:
+        description: Operating system executing the runner
+        type: string
+        required: false
+        default: ubuntu-latest
+      site-path:
+        description: Directory the build writes the site to, relative to the working directory
+        type: string
+        required: true
+      task-enabled:
+        description: Install Task (taskfile.dev) for the build command
+        type: boolean
+        required: false
+        default: false
+      timeout-minutes:
+        description: Minutes the job may run before it is cancelled
+        type: number
+        required: false
+        default: 30
+      workflow-parts-version:
+        description: "GitHub workflow parts version (branch/tag/SHA). Should match the ref/tag/SHA the caller pinned for this reusable workflow itself. Ignored when the caller is this repository, whose checkout already holds the actions under test."
+        type: string
+        required: false
+        default: "main"
+      working-directory:
+        description: Working directory
+        type: string
+        required: false
+        default: "."
+    outputs:
+      page-url:
+        description: URL of the deployed site
+        value: ${{ jobs.pages-deploy.outputs.page-url }}
+
+jobs:
+  pages-build:
+    name: ${{ inputs.job-name }}
+    runs-on: ${{ inputs.operating-system }}
+    timeout-minutes: ${{ inputs.timeout-minutes }}
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: ${{ inputs.fetch-depth }}
+      - name: Checkout workflow parts
+        if: inputs.task-enabled
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: devpro/github-workflow-parts
+          # The caller being this repository, the actions under test are those of the commit under test.
+          ref: ${{ github.repository == 'devpro/github-workflow-parts' && github.sha || inputs.workflow-parts-version }}
+          path: workflow-parts
+      - name: Setup Task
+        if: inputs.task-enabled
+        uses: ./workflow-parts/actions/task/setup
+      - name: Setup Node.js
+        if: inputs.node-version != ''
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: npm
+          cache-dependency-path: ${{ inputs.working-directory }}/package-lock.json
+      - name: Build the site
+        run: |
+          ${{ inputs.build-command }}
+      - name: Verify the site was built
+        env:
+          SITE_PATH: ${{ inputs.site-path }}
+        run: test -s "${SITE_PATH}/index.html"
+      - name: Upload the site
+        if: inputs.deploy
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: ${{ inputs.working-directory }}/${{ inputs.site-path }}
+
+  pages-deploy:
+    name: Deploy
+    if: inputs.deploy
+    needs: pages-build
+    runs-on: ${{ inputs.operating-system }}
+    timeout-minutes: ${{ inputs.timeout-minutes }}
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    outputs:
+      page-url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

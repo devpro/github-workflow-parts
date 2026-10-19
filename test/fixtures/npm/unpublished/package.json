@@ -1,0 +1,5 @@
+{
+  "name": "@devpro/github-workflow-parts-fixture",
+  "version": "0.0.0",
+  "files": ["index.js"]
+}

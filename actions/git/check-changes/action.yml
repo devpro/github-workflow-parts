@@ -1,0 +1,49 @@
+name: Check changes
+description: |
+  Tells whether the checked out commit changes any of the given paths, compared with a base:
+  the one given, or else the base of the pull request, or else the commit before the push.
+  A base the clone cannot read counts as a change, as on a new branch, a manual run or a shallow clone, so nothing is skipped by mistake.
+  The repository is checked out with its history (fetch-depth 0) for the base to be readable.
+
+inputs:
+  paths:
+    description: Paths to compare, separated by spaces (for example "src test")
+    required: true
+  base:
+    description: Commit or tree to compare with, the base of the pull request or the commit before the push when empty
+    required: false
+    default: ""
+
+outputs:
+  changed:
+    description: "\"true\" when a path changed, \"false\" otherwise"
+    value: ${{ steps.compare.outputs.changed }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Compare with the base
+      id: compare
+      shell: bash
+      env:
+        BASE: ${{ inputs.base || github.event.pull_request.base.sha || github.event.before }}
+        PATHS: ${{ inputs.paths }}
+      run: |
+        read -ra path_list <<< "$PATHS"
+        if [ -z "$BASE" ] || ! git cat-file -e "${BASE}^{tree}" 2>/dev/null; then
+          echo "No readable base to compare with, counted as a change"
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+        echo "Comparing ${PATHS} between ${BASE} and HEAD"
+        # The exit status tells a change (1) from a failure of git (above 1), which stops the step.
+        status=0
+        git diff --quiet "$BASE" HEAD -- "${path_list[@]}" || status=$?
+        case "$status" in
+          0) echo "changed=false" >> "$GITHUB_OUTPUT" ;;
+          1)
+            git diff --name-status "$BASE" HEAD -- "${path_list[@]}"
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            ;;
+          *) exit "$status" ;;
+        esac

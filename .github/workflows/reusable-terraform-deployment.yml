@@ -23,6 +23,11 @@ on:
         type: string
         required: false
         default: "ubuntu-latest"
+      destroy:
+        description: "Destroy the resources of the environment rather than apply the configuration"
+        type: boolean
+        required: false
+        default: false
       environment:
         description: "GitHub environment"
         type: string
@@ -140,6 +145,9 @@ jobs:
         run: terraform validate
       - name: Terraform plan
         run: terraform plan -input=false -out=plan.tfplan ${{ inputs.terraform-var-flags }}
+        env:
+          # Read by Terraform as arguments of the plan command, the plan of a destruction being applied as any other.
+          TF_CLI_ARGS_plan: ${{ inputs.destroy && '-destroy' || '' }}
       - name: Terraform apply
         run: terraform apply -auto-approve plan.tfplan
     env:

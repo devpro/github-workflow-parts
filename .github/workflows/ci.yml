@@ -76,12 +76,17 @@ jobs:
         uses: ./actions/helm/setup
         with:
           helm-version: v3.16.4
+      - name: Setup Task
+        uses: ./actions/task/setup
+        with:
+          task-version: v3.52.0
       - name: Verify the versions
         run: |
           # Compared once captured, since a reader closing the pipe early fails the step with SIGPIPE under pipefail.
           [[ "$(terraform version)" == "Terraform v1.9.8"* ]]
           [[ "$(tflint --version)" == *"version 0.53.0"* ]]
           [[ "$(helm version --short)" == v3.16.4+* ]]
+          [[ "$(task --version)" == *3.52.0* ]]
 
   # A setup action that cannot verify what it downloaded stops the job rather than running it.
   test-setup-fails-closed:
@@ -115,6 +120,12 @@ jobs:
           image-path: docker.io/library
           image-tag: "1.37"
           readonly: "true"
+      - name: Install a Task release that does not exist
+        id: task-missing-release
+        continue-on-error: true
+        uses: ./actions/task/setup
+        with:
+          task-version: v0.0.0
       - name: Start MongoDB with a mongosh archive whose checksum does not match
         id: mongodb-wrong-checksum
         continue-on-error: true
@@ -174,6 +185,20 @@ jobs:
         run: |
           goreleaser --version
           command -v goreleaser
+
+  test-task-setup:
+    name: "Test / Task setup action"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup Task
+        uses: ./actions/task/setup
+      - name: Verify task is installed
+        run: |
+          task --version
+          command -v task
 
   test-cosign-sign:
     name: "Test / Cosign sign action, without signing"
@@ -342,6 +367,8 @@ jobs:
         uses: ./actions/chart-testing/setup
       - name: Setup GoReleaser
         uses: ./actions/goreleaser/setup
+      - name: Setup Task
+        uses: ./actions/task/setup
       - name: Start MongoDB
         uses: ./actions/mongodb/start
       - name: Generate SBOM with Syft
@@ -356,7 +383,7 @@ jobs:
           target: test/fixtures/container
       - name: Verify the binaries are for arm64
         run: |
-          for tool in terraform tflint helm ct goreleaser mongod mongosh syft trivy; do
+          for tool in terraform tflint helm ct goreleaser task mongod mongosh syft trivy; do
             # The ELF machine field, 0xb7 being aarch64, read without the file command a runner image may lack.
             [ "$(od -An -tx1 -j18 -N1 "$(command -v "$tool")" | tr -d ' ')" = b7 ]
           done
@@ -504,3 +531,132 @@ jobs:
       image-name: scan-test
       image-path: local
       image-tag: ${{ github.run_id }}
+
+  test-git-check-changes:
+    name: "Test / Git check-changes action"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # The empty tree of git stands for a base holding nothing, which needs no history in the clone.
+      - name: Compare a path with the empty tree
+        id: added
+        uses: ./actions/git/check-changes
+        with:
+          paths: README.md actions
+          base: 4b825dc642cb6eb9a060e54bf8d69288fbee4904
+      - name: Compare a path that does not exist with the empty tree
+        id: absent
+        uses: ./actions/git/check-changes
+        with:
+          paths: path-that-does-not-exist
+          base: 4b825dc642cb6eb9a060e54bf8d69288fbee4904
+      - name: Compare a path with the commit itself
+        id: unchanged
+        uses: ./actions/git/check-changes
+        with:
+          paths: README.md
+          base: HEAD
+      - name: Compare a path with a commit the clone does not have
+        id: unreadable
+        uses: ./actions/git/check-changes
+        with:
+          paths: README.md
+          base: "0000000000000000000000000000000000000000"
+      - name: Verify the comparisons
+        env:
+          ADDED: ${{ steps.added.outputs.changed }}
+          ABSENT: ${{ steps.absent.outputs.changed }}
+          UNCHANGED: ${{ steps.unchanged.outputs.changed }}
+          UNREADABLE: ${{ steps.unreadable.outputs.changed }}
+        run: |
+          [ "$ADDED" = true ]
+          [ "$ABSENT" = false ]
+          [ "$UNCHANGED" = false ]
+          [ "$UNREADABLE" = true ]
+
+  test-git-check:
+    name: "Test / Git check reusable workflow"
+    uses: ./.github/workflows/reusable-git-check.yml
+    with:
+      paths: test/fixtures
+      version-file: test/fixtures/version/Directory.Build.props
+
+  test-git-check-outputs:
+    name: "Test / Git check reusable workflow outputs"
+    needs: test-git-check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify the outputs
+        env:
+          BRANCH_SLUG: ${{ needs.test-git-check.outputs.branch-slug }}
+          CHANGED: ${{ needs.test-git-check.outputs.changed }}
+          VERSION_MAJOR_MINOR: ${{ needs.test-git-check.outputs.version-major-minor }}
+        run: |
+          [ "$VERSION_MAJOR_MINOR" = 1.2 ]
+          [[ "$BRANCH_SLUG" =~ ^[a-z0-9-]+$ ]]
+          [[ "$CHANGED" =~ ^(true|false)$ ]]
+
+  test-npm-publish:
+    name: "Test / npm publish action, without publishing"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Publish a version the registry already has
+        id: published
+        uses: ./actions/npm/publish
+        with:
+          publish-command: "false"
+          working-directory: test/fixtures/npm/published
+      # A dry run goes through every step of a publication but the upload, which needs no credentials.
+      - name: Publish a package the registry does not have
+        id: unpublished
+        uses: ./actions/npm/publish
+        with:
+          publish-command: npm publish --dry-run
+          working-directory: test/fixtures/npm/unpublished
+      - name: Verify only the new package was published
+        env:
+          PUBLISHED: ${{ steps.published.outputs.published }}
+          PUBLISHED_VERSION: ${{ steps.published.outputs.version }}
+          UNPUBLISHED: ${{ steps.unpublished.outputs.published }}
+        run: |
+          [ "$PUBLISHED" = false ]
+          [ "$PUBLISHED_VERSION" = 1.3.0 ]
+          [ "$UNPUBLISHED" = true ]
+
+  test-playwright-install:
+    name: "Test / Playwright install action"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install the dependencies
+        working-directory: test/fixtures/playwright
+        run: npm ci
+      - name: Install Playwright browsers
+        uses: ./actions/playwright/install
+        with:
+          working-directory: test/fixtures/playwright
+      - name: Verify the browser starts
+        working-directory: test/fixtures/playwright
+        run: node -e "require('playwright').chromium.launch().then((browser) => browser.close())"
+
+  test-pages-deployment:
+    name: "Test / Pages deployment reusable workflow, without deploying"
+    uses: ./.github/workflows/reusable-pages-deployment.yml
+    with:
+      build-command: |
+        task --version
+        npm ci
+        npm run build
+      deploy: false
+      node-version: "24"
+      site-path: _site
+      task-enabled: true
+      working-directory: test/fixtures/pages

@@ -22,13 +22,21 @@ Containers:
 
 - [Ensure the quality of the code](.github/workflows/reusable-dotnet-quality.yml)
 
+Git:
+
+- [Tell what changed, the version and the branch slug, for the jobs that follow](.github/workflows/reusable-git-check.yml)
+
+GitHub Pages:
+
+- [Build a site and deploy it](.github/workflows/reusable-pages-deployment.yml)
+
 Markup (Markdown, YAML):
 
 - [Ensure the quality of the content](.github/workflows/reusable-markup-lint.yml)
 
 Terraform:
 
-- [Deploy an environment](.github/workflows/reusable-terraform-deployment.yml)
+- [Deploy or destroy an environment](.github/workflows/reusable-terraform-deployment.yml)
 - [Ensure the quality of the infrastructure code](.github/workflows/reusable-terraform-quality.yml)
 
 ## Composite actions
@@ -51,6 +59,10 @@ Containers:
 - [Install the SDK, lint the code and restore NuGet packages](actions/dotnet/install-lint-restore/action.yml)
 - [Package the projects and push them to a NuGet registry](actions/dotnet/pack-push/action.yml)
 
+Git:
+
+- [Tell whether a commit changes some paths](actions/git/check-changes/action.yml)
+
 Go:
 
 - [Setup GoReleaser](actions/goreleaser/setup/action.yml)
@@ -69,9 +81,18 @@ MongoDB:
 - [Add the runner IP address to the Atlas access list](actions/mongodb-atlas/add-runner-ip/action.yml)
 - [Start a server in the pipeline](actions/mongodb/start/action.yml)
 
+Node.js:
+
+- [Publish a package unless its version already is](actions/npm/publish/action.yml)
+- [Install the Playwright browsers](actions/playwright/install/action.yml)
+
 SBOM:
 
 - [Generate a SBOM with Syft](actions/syft/generate-sbom/action.yml)
+
+Task:
+
+- [Setup Task](actions/task/setup/action.yml)
 
 Terraform:
 

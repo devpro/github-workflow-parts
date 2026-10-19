@@ -1,0 +1,7 @@
+{
+  "name": "pages-fixture",
+  "private": true,
+  "scripts": {
+    "build": "node build.js"
+  }
+}

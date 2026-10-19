@@ -1,0 +1,53 @@
+name: Publish an npm package
+description: |
+  Publishes the package of the working directory unless its version is already on the registry,
+  which refuses to publish over it, so a push that did not bump the version is skipped rather than failed.
+  The registry and the credentials are those of the .npmrc that actions/setup-node writes with registry-url:
+  a token given as NODE_AUTH_TOKEN, or the OIDC token of npm trusted publishing (permission id-token write).
+
+inputs:
+  publish-command:
+    description: Command publishing the package, "pnpm publish --no-git-checks" for a pnpm workspace for instance
+    required: false
+    default: "npm publish"
+  working-directory:
+    description: Directory holding the package.json of the package
+    required: false
+    default: "."
+
+outputs:
+  published:
+    description: "\"true\" when the package was published, \"false\" when its version already was"
+    value: ${{ steps.registry.outputs.exists == 'false' && 'true' || 'false' }}
+  version:
+    description: Version of the package, read from its package.json
+    value: ${{ steps.registry.outputs.version }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Check whether the version is already published
+      id: registry
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        name=$(node -p "require('./package.json').name")
+        version=$(node -p "require('./package.json').version")
+        echo "version=${version}" >> "$GITHUB_OUTPUT"
+        # npm answers E404 for a package or a version the registry does not have, and anything else is a failure to read it.
+        errors=$(mktemp)
+        if npm view "${name}@${version}" version > /dev/null 2> "$errors"; then
+          echo "${name}@${version} is already published, nothing to do"
+          echo "exists=true" >> "$GITHUB_OUTPUT"
+        elif grep -q E404 "$errors"; then
+          echo "${name}@${version} is not published yet"
+          echo "exists=false" >> "$GITHUB_OUTPUT"
+        else
+          cat "$errors" >&2
+          exit 1
+        fi
+    - name: Publish the package
+      if: steps.registry.outputs.exists == 'false'
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: ${{ inputs.publish-command }}
