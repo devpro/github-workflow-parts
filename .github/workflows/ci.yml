@@ -576,7 +576,8 @@ jobs:
           [ "$UNCHANGED" = false ]
           [ "$UNREADABLE" = true ]
 
-  test-git-check:
+  # A local run reads the outputs of a called workflow under the id of the job inside it, which the caller shares.
+  git-check:
     name: "Test / Git check reusable workflow"
     uses: ./.github/workflows/reusable-git-check.yml
     with:
@@ -585,15 +586,15 @@ jobs:
 
   test-git-check-outputs:
     name: "Test / Git check reusable workflow outputs"
-    needs: test-git-check
+    needs: git-check
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Verify the outputs
         env:
-          BRANCH_SLUG: ${{ needs.test-git-check.outputs.branch-slug }}
-          CHANGED: ${{ needs.test-git-check.outputs.changed }}
-          VERSION_MAJOR_MINOR: ${{ needs.test-git-check.outputs.version-major-minor }}
+          BRANCH_SLUG: ${{ needs.git-check.outputs.branch-slug }}
+          CHANGED: ${{ needs.git-check.outputs.changed }}
+          VERSION_MAJOR_MINOR: ${{ needs.git-check.outputs.version-major-minor }}
         run: |
           [ "$VERSION_MAJOR_MINOR" = 1.2 ]
           [[ "$BRANCH_SLUG" =~ ^[a-z0-9-]+$ ]]
