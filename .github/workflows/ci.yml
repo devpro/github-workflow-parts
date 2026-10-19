@@ -478,8 +478,7 @@ jobs:
     with:
       working-directory: test/fixtures/dotnet
       # The fixture holds a test that fails, which only the filter keeps the job from running.
-      dotnet-test-filter: --filter-not-namespace Fixture.Tests.LeftOut*
-      dotnet-test-args: --report-xunit-trx --coverage --coverage-output-format cobertura
+      dotnet-test-args: --report-xunit-trx --coverage --coverage-output-format cobertura --filter-not-namespace Fixture.Tests.LeftOut*
 
   # Runs where a SonarQube is at hand, as IstarCI provides one locally, and is skipped on GitHub, which has none for this repository.
   test-dotnet-quality-sonar:
@@ -488,9 +487,9 @@ jobs:
     uses: ./.github/workflows/reusable-dotnet-quality.yml
     with:
       working-directory: test/fixtures/dotnet
-      dotnet-test-filter: --filter-not-namespace Fixture.Tests.LeftOut*
-      dotnet-test-args: --report-xunit-trx --coverage --coverage-output-format cobertura
+      dotnet-test-args: --report-xunit-trx --coverage --coverage-output-format cobertura --filter-not-namespace Fixture.Tests.LeftOut*
       sonar-enabled: true
+      sonar-host-url: ${{ vars.SONAR_HOST_URL }}
       sonar-project-key: github-workflow-parts-fixture
       sonar-project-name: GitHub workflow parts fixture
     secrets:

@@ -13,11 +13,6 @@ on:
         type: string
         required: false
         default: ""
-      dotnet-test-filter:
-        description: "Arguments appended to the test arguments to leave tests out (for example \"--filter-not-namespace App.IntegrationTests*\"), the caller's DOTNET_TEST_FILTER variable when empty"
-        type: string
-        required: false
-        default: ""
       dotnet-version:
         description: .NET version
         type: string
@@ -29,7 +24,7 @@ on:
         required: false
         default: ""
       fossa-enabled:
-        description: Enable license compliance with FOSSA, unless the caller's FOSSA_ENABLED variable is "false"
+        description: Enable license compliance with FOSSA
         type: boolean
         required: false
         default: false
@@ -74,10 +69,10 @@ on:
         required: false
         default: "node_modules"
       sonar-host-url:
-        description: Sonar host URL, the caller's SONAR_HOST_URL variable when empty, then SonarCloud
+        description: Sonar host URL
         type: string
         required: false
-        default: ""
+        default: "https://sonarcloud.io"
       sonar-organization:
         description: Sonar organization
         type: string
@@ -175,24 +170,24 @@ jobs:
         if: ${{ ! inputs.sonar-enabled }}
         uses: ./workflow-parts/actions/dotnet/build-test
         with:
-          dotnet-test-args: ${{ format('{0} {1}', inputs.dotnet-test-args, inputs.dotnet-test-filter || vars.DOTNET_TEST_FILTER) }}
+          dotnet-test-args: ${{ inputs.dotnet-test-args }}
           working-directory: ${{ inputs.working-directory }}
       - name: Build, test & analyze
         if: ${{ inputs.sonar-enabled }}
         uses: ./workflow-parts/actions/dotnet/build-test-sonar
         with:
-          dotnet-test-args: ${{ format('{0} {1}', inputs.dotnet-test-args, inputs.dotnet-test-filter || vars.DOTNET_TEST_FILTER) }}
+          dotnet-test-args: ${{ inputs.dotnet-test-args }}
           working-directory: ${{ inputs.working-directory }}
           sonar-cpd-exclusions: ${{ inputs.sonar-cpd-exclusions }}
           sonar-exclusions: ${{ inputs.sonar-exclusions }}
-          sonar-host-url: ${{ inputs.sonar-host-url || vars.SONAR_HOST_URL || 'https://sonarcloud.io' }}
+          sonar-host-url: ${{ inputs.sonar-host-url }}
           sonar-organization: ${{ inputs.sonar-organization }}
           sonar-project-key: ${{ inputs.sonar-project-key }}
           sonar-project-name: ${{ inputs.sonar-project-name }}
           sonar-token: ${{ secrets.sonar-token }}
       - name: Check license compliance with FOSSA
         # A repository turns it off where FOSSA cannot be reached, a local run holding no API key.
-        if: ${{ inputs.fossa-enabled && vars.FOSSA_ENABLED != 'false' }}
+        if: ${{ inputs.fossa-enabled }}
         uses: ./workflow-parts/actions/fossa/analyze
         # https://status.fossa.com/
         continue-on-error: true
