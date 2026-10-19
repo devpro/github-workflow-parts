@@ -9,7 +9,7 @@ inputs:
   syft-version:
     description: Version of Syft to install (check latest from https://github.com/anchore/syft/releases)
     required: false
-    default: "1.49.0"
+    default: "1.54.1"
   target-image:
     description: Container image reference to scan (mutually exclusive with target-path)
     required: false

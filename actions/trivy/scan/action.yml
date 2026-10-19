@@ -9,7 +9,7 @@ inputs:
   trivy-version:
     description: Version of Trivy to install (check latest from https://github.com/aquasecurity/trivy/releases)
     required: false
-    default: "0.72.0"
+    default: "0.76.0"
   scan-type:
     description: What to scan, "image" (container image reference) or "config" (misconfiguration/IaC scan of a directory)
     required: false

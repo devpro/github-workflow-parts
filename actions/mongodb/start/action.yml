@@ -9,7 +9,7 @@ inputs:
   mongodb-version:
     description: Version of the MongoDB server (check latest from https://www.mongodb.com/try/download/community)
     required: false
-    default: "8.2.12"
+    default: "9.0.4"
   mongosh-version:
     description: Version of mongosh (check latest from https://github.com/mongodb-js/mongosh/releases)
     required: false

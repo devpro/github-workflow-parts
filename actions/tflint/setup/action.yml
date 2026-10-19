@@ -8,7 +8,7 @@ inputs:
   tflint-version:
     description: Version of TFLint to install (check latest from https://github.com/terraform-linters/tflint/releases)
     required: false
-    default: "v0.60.0"
+    default: "v0.64.0"
 
 runs:
   using: "composite"

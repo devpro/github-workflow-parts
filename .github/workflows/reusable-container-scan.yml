@@ -113,7 +113,7 @@ jobs:
       # deactivated 2026-02-22: "Build container for action use... process "/bin/sh -c zypper in -y jq docker && zypper clean" did not complete successfully: exit code: 8"
       # - name: Scan container image with NeuVector
       #   if: ${{ inputs.neuvector-enabled }}
-      #   uses: neuvector/scan-action@main
+      #   uses: neuvector/scan-action@196964fb269cfcd1fe139dd27c8440a8396bd8ab # 1.0.0
       #   with:
       #     image-repository: ${{ inputs.image-path }}/${{ inputs.image-name }}
       #     image-tag: ${{ inputs.image-tag }}

@@ -13,11 +13,11 @@ inputs:
   yamllint-version:
     description: Version of yamllint to install
     required: false
-    default: "1.37.1"
+    default: "1.38.0"
   yamale-version:
     description: Version of yamale to install
     required: false
-    default: "6.0.0"
+    default: "6.1.0"
 
 runs:
   using: "composite"

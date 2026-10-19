@@ -58,14 +58,14 @@ jobs:
       # Checkov is a static code analysis tool for infrastructure as code (IaC) and also a software composition analysis (SCA) tool for images and open source packages
       - name: Run Checkov
         run: |
-          pipx run --spec checkov==3.3.21 checkov -d . \
+          pipx run --spec checkov==3.3.29 checkov -d . \
             --soft-fail \
             --output cli --output sarif \
             --output-file-path console,results.sarif
         continue-on-error: true
       # needs GitHub code security > code scanning, not available on private repos
       # - name: Upload SARIF file
-      #   uses: github/codeql-action/upload-sarif@v3
+      #   uses: github/codeql-action/upload-sarif@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
       #   if: success() || failure()
       #   with:
       #     sarif_file: results.sarif
@@ -79,7 +79,7 @@ jobs:
         uses: ./workflow-parts/actions/tflint/setup
         with:
           # ref. https://github.com/terraform-linters/tflint/releases
-          tflint-version: v0.60.0
+          tflint-version: v0.64.0
       - name: Initialize TFLint
         run: tflint --init --recursive
         env:
