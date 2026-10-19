@@ -1,8 +1,8 @@
 name: Check changes
 description: |
   Tells whether the checked out commit changes any of the given paths, compared with a base:
-  the one given, or else the base of the pull request, or else the commit before the push.
-  A base the clone cannot read counts as a change, as on a new branch, a manual run or a shallow clone, so nothing is skipped by mistake.
+  the one given, or else the base of the pull request, or else the commit before the push, or else the parent commit.
+  A base the clone cannot read counts as a change, as on a new branch or in a shallow clone, so nothing is skipped by mistake.
   The repository is checked out with its history (fetch-depth 0) for the base to be readable.
 
 inputs:
@@ -10,7 +10,7 @@ inputs:
     description: Paths to compare, separated by spaces (for example "src test")
     required: true
   base:
-    description: Commit or tree to compare with, the base of the pull request or the commit before the push when empty
+    description: Commit or tree to compare with, the base of the pull request, the commit before the push or the parent commit when empty
     required: false
     default: ""
 
@@ -30,7 +30,9 @@ runs:
         PATHS: ${{ inputs.paths }}
       run: |
         read -ra path_list <<< "$PATHS"
-        if [ -z "$BASE" ] || ! git cat-file -e "${BASE}^{tree}" 2>/dev/null; then
+        # An event naming no base, a manual run or a local one, is compared with the parent commit.
+        BASE="${BASE:-HEAD~1}"
+        if ! git cat-file -e "${BASE}^{tree}" 2>/dev/null; then
           echo "No readable base to compare with, counted as a change"
           echo "changed=true" >> "$GITHUB_OUTPUT"
           exit 0
