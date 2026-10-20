@@ -73,8 +73,8 @@ jobs:
     runs-on: ${{ inputs.operating-system }}
     timeout-minutes: ${{ inputs.timeout-minutes }}
     outputs:
-      published: ${{ steps.github-packages.outputs.published || steps.npmjs.outputs.published }}
-      version: ${{ steps.github-packages.outputs.version || steps.npmjs.outputs.version }}
+      published: ${{ steps.publish.outputs.published }}
+      version: ${{ steps.publish.outputs.version }}
     steps:
       - name: Clone repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -121,20 +121,12 @@ jobs:
         if: inputs.build-command != ''
         run: |
           ${{ inputs.build-command }}
-      - name: Publish to GitHub Packages
-        id: github-packages
-        if: contains(inputs.registry-url, 'npm.pkg.github.com')
+      # GitHub Packages takes the token of the run, and npmjs.org the short-lived OIDC token of trusted publishing, which npm asks for itself.
+      - name: Publish the package
+        id: publish
         uses: ./workflow-parts/actions/npm/publish
         with:
           publish-command: ${{ inputs.publish-command }}
           working-directory: ${{ inputs.working-directory }}
         env:
-          NODE_AUTH_TOKEN: ${{ github.token }}
-      # npm trusted publishing: the package is published with a short-lived OIDC token rather than a stored secret.
-      - name: Publish to npmjs.org
-        id: npmjs
-        if: ${{ !contains(inputs.registry-url, 'npm.pkg.github.com') }}
-        uses: ./workflow-parts/actions/npm/publish
-        with:
-          publish-command: ${{ inputs.publish-command }}
-          working-directory: ${{ inputs.working-directory }}
+          NODE_AUTH_TOKEN: ${{ contains(inputs.registry-url, 'npm.pkg.github.com') && github.token || '' }}
