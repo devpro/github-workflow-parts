@@ -35,10 +35,11 @@ runs:
       env:
         ASPNETCORE_ENVIRONMENT: Development
         REPORT_FOLDER: ${{ inputs.report-folder }}
+    # Microsoft.Testing.Platform writes the coverage beside the results, and VSTest in a folder of its own for each run.
     - name: Generate test report
-      if: ${{ always() && hashFiles(format('{0}/{1}/TestResults/*.cobertura.xml', inputs.working-directory, inputs.report-folder)) != '' }}
+      if: ${{ always() && hashFiles(format('{0}/{1}/TestResults/**/*.cobertura.xml', inputs.working-directory, inputs.report-folder)) != '' }}
       run: |
-        reportgenerator "-reports:$REPORT_FOLDER/TestResults/*.cobertura.xml" \
+        reportgenerator "-reports:$REPORT_FOLDER/TestResults/**/*.cobertura.xml" \
           "-targetdir:$REPORT_FOLDER" \
           "-reporttypes:Cobertura;Html;TextSummary"
       shell: bash
