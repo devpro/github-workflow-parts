@@ -120,6 +120,8 @@ jobs:
     steps:
       - name: Set additional variables
         shell: bash
+        # Run before the clone, which creates the working directory.
+        working-directory: .
         env:
           EXTRA_VARS: ${{ inputs.extra-vars }}
         run: |
@@ -128,6 +130,8 @@ jobs:
           fi
       - name: Set additional secrets
         shell: bash
+        # Run before the clone, which creates the working directory.
+        working-directory: .
         env:
           ADDITIONAL_VARS: ${{ secrets.additional-vars }}
         run: |

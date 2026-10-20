@@ -92,6 +92,8 @@ jobs:
         working-directory: ${{ inputs.working-directory }}
     steps:
       - name: Set additional variables
+        # Run before the clone, which creates the working directory.
+        working-directory: .
         env:
           EXTRA_VARS: ${{ inputs.extra-vars }}
         run: |
@@ -99,6 +101,8 @@ jobs:
             echo "$EXTRA_VARS" >> "$GITHUB_ENV"
           fi
       - name: Set additional secrets
+        # Run before the clone, which creates the working directory.
+        working-directory: .
         env:
           ADDITIONAL_VARS: ${{ secrets.additional-vars }}
         run: |

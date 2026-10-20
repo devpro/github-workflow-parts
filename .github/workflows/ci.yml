@@ -652,6 +652,7 @@ jobs:
     uses: ./.github/workflows/reusable-pages-deployment.yml
     with:
       build-command: |
+        [ "$FIXTURE_SECRET" = hidden ]
         task --version
         npm ci
         npm run build
@@ -660,6 +661,9 @@ jobs:
       site-path: _site
       task-enabled: true
       working-directory: test/fixtures/pages
+    secrets:
+      additional-vars: |
+        FIXTURE_SECRET=hidden
 
   test-node-quality-npm:
     name: "Test / Node.js quality reusable workflow, with npm"
