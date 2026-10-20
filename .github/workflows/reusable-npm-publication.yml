@@ -1,0 +1,140 @@
+name: Reusable - npm publication
+
+# The caller grants "packages: write" to publish to GitHub Packages, or "id-token: write" for npm trusted publishing to npmjs.org.
+on:
+  workflow_call:
+    inputs:
+      build-command:
+        description: Commands building and checking the package before it is published, run from the root of the repository, none when empty
+        type: string
+        required: false
+        default: ""
+      job-name:
+        description: Job name
+        type: string
+        required: false
+        default: Publication
+      node-version:
+        description: Version of Node.js to install
+        type: string
+        required: false
+        default: "24"
+      operating-system:
+        description: Operating system executing the runner
+        type: string
+        required: false
+        default: ubuntu-latest
+      pnpm-version:
+        description: Version of pnpm installing the dependencies from pnpm-lock.yaml, npm installing them from package-lock.json when empty
+        type: string
+        required: false
+        default: ""
+      publish-command:
+        description: Command publishing the package, "pnpm publish --no-git-checks" for a pnpm workspace for instance
+        type: string
+        required: false
+        default: "npm publish"
+      registry-url:
+        description: Registry to publish to, GitHub Packages (https://npm.pkg.github.com) being authenticated with the token of the run, npmjs.org with the OIDC token of trusted publishing
+        type: string
+        required: false
+        default: "https://registry.npmjs.org"
+      scope:
+        description: Scope of the package, "@devpro" for instance, which GitHub Packages requires
+        type: string
+        required: false
+        default: ""
+      timeout-minutes:
+        description: Minutes the job may run before it is cancelled
+        type: number
+        required: false
+        default: 20
+      workflow-parts-version:
+        description: "GitHub workflow parts version (branch/tag/SHA). Should match the ref/tag/SHA the caller pinned for this reusable workflow itself. Ignored when the caller is this repository, whose checkout already holds the actions under test."
+        type: string
+        required: false
+        default: "main"
+      working-directory:
+        description: Directory holding the package.json of the package, relative to the root of the repository
+        type: string
+        required: false
+        default: "."
+    outputs:
+      published:
+        description: "\"true\" when the package was published, \"false\" when its version already was"
+        value: ${{ jobs.npm-publication.outputs.published }}
+      version:
+        description: Version of the package, read from its package.json
+        value: ${{ jobs.npm-publication.outputs.version }}
+
+jobs:
+  npm-publication:
+    name: ${{ inputs.job-name }}
+    runs-on: ${{ inputs.operating-system }}
+    timeout-minutes: ${{ inputs.timeout-minutes }}
+    outputs:
+      published: ${{ steps.github-packages.outputs.published || steps.npmjs.outputs.published }}
+      version: ${{ steps.github-packages.outputs.version || steps.npmjs.outputs.version }}
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Checkout workflow parts
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: devpro/github-workflow-parts
+          # The caller being this repository, the actions under test are those of the commit under test.
+          ref: ${{ github.repository == 'devpro/github-workflow-parts' && github.sha || inputs.workflow-parts-version }}
+          path: workflow-parts
+          persist-credentials: false
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ inputs.node-version }}
+          # Writes the .npmrc that npm publish and npm view authenticate with.
+          registry-url: ${{ inputs.registry-url }}
+          scope: ${{ inputs.scope }}
+          # A cache restored into a publication could carry what another branch put in it.
+          package-manager-cache: false
+      # pnpm installed with the npm of the Node set up above, rather than through a third party action.
+      - name: Setup pnpm
+        if: inputs.pnpm-version != ''
+        env:
+          PNPM_VERSION: ${{ inputs.pnpm-version }}
+        run: |
+          # An image already carrying that version, as a container job's may, needs no install.
+          current=$(pnpm --version 2>/dev/null || true)
+          if [[ "$current" != "$PNPM_VERSION" && "$current" != "$PNPM_VERSION".* ]]; then
+            npm install --global "pnpm@${PNPM_VERSION}"
+          fi
+      - name: Install dependencies
+        env:
+          PNPM_VERSION: ${{ inputs.pnpm-version }}
+        run: |
+          if [[ -n "$PNPM_VERSION" ]]; then
+            pnpm install --frozen-lockfile
+          elif [[ -f package-lock.json ]]; then
+            npm ci
+          else
+            echo "No package-lock.json, nothing to install"
+          fi
+      - name: Build the package
+        if: inputs.build-command != ''
+        run: |
+          ${{ inputs.build-command }}
+      - name: Publish to GitHub Packages
+        id: github-packages
+        if: contains(inputs.registry-url, 'npm.pkg.github.com')
+        uses: ./workflow-parts/actions/npm/publish
+        with:
+          publish-command: ${{ inputs.publish-command }}
+          working-directory: ${{ inputs.working-directory }}
+        env:
+          NODE_AUTH_TOKEN: ${{ github.token }}
+      # npm trusted publishing: the package is published with a short-lived OIDC token rather than a stored secret.
+      - name: Publish to npmjs.org
+        id: npmjs
+        if: ${{ !contains(inputs.registry-url, 'npm.pkg.github.com') }}
+        uses: ./workflow-parts/actions/npm/publish
+        with:
+          publish-command: ${{ inputs.publish-command }}
+          working-directory: ${{ inputs.working-directory }}

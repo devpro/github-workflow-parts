@@ -1,0 +1,190 @@
+name: Reusable - Node.js quality
+
+on:
+  workflow_call:
+    inputs:
+      artifact-name:
+        description: Name of the artifact keeping artifact-path once the commands ran, whatever their result
+        type: string
+        required: false
+        default: test-results
+      artifact-path:
+        description: Paths of the reports to keep, one per line, relative to the root of the repository, none when empty
+        type: string
+        required: false
+        default: ""
+      extra-vars:
+        description: Environment variables of the commands, one KEY=value per line
+        type: string
+        required: false
+        default: ""
+      fetch-depth:
+        description: Number of commits to clone, 0 for the whole history an analysis blaming each line needs
+        type: number
+        required: false
+        default: 1
+      job-name:
+        description: Job name
+        type: string
+        required: false
+        default: Quality
+      node-version:
+        description: Version of Node.js to install
+        type: string
+        required: false
+        default: "24"
+      operating-system:
+        description: Operating system executing the runner
+        type: string
+        required: false
+        default: ubuntu-latest
+      playwright-directory:
+        description: Directory of the project depending on Playwright, relative to the root of the repository, whose browsers are installed once the dependencies are, none when empty
+        type: string
+        required: false
+        default: ""
+      pnpm-version:
+        description: Version of pnpm installing the dependencies from pnpm-lock.yaml, npm installing them from package-lock.json when empty
+        type: string
+        required: false
+        default: ""
+      task-enabled:
+        description: Install Task (taskfile.dev) for the commands
+        type: boolean
+        required: false
+        default: false
+      terraform-version:
+        description: Version of Terraform to install for the commands, none when empty
+        type: string
+        required: false
+        default: ""
+      test-command:
+        description: Commands linting, building and testing the code, run from the working directory once the dependencies are installed
+        type: string
+        required: true
+      timeout-minutes:
+        description: Minutes the job may run before it is cancelled
+        type: number
+        required: false
+        default: 30
+      workflow-parts-version:
+        description: "GitHub workflow parts version (branch/tag/SHA). Should match the ref/tag/SHA the caller pinned for this reusable workflow itself. Ignored when the caller is this repository, whose checkout already holds the actions under test."
+        type: string
+        required: false
+        default: "main"
+      working-directory:
+        description: Directory holding the package.json and the lock file
+        type: string
+        required: false
+        default: "."
+    secrets:
+      additional-vars:
+        description: Secret environment variables of the commands, one KEY=value per line, masked in the log
+        required: false
+
+jobs:
+  node-quality:
+    name: ${{ inputs.job-name }}
+    runs-on: ${{ inputs.operating-system }}
+    timeout-minutes: ${{ inputs.timeout-minutes }}
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - name: Set additional variables
+        env:
+          EXTRA_VARS: ${{ inputs.extra-vars }}
+        run: |
+          if [[ -n "$EXTRA_VARS" ]]; then
+            echo "$EXTRA_VARS" >> "$GITHUB_ENV"
+          fi
+      - name: Set additional secrets
+        env:
+          ADDITIONAL_VARS: ${{ secrets.additional-vars }}
+        run: |
+          if [[ -n "$ADDITIONAL_VARS" ]]; then
+            echo "$ADDITIONAL_VARS" | while IFS='=' read -r _ val; do
+              if [[ -n "$val" ]]; then
+                echo "::add-mask::$val"
+              fi
+            done
+            echo "$ADDITIONAL_VARS" >> "$GITHUB_ENV"
+          fi
+      - name: Clone repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: ${{ inputs.fetch-depth }}
+      - name: Checkout workflow parts
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: devpro/github-workflow-parts
+          # The caller being this repository, the actions under test are those of the commit under test.
+          ref: ${{ github.repository == 'devpro/github-workflow-parts' && github.sha || inputs.workflow-parts-version }}
+          path: workflow-parts
+          persist-credentials: false
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ inputs.node-version }}
+          # The npm cache is keyed on the lock file, which a package without dependencies does not have.
+          cache: ${{ inputs.pnpm-version == '' && hashFiles(format('{0}/package-lock.json', inputs.working-directory)) != '' && 'npm' || '' }}
+          cache-dependency-path: ${{ inputs.working-directory }}/package-lock.json
+      # pnpm installed with the npm of the Node set up above, rather than through a third party action.
+      - name: Setup pnpm
+        id: pnpm
+        if: inputs.pnpm-version != ''
+        env:
+          PNPM_VERSION: ${{ inputs.pnpm-version }}
+        run: |
+          # An image already carrying that version, as a container job's may, needs no install.
+          current=$(pnpm --version 2>/dev/null || true)
+          if [[ "$current" != "$PNPM_VERSION" && "$current" != "$PNPM_VERSION".* ]]; then
+            npm install --global "pnpm@${PNPM_VERSION}"
+          fi
+          echo "store-path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+      - name: Cache pnpm store
+        if: inputs.pnpm-version != ''
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.pnpm.outputs.store-path }}
+          key: pnpm-${{ runner.os }}-${{ hashFiles(format('{0}/pnpm-lock.yaml', inputs.working-directory)) }}
+          restore-keys: pnpm-${{ runner.os }}-
+      - name: Install dependencies
+        env:
+          PNPM_VERSION: ${{ inputs.pnpm-version }}
+        run: |
+          if [[ -n "$PNPM_VERSION" ]]; then
+            pnpm install --frozen-lockfile
+          elif [[ -f package-lock.json ]]; then
+            npm ci
+          else
+            echo "No package-lock.json, nothing to install"
+          fi
+      - name: Setup Task
+        if: inputs.task-enabled
+        uses: ./workflow-parts/actions/task/setup
+      - name: Setup Terraform
+        if: inputs.terraform-version != ''
+        uses: ./workflow-parts/actions/terraform/setup
+        with:
+          terraform-version: ${{ inputs.terraform-version }}
+      - name: Install Playwright browsers
+        if: inputs.playwright-directory != ''
+        uses: ./workflow-parts/actions/playwright/install
+        with:
+          working-directory: ${{ inputs.playwright-directory }}
+      # The commands lint, format and scan the repository, which the workflow parts are no part of.
+      - name: Remove the workflow parts
+        working-directory: .
+        run: rm -rf workflow-parts
+      - name: Lint, build and test
+        run: |
+          ${{ inputs.test-command }}
+      - name: Upload the reports
+        if: always() && inputs.artifact-path != ''
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: ${{ inputs.artifact-path }}
+          retention-days: 7
+          if-no-files-found: ignore

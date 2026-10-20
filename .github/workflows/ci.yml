@@ -660,3 +660,55 @@ jobs:
       site-path: _site
       task-enabled: true
       working-directory: test/fixtures/pages
+
+  test-node-quality-npm:
+    name: "Test / Node.js quality reusable workflow, with npm"
+    uses: ./.github/workflows/reusable-node-quality.yml
+    with:
+      artifact-name: node-quality-npm
+      artifact-path: test/fixtures/playwright/package.json
+      extra-vars: |
+        FIXTURE_VALUE=extra
+      playwright-directory: test/fixtures/playwright
+      task-enabled: true
+      terraform-version: 1.16.6
+      test-command: |
+        [ "$FIXTURE_VALUE" = extra ]
+        task --version
+        terraform version
+        node -e "require('playwright').chromium.launch().then((browser) => browser.close())"
+        # The commands see the repository alone, without the workflow parts checked out beside it.
+        [ ! -e "${GITHUB_WORKSPACE}/workflow-parts" ]
+      working-directory: test/fixtures/playwright
+
+  test-node-quality-pnpm:
+    name: "Test / Node.js quality reusable workflow, with pnpm"
+    uses: ./.github/workflows/reusable-node-quality.yml
+    with:
+      pnpm-version: "12"
+      test-command: |
+        [[ "$(pnpm --version)" == 12.* ]]
+      working-directory: test/fixtures/pnpm
+
+  test-npm-publication:
+    name: "Test / npm publication reusable workflow, without publishing"
+    uses: ./.github/workflows/reusable-npm-publication.yml
+    with:
+      build-command: test -f test/fixtures/npm/unpublished/index.js
+      # A dry run goes through every step of a publication but the upload, which needs no credentials.
+      publish-command: npm publish --dry-run
+      working-directory: test/fixtures/npm/unpublished
+
+  test-npm-publication-outputs:
+    name: "Test / npm publication reusable workflow outputs"
+    needs: test-npm-publication
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify the package was published
+        env:
+          PUBLISHED: ${{ needs.test-npm-publication.outputs.published }}
+          VERSION: ${{ needs.test-npm-publication.outputs.version }}
+        run: |
+          [ "$PUBLISHED" = true ]
+          [ "$VERSION" = 0.0.0 ]

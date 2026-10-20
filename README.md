@@ -34,6 +34,11 @@ Markup (Markdown, YAML):
 
 - [Ensure the quality of the content](.github/workflows/reusable-markup-lint.yml)
 
+Node.js:
+
+- [Lint, build and test the code](.github/workflows/reusable-node-quality.yml)
+- [Publish a package to npmjs.org or GitHub Packages](.github/workflows/reusable-npm-publication.yml)
+
 Terraform:
 
 - [Deploy or destroy an environment](.github/workflows/reusable-terraform-deployment.yml)
