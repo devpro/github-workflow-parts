@@ -22,10 +22,10 @@ SELF_REPOSITORY = "devpro/github-workflow-parts"
 SHELL_INPUTS = {
     "inputs.build-command",
     "inputs.custom-commands",
+    "inputs.custom-tests",
     "inputs.dotnet-test-args",
     "inputs.publish-command",
     "inputs.terraform-var-flags",
-    "inputs.test-command",
 }
 
 # Parts no CI job can exercise, each with the reason, which the coverage check takes as known.

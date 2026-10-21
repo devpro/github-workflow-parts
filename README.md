@@ -36,7 +36,7 @@ Markup (Markdown, YAML):
 
 Node.js:
 
-- [Lint, build and test the code](.github/workflows/reusable-node-quality.yml)
+- [Lint, build, test and analyze the code](.github/workflows/reusable-node-quality.yml)
 - [Publish a package to npmjs.org or GitHub Packages](.github/workflows/reusable-npm-publication.yml)
 
 Terraform:
@@ -90,6 +90,10 @@ Node.js:
 
 - [Publish a package unless its version already is](actions/npm/publish/action.yml)
 - [Install the Playwright browsers](actions/playwright/install/action.yml)
+
+Sonar:
+
+- [Analyze the code of a project other than .NET](actions/sonar/scan/action.yml)
 
 SBOM:
 

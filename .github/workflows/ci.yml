@@ -401,6 +401,22 @@ jobs:
         run: |
           mongosh --quiet --eval 'db.runCommand({ ping: 1 }).ok' mongodb://127.0.0.1:27017 | grep -qx 1
 
+  test-mongodb-start-replica-set:
+    name: "Test / MongoDB start action, replica set"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Start MongoDB
+        uses: ./actions/mongodb/start
+        with:
+          port: "27117"
+          replica-set: rs0
+      - name: Verify MongoDB is the primary of the replica set
+        run: |
+          mongosh --quiet --eval 'db.hello().isWritablePrimary' "mongodb://127.0.0.1:27117/?directConnection=true" | grep -qx true
+
   test-syft-generate-sbom:
     name: "Test / Syft generate-sbom action"
     runs-on: ubuntu-latest
@@ -679,30 +695,48 @@ jobs:
     name: "Test / Node.js quality reusable workflow, with npm"
     uses: ./.github/workflows/reusable-node-quality.yml
     with:
-      artifact-name: node-quality-npm
-      artifact-path: test/fixtures/playwright/package.json
-      extra-vars: |
-        FIXTURE_VALUE=extra
-      playwright-directory: test/fixtures/playwright
-      task-enabled: true
-      terraform-version: 1.16.6
-      test-command: |
+      custom-tests: |
         [ "$FIXTURE_VALUE" = extra ]
+        mongosh --quiet --eval 'db.hello().isWritablePrimary' "mongodb://127.0.0.1:27017/?replicaSet=rs0" | grep -qx true
         task --version
         terraform version
         node -e "require('playwright').chromium.launch().then((browser) => browser.close())"
-        # The commands see the repository alone, without the workflow parts checked out beside it.
+        [ -f coverage/lcov.info ]
+        # Each script ran once, in that order, the missing ones being skipped.
+        diff <(printf '%s\n' lint format:check typecheck build test:coverage) report/scripts.log
+        # The custom tests see the repository alone, without the workflow parts checked out beside it.
         [ ! -e "${GITHUB_WORKSPACE}/workflow-parts" ]
-      working-directory: test/fixtures/playwright
+      extra-vars: |
+        FIXTURE_VALUE=extra
+      mongodb-enabled: true
+      task-enabled: true
+      terraform-version: 1.16.6
+      test-script: test:coverage
+      working-directory: test/fixtures/node
 
   test-node-quality-pnpm:
     name: "Test / Node.js quality reusable workflow, with pnpm"
     uses: ./.github/workflows/reusable-node-quality.yml
     with:
-      pnpm-version: "12"
-      test-command: |
+      custom-tests: |
         [[ "$(pnpm --version)" == 12.* ]]
+      pnpm-version: "12"
       working-directory: test/fixtures/pnpm
+
+  # Runs where a SonarQube is at hand, as IstarCI provides one locally, and is skipped on GitHub, which has none for this repository.
+  test-node-quality-sonar:
+    name: "Test / Node.js quality reusable workflow with Sonar"
+    if: vars.SONAR_HOST_URL != ''
+    uses: ./.github/workflows/reusable-node-quality.yml
+    with:
+      sonar-enabled: true
+      sonar-host-url: ${{ vars.SONAR_HOST_URL }}
+      sonar-project-key: github-workflow-parts-node-fixture
+      sonar-project-name: GitHub workflow parts Node.js fixture
+      test-script: test:coverage
+      working-directory: test/fixtures/node
+    secrets:
+      sonar-token: ${{ secrets.SONAR_TOKEN }}
 
   test-npm-publication:
     name: "Test / npm publication reusable workflow, without publishing"

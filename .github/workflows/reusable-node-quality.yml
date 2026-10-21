@@ -3,33 +3,38 @@ name: Reusable - Node.js quality
 on:
   workflow_call:
     inputs:
-      artifact-name:
-        description: Name of the artifact keeping artifact-path once the commands ran, whatever their result
-        type: string
-        required: false
-        default: test-results
-      artifact-path:
-        description: Paths of the reports to keep, one per line, relative to the root of the repository, none when empty
+      custom-tests:
+        description: Optional shell commands testing what build & test produced, such as end-to-end tests against the built application
         type: string
         required: false
         default: ""
       extra-vars:
-        description: Environment variables of the commands, one KEY=value per line
+        description: "Additional environment variables at the start of the pipeline"
         type: string
         required: false
         default: ""
-      fetch-depth:
-        description: Number of commits to clone, 0 for the whole history an analysis blaming each line needs
-        type: number
+      fossa-enabled:
+        description: Enable license compliance with FOSSA
+        type: boolean
         required: false
-        default: 1
+        default: false
+      fossa-test:
+        description: Run FOSSA test on PR
+        type: boolean
+        required: false
+        default: false
       job-name:
         description: Job name
         type: string
         required: false
         default: Quality
+      mongodb-enabled:
+        description: Start a local MongoDB server on 127.0.0.1:27017, as the single-node replica set rs0 transactions need, with mongosh on the path, before lint, build & test
+        type: boolean
+        required: false
+        default: false
       node-version:
-        description: Version of Node.js to install
+        description: Node.js version
         type: string
         required: false
         default: "24"
@@ -38,48 +43,90 @@ on:
         type: string
         required: false
         default: ubuntu-latest
-      playwright-directory:
-        description: Directory of the project depending on Playwright, relative to the root of the repository, whose browsers are installed once the dependencies are, none when empty
-        type: string
-        required: false
-        default: ""
       pnpm-version:
         description: Version of pnpm installing the dependencies from pnpm-lock.yaml, npm installing them from package-lock.json when empty
         type: string
         required: false
         default: ""
+      sonar-enabled:
+        description: Enable check done by Sonar (SonarQube or SonarCloud)
+        type: boolean
+        required: false
+        default: false
+      sonar-coverage-paths:
+        description: lcov reports of the coverage the test script writes, relative to the working directory, separated by commas
+        type: string
+        required: false
+        default: "coverage/lcov.info"
+      sonar-cpd-exclusions:
+        description: Files or directories that should be excluded from Sonar code duplication analysis
+        type: string
+        required: false
+        default: ""
+      sonar-exclusions:
+        description: Files or directories that should be excluded from Sonar analysis
+        type: string
+        required: false
+        default: "**/node_modules/**"
+      sonar-host-url:
+        description: Sonar host URL
+        type: string
+        required: false
+        default: "https://sonarcloud.io"
+      sonar-organization:
+        description: Sonar organization
+        type: string
+        required: false
+        default: ""
+      sonar-project-key:
+        description: Sonar project key
+        type: string
+        required: false
+        default: ""
+      sonar-project-name:
+        description: Sonar project name
+        type: string
+        required: false
+        default: ""
       task-enabled:
-        description: Install Task (taskfile.dev) for the commands
+        description: Install Task (taskfile.dev) for the scripts and the custom tests
         type: boolean
         required: false
         default: false
       terraform-version:
-        description: Version of Terraform to install for the commands, none when empty
+        description: Version of Terraform to install for the scripts and the custom tests, none when empty
         type: string
         required: false
         default: ""
-      test-command:
-        description: Commands linting, building and testing the code, run from the working directory once the dependencies are installed
+      test-script:
+        description: Script of package.json running the tests, for example "test:coverage" to write the coverage Sonar reads
         type: string
-        required: true
+        required: false
+        default: test
       timeout-minutes:
         description: Minutes the job may run before it is cancelled
         type: number
         required: false
-        default: 30
+        default: 60
       workflow-parts-version:
-        description: "GitHub workflow parts version (branch/tag/SHA). Should match the ref/tag/SHA the caller pinned for this reusable workflow itself. Ignored when the caller is this repository, whose checkout already holds the actions under test."
+        description: GitHub workflow parts version (branch/tag/SHA). Should match the ref/tag/SHA the caller pinned for this reusable workflow itself. Ignored when the caller is this repository, whose checkout already holds the actions under test.
         type: string
         required: false
-        default: "main"
+        default: main
       working-directory:
         description: Directory holding the package.json and the lock file
         type: string
         required: false
         default: "."
     secrets:
+      fossa-api-key:
+        description: FOSSA API KEY
+        required: false
+      sonar-token:
+        description: Sonar token for login
+        required: false
       additional-vars:
-        description: Secret environment variables of the commands, one KEY=value per line, masked in the log
+        description: "Additional variables"
         required: false
 
 jobs:
@@ -89,6 +136,7 @@ jobs:
     timeout-minutes: ${{ inputs.timeout-minutes }}
     defaults:
       run:
+        shell: bash
         working-directory: ${{ inputs.working-directory }}
     steps:
       - name: Set additional variables
@@ -117,7 +165,7 @@ jobs:
       - name: Clone repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: ${{ inputs.fetch-depth }}
+          fetch-depth: 0
       - name: Checkout workflow parts
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -154,6 +202,7 @@ jobs:
           key: pnpm-${{ runner.os }}-${{ hashFiles(format('{0}/pnpm-lock.yaml', inputs.working-directory)) }}
           restore-keys: pnpm-${{ runner.os }}-
       - name: Install dependencies
+        id: install
         env:
           PNPM_VERSION: ${{ inputs.pnpm-version }}
         run: |
@@ -164,31 +213,93 @@ jobs:
           else
             echo "No package-lock.json, nothing to install"
           fi
+          # The browsers have to match the Playwright version installed, so a project depending on it gets them without asking.
+          if [[ -x node_modules/.bin/playwright ]]; then
+            echo "playwright=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Install Playwright browsers
+        if: steps.install.outputs.playwright == 'true'
+        uses: ./workflow-parts/actions/playwright/install
+        with:
+          working-directory: ${{ inputs.working-directory }}
       - name: Setup Task
-        if: inputs.task-enabled
+        if: ${{ inputs.task-enabled }}
         uses: ./workflow-parts/actions/task/setup
       - name: Setup Terraform
         if: inputs.terraform-version != ''
         uses: ./workflow-parts/actions/terraform/setup
         with:
           terraform-version: ${{ inputs.terraform-version }}
-      - name: Install Playwright browsers
-        if: inputs.playwright-directory != ''
-        uses: ./workflow-parts/actions/playwright/install
+      - name: Start MongoDB
+        if: ${{ inputs.mongodb-enabled }}
+        uses: ./workflow-parts/actions/mongodb/start
         with:
-          working-directory: ${{ inputs.playwright-directory }}
-      # The commands lint, format and scan the repository, which the workflow parts are no part of.
-      - name: Remove the workflow parts
+          replica-set: rs0
+      # The scripts lint, format and test the repository, which the workflow parts are no part of.
+      - name: Set aside workflow parts
         working-directory: .
-        run: rm -rf workflow-parts
-      - name: Lint, build and test
+        run: mv workflow-parts "${RUNNER_TEMP}/workflow-parts"
+      - name: Lint
+        env:
+          PACKAGE_MANAGER: ${{ inputs.pnpm-version != '' && 'pnpm' || 'npm' }}
         run: |
-          ${{ inputs.test-command }}
-      - name: Upload the reports
-        if: always() && inputs.artifact-path != ''
+          for script in lint format:check typecheck; do
+            "$PACKAGE_MANAGER" run --if-present "$script"
+          done
+      - name: Build & test
+        env:
+          PACKAGE_MANAGER: ${{ inputs.pnpm-version != '' && 'pnpm' || 'npm' }}
+          TEST_SCRIPT: ${{ inputs.test-script }}
+        run: |
+          "$PACKAGE_MANAGER" run --if-present build
+          "$PACKAGE_MANAGER" run --if-present "$TEST_SCRIPT"
+      - name: Run optional custom tests
+        if: ${{ inputs.custom-tests != '' }}
+        run: |
+          ${{ inputs.custom-tests }}
+      - name: Bring back workflow parts
+        working-directory: .
+        run: mv "${RUNNER_TEMP}/workflow-parts" workflow-parts
+      - name: Analyze with Sonar
+        if: ${{ inputs.sonar-enabled }}
+        uses: ./workflow-parts/actions/sonar/scan
+        with:
+          coverage-paths: ${{ inputs.sonar-coverage-paths }}
+          cpd-exclusions: ${{ inputs.sonar-cpd-exclusions }}
+          # The workflow parts are back beside the repository, and not part of its code.
+          exclusions: workflow-parts/**,${{ inputs.sonar-exclusions }}
+          host-url: ${{ inputs.sonar-host-url }}
+          organization: ${{ inputs.sonar-organization }}
+          project-key: ${{ inputs.sonar-project-key }}
+          project-name: ${{ inputs.sonar-project-name }}
+          token: ${{ secrets.sonar-token }}
+          working-directory: ${{ inputs.working-directory }}
+      - name: Check license compliance with FOSSA
+        # A repository turns it off where FOSSA cannot be reached, a local run holding no API key.
+        if: ${{ inputs.fossa-enabled }}
+        uses: ./workflow-parts/actions/fossa/analyze
+        # https://status.fossa.com/
+        continue-on-error: true
+        timeout-minutes: 3
+        with:
+          api-key: "${{ secrets.fossa-api-key }}"
+          run-tests: ${{ inputs.fossa-test && github.event_name == 'pull_request' }}
+          test-diff-revision: ${{ github.event.pull_request.base.sha }}
+          report-file: report/fossa.html
+          working-directory: ${{ inputs.working-directory }}
+      - name: Generate SBOM with Syft
+        uses: ./workflow-parts/actions/syft/generate-sbom
+        continue-on-error: true
+        with:
+          target-path: ${{ inputs.working-directory }}
+      - name: Archive test results
+        if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: ${{ inputs.artifact-name }}
-          path: ${{ inputs.artifact-path }}
-          retention-days: 7
-          if-no-files-found: ignore
+          name: node-test-results
+          # The usual folders of the coverage and of Playwright, and report for anything else, a custom test's server log for instance.
+          path: |
+            ${{ inputs.working-directory }}/report/
+            ${{ inputs.working-directory }}/coverage/
+            ${{ inputs.working-directory }}/playwright-report/
+            ${{ inputs.working-directory }}/test-results/

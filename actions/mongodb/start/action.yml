@@ -1,6 +1,6 @@
 name: Start MongoDB
 description: |
-  Starts a local MongoDB server on 127.0.0.1:27017, with mongosh on the path,
+  Starts a local MongoDB server on 127.0.0.1, with mongosh on the path,
   from the official archives with their SHA256 checksums verified rather than the apt packages,
   so neither root nor sudo is needed, on a hosted runner or in a container.
   Linux x64 or arm64 runners on Ubuntu 24.04 only (for example ubuntu-latest or ubuntu-24.04-arm).
@@ -22,6 +22,14 @@ inputs:
     description: SHA256 of the mongosh archive for arm64, given with any other mongosh-version
     required: false
     default: "a124ec6680c70ceabc61696bbd110f0da05d7c52524ed402ae9511b5aec7fe32"
+  port:
+    description: Port the server listens on
+    required: false
+    default: "27017"
+  replica-set:
+    description: Name of a single-node replica set the server starts as, for an application writing in transactions, which a standalone server refuses, standalone when empty
+    required: false
+    default: ""
 
 runs:
   using: "composite"
@@ -33,6 +41,8 @@ runs:
         MONGOSH_VERSION: ${{ inputs.mongosh-version }}
         MONGOSH_ARCHIVE: mongosh-${{ inputs.mongosh-version }}-linux-${{ runner.arch == 'ARM64' && 'arm64' || 'x64' }}.tgz
         MONGOSH_SHA256: ${{ runner.arch == 'ARM64' && inputs.mongosh-sha256-arm64 || inputs.mongosh-sha256 }}
+        MONGODB_PORT: ${{ inputs.port }}
+        REPLICA_SET: ${{ inputs.replica-set }}
       run: |
         # Downloaded into a directory of its own, since the repository may hold a file or a directory named like an archive.
         cd "$(mktemp -d)"
@@ -55,11 +65,27 @@ runs:
         rm -f "${MONGODB_ARCHIVE}" "${MONGODB_ARCHIVE}.sha256" "${MONGOSH_ARCHIVE}"
 
         # Forked rather than started by systemd, which a container has no instance of.
-        mongod --dbpath "${RUNNER_TEMP}/mongodb/data" --bind_ip 127.0.0.1 --fork --logpath "${RUNNER_TEMP}/mongodb/mongod.log"
-        timeout 30 bash -c "
-          until mongosh --host localhost:27017 --quiet --eval 'db.runCommand({ ping: 1 })' >/dev/null 2>&1; do
-            echo 'MongoDB not ready yet, retrying in 1 second...'
-            sleep 1
-          done
-        "
-        mongod --version | head -1
+        log="${RUNNER_TEMP}/mongodb/mongod.log"
+        args=(--dbpath "${RUNNER_TEMP}/mongodb/data" --bind_ip 127.0.0.1 --port "$MONGODB_PORT" --fork --logpath "$log")
+        check='db.runCommand({ ping: 1 })'
+        if [[ -n "$REPLICA_SET" ]]; then
+          args+=(--replSet "$REPLICA_SET")
+          # Ready once the node is primary, the set being initiated by the first check the server answers.
+          check="try { rs.status() } catch (e) { rs.initiate({ _id: '${REPLICA_SET}', members: [{ _id: 0, host: '127.0.0.1:${MONGODB_PORT}' }] }) } quit(db.hello().isWritablePrimary ? 0 : 1)"
+        fi
+        # The log is the only place saying why a server did not start, and it is gone with the runner.
+        if ! mongod "${args[@]}"; then
+          cat "$log"
+          exit 1
+        fi
+        for _ in $(seq 1 30); do
+          if mongosh --host "127.0.0.1:${MONGODB_PORT}" --quiet --eval "$check" >/dev/null 2>&1; then
+            mongod --version | head -1
+            exit 0
+          fi
+          echo "MongoDB not ready yet, retrying in 1 second..."
+          sleep 1
+        done
+        echo "::error::MongoDB was not ready within 30 seconds"
+        cat "$log"
+        exit 1
