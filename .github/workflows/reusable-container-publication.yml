@@ -94,8 +94,6 @@ jobs:
     if: ${{ inputs.arm64-runner == '' }}
     runs-on: ${{ inputs.operating-system }}
     timeout-minutes: ${{ inputs.timeout-minutes }}
-    outputs:
-      digest: ${{ steps.build.outputs.digest }}
     steps:
       - name: Set secret variables
         shell: bash
@@ -131,12 +129,13 @@ jobs:
         uses: ./workflow-parts/actions/qemu/setup
         with:
           platforms: ${{ inputs.image-platform }}
-      - name: Build and push container image by digest
-        id: build
+      # The action puts the platforms together under the tag once each is pushed.
+      - name: Build and push container image
         uses: ./workflow-parts/actions/container/build-push
         with:
           image-definition: ${{ inputs.image-definition }}
           image-repository: ${{ env.IMAGE_REPOSITORY }}
+          image-tag: ${{ inputs.image-tag }}
           platforms: ${{ inputs.image-platform }}
           build-arguments: ${{ inputs.extra-build-arguments }}
           working-directory: ${{ inputs.working-directory }}
@@ -177,12 +176,13 @@ jobs:
           REGISTRY_USERNAME: ${{ secrets.container-registry-username }}
           REGISTRY_PASSWORD: ${{ secrets.container-registry-password }}
         run: echo "$REGISTRY_PASSWORD" | docker login "$REGISTRY" --username "$REGISTRY_USERNAME" --password-stdin
-      - name: Build and push container image by digest
+      - name: Build and push container image under the tag of its platform
         id: build
         uses: ./workflow-parts/actions/container/build-push
         with:
           image-definition: ${{ inputs.image-definition }}
           image-repository: ${{ env.IMAGE_REPOSITORY }}
+          image-tag: ${{ inputs.image-tag }}-linux-amd64
           platforms: linux/amd64
           build-arguments: ${{ inputs.extra-build-arguments }}
           working-directory: ${{ inputs.working-directory }}
@@ -223,17 +223,18 @@ jobs:
           REGISTRY_USERNAME: ${{ secrets.container-registry-username }}
           REGISTRY_PASSWORD: ${{ secrets.container-registry-password }}
         run: echo "$REGISTRY_PASSWORD" | docker login "$REGISTRY" --username "$REGISTRY_USERNAME" --password-stdin
-      - name: Build and push container image by digest
+      - name: Build and push container image under the tag of its platform
         id: build
         uses: ./workflow-parts/actions/container/build-push
         with:
           image-definition: ${{ inputs.image-definition }}
           image-repository: ${{ env.IMAGE_REPOSITORY }}
+          image-tag: ${{ inputs.image-tag }}-linux-arm64
           platforms: linux/arm64
           build-arguments: ${{ inputs.extra-build-arguments }}
           working-directory: ${{ inputs.working-directory }}
 
-  # The platforms are built apart, and only put under the tag here, so that the image a tag names is complete.
+  # The platforms built on runners of their own are only put under the tag here, so that the image a tag names is complete.
   publication:
     name: ${{ inputs.job-name }}
     needs: [build-emulated, build-amd64, build-arm64]
@@ -256,8 +257,9 @@ jobs:
           REGISTRY_PASSWORD: ${{ secrets.container-registry-password }}
         run: echo "$REGISTRY_PASSWORD" | docker login "$REGISTRY" --username "$REGISTRY_USERNAME" --password-stdin
       - name: Tag the image of every platform
+        if: ${{ inputs.arm64-runner != '' }}
         env:
-          DIGESTS: ${{ needs.build-emulated.outputs.digest }} ${{ needs.build-amd64.outputs.digest }} ${{ needs.build-arm64.outputs.digest }}
+          DIGESTS: ${{ needs.build-amd64.outputs.digest }} ${{ needs.build-arm64.outputs.digest }}
         run: |
           sources=()
           for digest in $DIGESTS; do

@@ -274,16 +274,22 @@ jobs:
         with:
           image-definition: test/fixtures/container/base/Dockerfile
           image-repository: localhost:5000/emulated-test
+          image-tag: ${{ github.run_id }}
           platforms: linux/amd64,linux/arm64
-      - name: Verify the manifest list holds both platforms
+      - name: Verify the tag names a manifest list holding both platforms, each also under a tag of its own
         env:
           DIGEST: ${{ steps.emulated.outputs.digest }}
         run: |
-          platforms=$(docker buildx imagetools inspect "localhost:5000/emulated-test@${DIGEST}" --raw | jq -r '[.manifests[].platform | select(.os == "linux") | .architecture] | sort | join(",")')
+          image="localhost:5000/emulated-test:${GITHUB_RUN_ID}"
+          [ "$(docker buildx imagetools inspect "$image" --format '{{json .Manifest}}' | jq -r .digest)" = "$DIGEST" ]
+          platforms=$(docker buildx imagetools inspect "$image" --raw | jq -r '[.manifests[].platform | select(.os == "linux") | .architecture] | sort | join(",")')
           [ "$platforms" = amd64,arm64 ]
+          for platform in linux-amd64 linux-arm64; do
+            docker buildx imagetools inspect "${image}-${platform}" >/dev/null
+          done
 
   test-container-build-push:
-    name: "Test / Container build-push action, under a tag and by digest"
+    name: "Test / Container build-push action, a base and an image built on it"
     runs-on: ubuntu-latest
     timeout-minutes: 20
     services:
@@ -302,21 +308,25 @@ jobs:
           image-repository: localhost:5000/build-test-base
           image-tag: ${{ github.run_id }}
       # The derived image fails to build unless the build argument names the base pushed above.
-      - name: Build and push the derived image by digest
+      - name: Build and push the derived image
         id: derived
         uses: ./actions/container/build-push
         with:
           image-definition: test/fixtures/container/derived/Dockerfile
           image-repository: localhost:5000/build-test-derived
+          image-tag: ${{ github.run_id }}
           build-arguments: |
             BASE_IMAGE=localhost:5000/build-test-base:${{ github.run_id }}
-      - name: Verify both images are in the registry
+      - name: Verify both images are in the registry under their digest, and not left in the daemon
         env:
           BASE_DIGEST: ${{ steps.base.outputs.digest }}
           DERIVED_DIGEST: ${{ steps.derived.outputs.digest }}
         run: |
-          [ "$(docker buildx imagetools inspect "localhost:5000/build-test-base:${GITHUB_RUN_ID}" --format '{{json .Manifest}}' | jq -r .digest)" = "$BASE_DIGEST" ]
-          docker buildx imagetools inspect "localhost:5000/build-test-derived@${DERIVED_DIGEST}" >/dev/null
+          for image in "build-test-base:${GITHUB_RUN_ID}=${BASE_DIGEST}" "build-test-derived:${GITHUB_RUN_ID}=${DERIVED_DIGEST}"; do
+            ref="localhost:5000/${image%%=*}"
+            [ "$(docker buildx imagetools inspect "$ref" --format '{{json .Manifest}}' | jq -r .digest)" = "${image#*=}" ]
+            ! docker image inspect "$ref" >/dev/null 2>&1
+          done
 
   test-container-build-push-arm64:
     name: "Test / Container build-push action on an arm64 runner"
@@ -330,12 +340,13 @@ jobs:
     steps:
       - name: Clone repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Build and push the base image natively by digest
+      - name: Build and push the base image natively
         id: native
         uses: ./actions/container/build-push
         with:
           image-definition: test/fixtures/container/base/Dockerfile
           image-repository: localhost:5000/native-test
+          image-tag: ${{ github.run_id }}
           platforms: linux/arm64
       - name: Verify the image is for arm64
         env:
