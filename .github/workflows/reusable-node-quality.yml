@@ -255,8 +255,10 @@ jobs:
           "$PACKAGE_MANAGER" run --if-present "$TEST_SCRIPT"
       - name: Run optional custom tests
         if: ${{ inputs.custom-tests != '' }}
-        run: |
-          ${{ inputs.custom-tests }}
+        env:
+          CUSTOM_TESTS: ${{ inputs.custom-tests }}
+        # Shell code by contract, run from a variable rather than pasted into the script by GitHub.
+        run: eval "$CUSTOM_TESTS"
       - name: Bring back workflow parts
         working-directory: .
         run: mv "${RUNNER_TEMP}/workflow-parts" workflow-parts

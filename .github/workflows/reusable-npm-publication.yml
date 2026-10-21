@@ -120,8 +120,10 @@ jobs:
           fi
       - name: Build the package
         if: inputs.build-command != ''
-        run: |
-          ${{ inputs.build-command }}
+        env:
+          BUILD_COMMAND: ${{ inputs.build-command }}
+        # Shell code by contract, run from a variable rather than pasted into the script by GitHub.
+        run: eval "$BUILD_COMMAND"
       # GitHub Packages takes the token of the run, and npmjs.org the short-lived OIDC token of trusted publishing, which npm asks for itself.
       - name: Publish the package
         id: publish

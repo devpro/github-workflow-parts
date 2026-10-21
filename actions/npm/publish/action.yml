@@ -54,9 +54,14 @@ runs:
       if: steps.registry.outputs.exists == 'false'
       shell: bash
       working-directory: ${{ inputs.working-directory }}
-      run: ${{ inputs.publish-command }}
+      env:
+        PUBLISH_COMMAND: ${{ inputs.publish-command }}
+      # Shell code by contract, run from a variable rather than pasted into the script by GitHub.
+      run: eval "$PUBLISH_COMMAND"
     - name: Check the package without publishing it
       if: steps.registry.outputs.exists == 'dry-run'
       shell: bash
       working-directory: ${{ inputs.working-directory }}
-      run: ${{ inputs.publish-command }} --dry-run
+      env:
+        PUBLISH_COMMAND: ${{ inputs.publish-command }}
+      run: eval "$PUBLISH_COMMAND --dry-run"

@@ -113,8 +113,10 @@ jobs:
           cache: ${{ hashFiles(format('{0}/package-lock.json', inputs.working-directory)) != '' && 'npm' || '' }}
           cache-dependency-path: ${{ inputs.working-directory }}/package-lock.json
       - name: Build the site
-        run: |
-          ${{ inputs.build-command }}
+        env:
+          BUILD_COMMAND: ${{ inputs.build-command }}
+        # Shell code by contract, run from a variable rather than pasted into the script by GitHub.
+        run: eval "$BUILD_COMMAND"
       - name: Verify the site was built
         env:
           SITE_PATH: ${{ inputs.site-path }}

@@ -129,8 +129,10 @@ jobs:
           fi
       - name: Run optional custom commands
         if: ${{ inputs.custom-commands != '' }}
-        run: |
-          ${{ inputs.custom-commands }}
+        env:
+          CUSTOM_COMMANDS: ${{ inputs.custom-commands }}
+        # Shell code by contract, run from a variable rather than pasted into the script by GitHub.
+        run: eval "$CUSTOM_COMMANDS"
       - name: Cache Terraform plugins
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -144,8 +146,13 @@ jobs:
       - name: Terraform validate
         run: terraform validate
       - name: Terraform plan
-        run: terraform plan -input=false -out=plan.tfplan ${{ inputs.terraform-var-flags }}
+        # Shell words by contract, quotes included, parsed from a variable rather than pasted into the script by GitHub.
+        run: |
+          var_flags=()
+          eval "var_flags=(${TERRAFORM_VAR_FLAGS})"
+          terraform plan -input=false -out=plan.tfplan "${var_flags[@]}"
         env:
+          TERRAFORM_VAR_FLAGS: ${{ inputs.terraform-var-flags }}
           # Read by Terraform as arguments of the plan command, the plan of a destruction being applied as any other.
           TF_CLI_ARGS_plan: ${{ inputs.destroy && '-destroy' || '' }}
       - name: Terraform apply

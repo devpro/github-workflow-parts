@@ -26,14 +26,18 @@ runs:
         BUILD_SOURCEBRANCHNAME: ${{ github.ref_name }}
         BUILD_BUILDID: ${{ github.run_id }}
     - name: Run tests
+      # Shell words by contract, quotes included, parsed from a variable rather than pasted into the script by GitHub.
       run: |
+        test_args=()
+        eval "test_args=(${DOTNET_TEST_ARGS})"
         dotnet test --no-build --verbosity normal --configuration Debug \
           --results-directory "$REPORT_FOLDER/TestResults" \
-          ${{ inputs.dotnet-test-args }}
+          "${test_args[@]}"
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       env:
         ASPNETCORE_ENVIRONMENT: Development
+        DOTNET_TEST_ARGS: ${{ inputs.dotnet-test-args }}
         REPORT_FOLDER: ${{ inputs.report-folder }}
     # Microsoft.Testing.Platform writes the coverage beside the results, and VSTest in a folder of its own for each run.
     - name: Generate test report

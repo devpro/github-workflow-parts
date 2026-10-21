@@ -542,8 +542,13 @@ jobs:
     uses: ./.github/workflows/reusable-dotnet-quality.yml
     with:
       working-directory: test/fixtures/dotnet
-      # The fixture holds a test that fails, which only the filter keeps the job from running.
-      dotnet-test-args: --report-xunit-trx --coverage --coverage-output-format cobertura --filter-not-namespace Fixture.Tests.LeftOut*
+      # Each line runs as written, quotes included, or the commands fail.
+      custom-commands: |
+        words=("two words" three)
+        [ "${#words[@]}" = 2 ]
+        [ "$(dotnet --version | cut -d . -f 1)" -ge 10 ]
+      # The fixture holds a test that fails, which only the filter keeps the job from running, its quotes being read as shell quotes rather than passed on.
+      dotnet-test-args: --report-xunit-trx --coverage --coverage-output-format cobertura --filter-not-namespace 'Fixture.Tests.LeftOut*'
 
   # Runs where a SonarQube is at hand, as IstarCI provides one locally, and is skipped on GitHub, which has none for this repository.
   test-dotnet-quality-sonar:
@@ -552,7 +557,7 @@ jobs:
     uses: ./.github/workflows/reusable-dotnet-quality.yml
     with:
       working-directory: test/fixtures/dotnet
-      dotnet-test-args: --report-xunit-trx --coverage --coverage-output-format cobertura --filter-not-namespace Fixture.Tests.LeftOut*
+      dotnet-test-args: --report-xunit-trx --coverage --coverage-output-format cobertura --filter-not-namespace 'Fixture.Tests.LeftOut*'
       sonar-enabled: true
       sonar-host-url: ${{ vars.SONAR_HOST_URL }}
       sonar-project-key: github-workflow-parts-fixture
@@ -574,7 +579,7 @@ jobs:
       - name: Build & test
         uses: ./actions/dotnet/build-test
         with:
-          dotnet-test-args: --report-xunit-trx --coverage --coverage-output-format cobertura --filter-not-namespace Fixture.Tests.LeftOut*
+          dotnet-test-args: --report-xunit-trx --coverage --coverage-output-format cobertura --filter-not-namespace 'Fixture.Tests.LeftOut*'
           working-directory: test/fixtures/dotnet
       # The paths are those the .NET quality workflow uploads as its artifact.
       - name: Verify the results, the coverage and the reports
@@ -748,6 +753,8 @@ jobs:
     with:
       custom-tests: |
         [ "$FIXTURE_VALUE" = extra ]
+        words=("two words" three)
+        [ "${#words[@]}" = 2 ]
         mongosh --quiet --eval 'db.hello().isWritablePrimary' "mongodb://127.0.0.1:27017/?replicaSet=rs0" | grep -qx true
         task --version
         terraform version

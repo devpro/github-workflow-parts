@@ -18,16 +18,6 @@ import yaml
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SELF_REPOSITORY = "devpro/github-workflow-parts"
 
-# Inputs whose value is shell code or shell words by contract, so they are written into the script as they are.
-SHELL_INPUTS = {
-    "inputs.build-command",
-    "inputs.custom-commands",
-    "inputs.custom-tests",
-    "inputs.dotnet-test-args",
-    "inputs.publish-command",
-    "inputs.terraform-var-flags",
-}
-
 # Parts no CI job can exercise, each with the reason, which the coverage check takes as known.
 UNTESTED_PARTS = {
     "actions/fossa/analyze": "needs a FOSSA API key",
@@ -204,7 +194,8 @@ def check_run_scripts(path, document):
             continue
         label = f"step '{step.get('name', '?')}'"
         for expression in EXPRESSION.findall(script):
-            if UNSAFE_IN_RUN.match(expression) and expression not in SHELL_INPUTS:
+            # Shell code included, which a script runs from a variable with eval.
+            if UNSAFE_IN_RUN.match(expression):
                 fail(name, f"{label} writes '${{{{ {expression} }}}}' into its script, where an env variable keeps the value from being run as code")
         if re.search(r"\$\?\s+-(eq|ne)", script):
             fail(name, f"{label} tests $? after a command, which bash -e never reaches when the command fails")

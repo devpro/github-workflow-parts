@@ -168,8 +168,10 @@ jobs:
         uses: ./workflow-parts/actions/mongodb/start
       - name: Run optional custom commands
         if: ${{ inputs.custom-commands != '' }}
-        run: |
-          ${{ inputs.custom-commands }}
+        env:
+          CUSTOM_COMMANDS: ${{ inputs.custom-commands }}
+        # Shell code by contract, run from a variable rather than pasted into the script by GitHub.
+        run: eval "$CUSTOM_COMMANDS"
       - name: Build & test
         if: ${{ ! inputs.sonar-enabled }}
         uses: ./workflow-parts/actions/dotnet/build-test
