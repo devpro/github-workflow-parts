@@ -18,6 +18,10 @@ inputs:
     description: Source directory to scan, used only when target-image is not set
     required: false
     default: "."
+  exclude-paths:
+    description: Paths left out of a source directory's SBOM, relative to target-path, one per line
+    required: false
+    default: ""
   output-format:
     description: SBOM format (see https://github.com/anchore/syft#supported-output-formats)
     required: false
@@ -74,6 +78,7 @@ runs:
       env:
         TARGET_IMAGE: ${{ inputs.target-image }}
         TARGET_PATH: ${{ inputs.target-path }}
+        EXCLUDE_PATHS: ${{ inputs.exclude-paths }}
         OUTPUT_FORMAT: ${{ inputs.output-format }}
         OUTPUT_FILE: ${{ inputs.output-file }}
       run: |
@@ -83,8 +88,16 @@ runs:
           SOURCE="dir:${TARGET_PATH}"
         fi
 
+        # Syft matches the exclusions of a directory against paths starting with ./
+        args=()
+        while IFS= read -r path; do
+          if [ -n "$path" ]; then
+            args+=(--exclude "./${path#./}")
+          fi
+        done <<< "$EXCLUDE_PATHS"
+
         echo "Scanning ${SOURCE} with Syft..."
-        syft "$SOURCE" -o "${OUTPUT_FORMAT}=${OUTPUT_FILE}"
+        syft "$SOURCE" "${args[@]}" -o "${OUTPUT_FORMAT}=${OUTPUT_FILE}"
     - name: Upload SBOM as artifact
       if: ${{ inputs.upload-artifact == 'true' }}
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

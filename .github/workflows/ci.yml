@@ -430,6 +430,13 @@ jobs:
           target-path: actions
           output-file: sbom-test.spdx.json
           upload-artifact: "false"
+      - name: Generate SBOM for a directory, one folder left out
+        uses: ./actions/syft/generate-sbom
+        with:
+          exclude-paths: node
+          target-path: test/fixtures
+          output-file: sbom-exclude-test.spdx.json
+          upload-artifact: "false"
       - name: Generate SBOM for a public image
         uses: ./actions/syft/generate-sbom
         with:
@@ -442,6 +449,7 @@ jobs:
           test -s sbom-test.spdx.json
           grep -q '"spdxVersion"' sbom-test.spdx.json
           jq -e '.bomFormat == "CycloneDX" and (.components | length > 0)' sbom-image-test.cdx.json
+          jq -e '[.packages[].name] | index("playwright-fixture") and (index("node-fixture") | not)' sbom-exclude-test.spdx.json
 
   test-trivy-scan:
     name: "Test / Trivy scan action"

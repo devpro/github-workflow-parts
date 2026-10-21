@@ -198,6 +198,8 @@ jobs:
         timeout-minutes: 3
         with:
           api-key: "${{ secrets.fossa-api-key }}"
+          # The workflow parts are checked out beside the code, and are no part of it.
+          exclude-paths: workflow-parts
           run-tests: ${{ inputs.fossa-test && github.event_name == 'pull_request' }}
           test-diff-revision: ${{ github.event.pull_request.base.sha }}
           report-file: report/fossa.html
@@ -206,6 +208,7 @@ jobs:
         uses: ./workflow-parts/actions/syft/generate-sbom
         continue-on-error: true
         with:
+          exclude-paths: workflow-parts
           target-path: ${{ inputs.working-directory }}
       - name: Archive test results
         if: always()

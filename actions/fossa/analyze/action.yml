@@ -13,6 +13,10 @@ inputs:
   api-key:
     description: FOSSA API key
     required: true
+  exclude-paths:
+    description: Paths left out of the analysis, relative to working-directory, one per line
+    required: false
+    default: ""
   run-tests:
     description: Test the analyzed dependencies against the FOSSA policy
     required: false
@@ -70,7 +74,15 @@ runs:
       working-directory: ${{ inputs.working-directory }}
       env:
         FOSSA_API_KEY: ${{ inputs.api-key }}
-      run: fossa analyze
+        EXCLUDE_PATHS: ${{ inputs.exclude-paths }}
+      run: |
+        args=()
+        while IFS= read -r path; do
+          if [ -n "$path" ]; then
+            args+=(--exclude-path "$path")
+          fi
+        done <<< "$EXCLUDE_PATHS"
+        fossa analyze "${args[@]}"
 
     - name: Test dependencies against the policy
       if: ${{ inputs.run-tests == 'true' }}
