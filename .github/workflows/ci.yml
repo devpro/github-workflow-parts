@@ -750,7 +750,6 @@ jobs:
     name: "Test / npm publication reusable workflow, without publishing"
     uses: ./.github/workflows/reusable-npm-publication.yml
     with:
-      build-command: test -f test/fixtures/npm/unpublished/index.js
       # A dry run goes through every step of a publication but the upload, which needs no credentials.
       publish-command: npm publish --dry-run
       working-directory: test/fixtures/npm/unpublished

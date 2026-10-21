@@ -5,10 +5,11 @@ on:
   workflow_call:
     inputs:
       build-command:
-        description: Commands building and checking the package before it is published, run from the root of the repository, none when empty
+        description: Commands building and checking the package before it is published, run from the root of the repository, the build script of its package.json by default, none when empty
         type: string
         required: false
-        default: ""
+        # A repository whose root holds no package.json has nothing npm could build there.
+        default: "if [ -f package.json ]; then npm run --if-present build; fi"
       job-name:
         description: Job name
         type: string
