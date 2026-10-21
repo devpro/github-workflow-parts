@@ -325,7 +325,10 @@ jobs:
           for image in "build-test-base:${GITHUB_RUN_ID}=${BASE_DIGEST}" "build-test-derived:${GITHUB_RUN_ID}=${DERIVED_DIGEST}"; do
             ref="localhost:5000/${image%%=*}"
             [ "$(docker buildx imagetools inspect "$ref" --format '{{json .Manifest}}' | jq -r .digest)" = "${image#*=}" ]
-            ! docker image inspect "$ref" >/dev/null 2>&1
+            if docker image inspect "$ref" >/dev/null 2>&1; then
+              echo "ERROR: ${ref} is left in the daemon" >&2
+              exit 1
+            fi
           done
 
   test-container-build-push-arm64:
