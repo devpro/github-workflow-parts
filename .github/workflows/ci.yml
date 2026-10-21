@@ -483,12 +483,42 @@ jobs:
           target: test/fixtures/container/base
           severity: HIGH,CRITICAL
           exit-code: "1"
-      - name: Verify SARIF report was generated and the finding failed the scan
+      - name: Scan a directory with a finding the ignore file leaves out
+        uses: ./actions/trivy/scan
+        with:
+          scan-type: config
+          target: test/fixtures/container/base
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+          ignore-file: test/fixtures/trivy/ignore-current.yaml
+      - name: Scan a directory with a finding whose ignore entry expired, failing on it
+        id: trivy-expired
+        continue-on-error: true
+        uses: ./actions/trivy/scan
+        with:
+          scan-type: config
+          target: test/fixtures/container/base
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+          ignore-file: test/fixtures/trivy/ignore-expired.yaml
+      - name: Scan with an ignore file that does not exist, failing on it
+        id: trivy-missing-ignore-file
+        continue-on-error: true
+        uses: ./actions/trivy/scan
+        with:
+          scan-type: config
+          target: test/fixtures/terraform
+          ignore-file: test/fixtures/trivy/missing.yaml
+      - name: Verify SARIF report was generated and the findings failed the scans
         env:
+          EXPIRED_OUTCOME: ${{ steps.trivy-expired.outcome }}
           FINDING_OUTCOME: ${{ steps.trivy-finding.outcome }}
+          MISSING_IGNORE_FILE_OUTCOME: ${{ steps.trivy-missing-ignore-file.outcome }}
         run: |
           jq -e '.version == "2.1.0"' trivy-test.sarif
           [ "$FINDING_OUTCOME" = failure ]
+          [ "$EXPIRED_OUTCOME" = failure ]
+          [ "$MISSING_IGNORE_FILE_OUTCOME" = failure ]
 
   test-terraform-quality:
     name: "Test / Terraform quality reusable workflow"
@@ -550,10 +580,17 @@ jobs:
     uses: ./.github/workflows/reusable-container-scan.yml
     with:
       base-image-definition: test/fixtures/container/base/Dockerfile
+      # The login is skipped in a local run, which holds no token.
+      container-registry: ghcr.io
       image-definition: test/fixtures/container/derived/Dockerfile
       image-name: scan-test
       image-path: local
       image-tag: ${{ github.run_id }}
+      severity: CRITICAL,HIGH,MEDIUM
+      trivy-ignore-file: test/fixtures/trivy/ignore-current.yaml
+    secrets:
+      container-registry-username: ${{ github.actor }}
+      container-registry-password: ${{ secrets.GITHUB_TOKEN }}
 
   test-git-check-changes:
     name: "Test / Git check-changes action"

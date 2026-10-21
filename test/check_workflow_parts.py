@@ -37,9 +37,7 @@ UNTESTED_PARTS = {
 }
 
 # Inputs nothing reads, kept since a caller passing an input a reusable workflow does not declare fails.
-RESERVED_INPUTS = {
-    ".github/workflows/reusable-container-scan.yml": {"max-high-cves", "max-medium-cves", "neuvector-enabled"},
-}
+RESERVED_INPUTS = {}
 
 TEXT_SUFFIXES = {".cs", ".csproj", ".hcl", ".json", ".md", ".py", ".sh", ".tf", ".yaml", ".yml", ""}
 DASHES = (chr(0x2013), chr(0x2014))

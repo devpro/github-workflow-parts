@@ -41,6 +41,10 @@ inputs:
     description: Comma-separated package types to scan, os and/or library (scan-type "image" only)
     required: false
     default: "os,library"
+  ignore-file:
+    description: Trivy ignore file (.trivyignore.yaml) naming the findings left out, each with the reason and the day it counts again (expired_at), none when empty
+    required: false
+    default: ""
 
 runs:
   using: "composite"
@@ -87,8 +91,18 @@ runs:
         EXIT_CODE: ${{ inputs.exit-code }}
         IGNORE_UNFIXED: ${{ inputs.ignore-unfixed }}
         PKG_TYPES: ${{ inputs.pkg-types }}
+        IGNORE_FILE: ${{ inputs.ignore-file }}
       run: |
         args=("$SCAN_TYPE" --format "$FORMAT" --severity "$SEVERITY" --exit-code "$EXIT_CODE")
+
+        # Trivy goes on without an ignore file it cannot find, which would hide a path given wrong.
+        if [ -n "$IGNORE_FILE" ]; then
+          if [ ! -f "$IGNORE_FILE" ]; then
+            echo "ERROR: Ignore file ${IGNORE_FILE} not found" >&2
+            exit 1
+          fi
+          args+=(--ignorefile "$IGNORE_FILE")
+        fi
 
         if [ -n "$OUTPUT_FILE" ]; then
           args+=(--output "$OUTPUT_FILE")

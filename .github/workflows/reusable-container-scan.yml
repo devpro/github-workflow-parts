@@ -8,6 +8,11 @@ on:
         type: string
         required: false
         default: BASE_IMAGE
+      container-registry:
+        description: Registry to log in to before the builds, for a base image it keeps private, ghcr.io for instance, none when empty
+        type: string
+        required: false
+        default: ""
       base-image-definition:
         description: Path to the definition of the image this one is built on, built first so that the scan reads what this commit produces rather than a published base
         type: string
@@ -39,31 +44,21 @@ on:
         type: number
         required: false
         default: 30
-      max-high-cves:
-        description: Maximum number of high CVEs authorized
-        type: number
-        required: false
-        default: 0
-      max-medium-cves:
-        description: Maximum number of medium CVEs authorized
-        type: number
-        required: false
-        default: 0
-      neuvector-enabled:
-        description: "Use NeuVector to scan the image?"
-        type: boolean
-        required: false
-        default: false
       operating-system:
         description: Operating system executing the runner
         type: string
         required: false
         default: ubuntu-latest
-      trivy-enabled:
-        description: "Use Trivy to scan the image?"
-        type: boolean
+      severity:
+        description: Severities of a vulnerability with a fix that fail the scan, "CRITICAL,HIGH,MEDIUM" to hold an image to MEDIUM as well
+        type: string
         required: false
-        default: true
+        default: CRITICAL,HIGH
+      trivy-ignore-file:
+        description: Trivy ignore file, relative to the root of the repository, naming the vulnerabilities left out, each with the reason and the day it counts again (expired_at), read when it exists
+        type: string
+        required: false
+        default: .trivyignore.yaml
       workflow-parts-version:
         description: "GitHub workflow parts version (branch/tag/SHA). Should match the ref/tag/SHA the caller pinned for this reusable workflow itself. Ignored when the caller is this repository, whose checkout already holds the actions under test."
         type: string
@@ -74,6 +69,13 @@ on:
         type: string
         required: false
         default: "."
+    secrets:
+      container-registry-username:
+        description: User name of the container registry
+        required: false
+      container-registry-password:
+        description: Password or token of the container registry, the login being skipped when empty, as in a local run
+        required: false
 
 jobs:
   container-scan:
@@ -93,6 +95,20 @@ jobs:
           # The caller being this repository, the actions under test are those of the commit under test.
           ref: ${{ github.repository == 'devpro/github-workflow-parts' && github.sha || inputs.workflow-parts-version }}
           path: workflow-parts
+      # A base image kept private is pulled with the credentials of the run.
+      - name: Login to container registry
+        if: ${{ inputs.container-registry != '' }}
+        env:
+          REGISTRY: ${{ inputs.container-registry }}
+          REGISTRY_USERNAME: ${{ secrets.container-registry-username }}
+          REGISTRY_PASSWORD: ${{ secrets.container-registry-password }}
+        run: |
+          if [ -z "$REGISTRY_PASSWORD" ]; then
+            echo "::notice::No password for ${REGISTRY}, so its images are pulled with the credentials the Docker client already holds"
+            exit 0
+          fi
+          echo "$REGISTRY_PASSWORD" | docker login "$REGISTRY" --username "$REGISTRY_USERNAME" --password-stdin
+        shell: bash
       # A scan judges what a clean build produces today.
       # A cached `apt-get upgrade` layer or a stale base image keeps an already fixed package version, on a runner whose Docker daemon outlives the job.
       - name: Build base container image
@@ -116,18 +132,8 @@ jobs:
           BASE_ARGUMENT: ${{ inputs.base-image-argument }}
           BASE_DEFINITION: ${{ inputs.base-image-definition }}
           IMAGE_DEFINITION: ${{ inputs.image-definition }}
-      # deactivated 2026-02-22: "Build container for action use... process "/bin/sh -c zypper in -y jq docker && zypper clean" did not complete successfully: exit code: 8"
-      # - name: Scan container image with NeuVector
-      #   if: ${{ inputs.neuvector-enabled }}
-      #   uses: neuvector/scan-action@196964fb269cfcd1fe139dd27c8440a8396bd8ab # 1.0.0
-      #   with:
-      #     image-repository: ${{ inputs.image-path }}/${{ inputs.image-name }}
-      #     image-tag: ${{ inputs.image-tag }}
-      #     min-high-cves-to-fail: '${{ inputs.max-high-cves }}'
-      #     min-medium-cves-to-fail: '${{ inputs.max-medium-cves }}'
-      #     nv-scanner-image: neuvector/scanner:5
+      # The only judge of the image a repository builds: any vulnerability of those severities with a fix fails the job, unless the ignore file names it until a day.
       - name: Scan container image with Trivy
-        if: ${{ inputs.trivy-enabled }}
         uses: ./workflow-parts/actions/trivy/scan
         with:
           scan-type: image
@@ -135,8 +141,10 @@ jobs:
           format: table
           exit-code: "1"
           ignore-unfixed: "true"
+          # The default file is optional, and any other one named must exist.
+          ignore-file: ${{ (inputs.trivy-ignore-file != '.trivyignore.yaml' || hashFiles('.trivyignore.yaml') != '') && inputs.trivy-ignore-file || '' }}
           pkg-types: os,library
-          severity: CRITICAL,HIGH
+          severity: ${{ inputs.severity }}
     env:
       GITHUB_TOKEN: ${{ github.token }}
       IMAGE_REF: ${{ inputs.image-path }}/${{ inputs.image-name }}:${{ inputs.image-tag }}
