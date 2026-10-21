@@ -4,6 +4,7 @@ description: |
   which refuses to publish over it, so a push that did not bump the version is skipped rather than failed.
   The registry and the credentials are those of the .npmrc that actions/setup-node writes with registry-url:
   a token given as NODE_AUTH_TOKEN, or the OIDC token of npm trusted publishing (permission id-token write).
+  A run with neither, as a local one is, packs and checks the package with --dry-run added to the command, the registry refusing to answer it.
 
 inputs:
   publish-command:
@@ -42,6 +43,9 @@ runs:
         elif grep -q E404 "$errors"; then
           echo "${name}@${version} is not published yet"
           echo "exists=false" >> "$GITHUB_OUTPUT"
+        elif grep -qE 'E401|ENEEDAUTH' "$errors" && [[ -z "${NODE_AUTH_TOKEN:-}" && -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ]]; then
+          echo "No credential for the registry, so ${name}@${version} is packed and checked with --dry-run instead"
+          echo "exists=dry-run" >> "$GITHUB_OUTPUT"
         else
           cat "$errors" >&2
           exit 1
@@ -51,3 +55,8 @@ runs:
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       run: ${{ inputs.publish-command }}
+    - name: Check the package without publishing it
+      if: steps.registry.outputs.exists == 'dry-run'
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: ${{ inputs.publish-command }} --dry-run
