@@ -8,11 +8,6 @@ on:
         type: string
         required: false
         default: BASE_IMAGE
-      container-registry:
-        description: Registry to log in to before the builds, for a base image it keeps private, ghcr.io for instance, none when empty
-        type: string
-        required: false
-        default: ""
       base-image-definition:
         description: Path to the definition of the image this one is built on, built first so that the scan reads what this commit produces rather than a published base
         type: string
@@ -69,13 +64,6 @@ on:
         type: string
         required: false
         default: "."
-    secrets:
-      container-registry-username:
-        description: User name of the container registry
-        required: false
-      container-registry-password:
-        description: Password or token of the container registry, the login being skipped when empty, as in a local run
-        required: false
 
 jobs:
   container-scan:
@@ -95,20 +83,6 @@ jobs:
           # The caller being this repository, the actions under test are those of the commit under test.
           ref: ${{ github.repository == 'devpro/github-workflow-parts' && github.sha || inputs.workflow-parts-version }}
           path: workflow-parts
-      # A base image kept private is pulled with the credentials of the run.
-      - name: Login to container registry
-        if: ${{ inputs.container-registry != '' }}
-        env:
-          REGISTRY: ${{ inputs.container-registry }}
-          REGISTRY_USERNAME: ${{ secrets.container-registry-username }}
-          REGISTRY_PASSWORD: ${{ secrets.container-registry-password }}
-        run: |
-          if [ -z "$REGISTRY_PASSWORD" ]; then
-            echo "::notice::No password for ${REGISTRY}, so its images are pulled with the credentials the Docker client already holds"
-            exit 0
-          fi
-          echo "$REGISTRY_PASSWORD" | docker login "$REGISTRY" --username "$REGISTRY_USERNAME" --password-stdin
-        shell: bash
       # A scan judges what a clean build produces today.
       # A cached `apt-get upgrade` layer or a stale base image keeps an already fixed package version, on a runner whose Docker daemon outlives the job.
       - name: Build base container image

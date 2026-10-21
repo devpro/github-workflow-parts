@@ -580,17 +580,12 @@ jobs:
     uses: ./.github/workflows/reusable-container-scan.yml
     with:
       base-image-definition: test/fixtures/container/base/Dockerfile
-      # The login is skipped in a local run, which holds no token.
-      container-registry: ghcr.io
       image-definition: test/fixtures/container/derived/Dockerfile
       image-name: scan-test
       image-path: local
       image-tag: ${{ github.run_id }}
       severity: CRITICAL,HIGH,MEDIUM
       trivy-ignore-file: test/fixtures/trivy/ignore-current.yaml
-    secrets:
-      container-registry-username: ${{ github.actor }}
-      container-registry-password: ${{ secrets.GITHUB_TOKEN }}
 
   test-git-check-changes:
     name: "Test / Git check-changes action"
