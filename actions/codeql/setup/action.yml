@@ -1,0 +1,33 @@
+name: Setup CodeQL
+description: |
+  Installs the CodeQL CLI with its standard query packs, from the CodeQL bundle the codeql-action project releases,
+  verifying its SHA256 checksum, for a job running CodeQL itself rather than through github/codeql-action.
+  Linux x64 or arm64 runners only (for example ubuntu-latest or ubuntu-24.04-arm).
+
+inputs:
+  codeql-version:
+    description: Version of the CodeQL bundle to install, without its leading v (check latest from https://github.com/github/codeql-action/releases)
+    required: false
+    default: "2.27.2"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install CodeQL
+      shell: bash
+      env:
+        CODEQL_VERSION: ${{ inputs.codeql-version }}
+        CODEQL_BUNDLE: codeql-bundle-${{ runner.arch == 'ARM64' && 'linux-arm64' || 'linux64' }}.tar.gz
+      run: |
+        # Downloaded into a directory of its own, since the repository may hold a file or a directory named like the bundle.
+        cd "$(mktemp -d)"
+        BASE_URL="https://github.com/github/codeql-action/releases/download/codeql-bundle-v${CODEQL_VERSION}"
+        curl -fsSL -O "${BASE_URL}/${CODEQL_BUNDLE}"
+        curl -fsSL -O "${BASE_URL}/${CODEQL_BUNDLE}.checksum.txt"
+        sha256sum --check --status "${CODEQL_BUNDLE}.checksum.txt"
+        # The bundle is a codeql directory holding the CLI and the query packs it resolves beside itself.
+        rm -rf "${RUNNER_TEMP}/codeql"
+        tar -xzf "${CODEQL_BUNDLE}" -C "${RUNNER_TEMP}"
+        rm -f "${CODEQL_BUNDLE}" "${CODEQL_BUNDLE}.checksum.txt"
+        echo "${RUNNER_TEMP}/codeql" >> "$GITHUB_PATH"
+        "${RUNNER_TEMP}/codeql/codeql" version --format=terse

@@ -56,6 +56,7 @@ Containers:
 - [Sign an image with Cosign](actions/cosign/sign/action.yml)
 - [Setup QEMU to build images for other platforms](actions/qemu/setup/action.yml)
 - [Scan an image or a directory with Trivy](actions/trivy/scan/action.yml)
+- [Setup Trivy](actions/trivy/setup/action.yml)
 
 .NET:
 
@@ -103,6 +104,11 @@ Node.js:
 Search engines:
 
 - [Submit the pages of a sitemap to IndexNow](actions/indexnow/submit/action.yml)
+
+Code scanning:
+
+- [Setup CodeQL](actions/codeql/setup/action.yml)
+- [Setup Opengrep](actions/opengrep/setup/action.yml)
 
 Sonar:
 

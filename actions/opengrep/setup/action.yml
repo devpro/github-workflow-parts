@@ -1,0 +1,39 @@
+name: Setup Opengrep
+description: |
+  Installs Opengrep by downloading the official binary from its GitHub release and verifying its SHA256 checksum, pinned here since the release publishes signatures but no checksum file
+  (replacement for its install.sh, which a pipeline would run from the main branch of the project, unpinned).
+  Linux x64 or arm64 runners only (for example ubuntu-latest or ubuntu-24.04-arm).
+
+inputs:
+  opengrep-version:
+    description: Version of Opengrep to install (check latest from https://github.com/opengrep/opengrep/releases)
+    required: false
+    default: "v1.30.2"
+  opengrep-sha256:
+    description: SHA256 of the Opengrep binary for x64, given with any other opengrep-version, since its release publishes no checksum file
+    required: false
+    default: "a66aa3278457f02b287b985a45b6762aebcaba5000f2689245fd1ed86d1456c7"
+  opengrep-sha256-arm64:
+    description: SHA256 of the Opengrep binary for arm64, given with any other opengrep-version
+    required: false
+    default: "90acea5df4b733083f388d4feeb250ca802f671b33d1f222653d1e571dd2b0d8"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install Opengrep
+      shell: bash
+      env:
+        OPENGREP_VERSION: ${{ inputs.opengrep-version }}
+        OPENGREP_BINARY: opengrep_manylinux_${{ runner.arch == 'ARM64' && 'aarch64' || 'x86' }}
+        OPENGREP_SHA256: ${{ runner.arch == 'ARM64' && inputs.opengrep-sha256-arm64 || inputs.opengrep-sha256 }}
+      run: |
+        # Downloaded into a directory of its own, since the repository may hold a file or a directory named like the binary.
+        cd "$(mktemp -d)"
+        curl -fsSL -O "https://github.com/opengrep/opengrep/releases/download/${OPENGREP_VERSION}/${OPENGREP_BINARY}"
+        echo "${OPENGREP_SHA256}  ${OPENGREP_BINARY}" | sha256sum --check --status
+        # Installed where the job owns the directory, so neither root nor sudo is needed, on a hosted runner or in a container.
+        mkdir -p "${RUNNER_TEMP}/bin"
+        install -m 0755 "${OPENGREP_BINARY}" "${RUNNER_TEMP}/bin/opengrep"
+        echo "${RUNNER_TEMP}/bin" >> "$GITHUB_PATH"
+        "${RUNNER_TEMP}/bin/opengrep" --version

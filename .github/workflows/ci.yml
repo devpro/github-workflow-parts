@@ -144,6 +144,12 @@ jobs:
         uses: ./actions/kube-linter/setup
         with:
           kube-linter-sha256: "0000000000000000000000000000000000000000000000000000000000000000"
+      - name: Install Opengrep with a checksum that does not match
+        id: opengrep-wrong-checksum
+        continue-on-error: true
+        uses: ./actions/opengrep/setup
+        with:
+          opengrep-sha256: "0000000000000000000000000000000000000000000000000000000000000000"
       - name: Install a kind release that does not exist
         id: kind-missing-release
         continue-on-error: true
@@ -208,6 +214,30 @@ jobs:
           untt "${RUNNER_TEMP}/demo"
           kind version
           kubectl version --client
+
+  test-scanner-setup:
+    name: "Test / Opengrep, Trivy and CodeQL setup actions"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup Opengrep
+        uses: ./actions/opengrep/setup
+      - name: Setup Trivy
+        uses: ./actions/trivy/setup
+      - name: Setup CodeQL
+        uses: ./actions/codeql/setup
+      - name: Verify each scanner runs
+        run: |
+          mkdir -p "${RUNNER_TEMP}/opengrep-fixture"
+          printf '%s\n' 'const input = process.argv[2];' 'eval(input);' > "${RUNNER_TEMP}/opengrep-fixture/app.js"
+          # $X is a metavariable of the Opengrep pattern, which the shell must leave as it is.
+          # shellcheck disable=SC2016
+          [ "$(opengrep scan --quiet --json -e 'eval($X)' --lang js "${RUNNER_TEMP}/opengrep-fixture" | jq '.results | length')" = 1 ]
+          trivy fs --quiet --scanners vuln --exit-code 0 test/fixtures/node
+          [[ "$(trivy --version)" == *"Version: "* ]]
+          codeql resolve languages --format=json | jq -e 'has("javascript") and has("python")'
 
   test-chart-testing-setup:
     name: "Test / chart-testing setup action"
@@ -528,6 +558,10 @@ jobs:
         uses: ./actions/helm-unittest/setup
       - name: Setup kind
         uses: ./actions/kind/setup
+      - name: Setup Opengrep
+        uses: ./actions/opengrep/setup
+      - name: Setup CodeQL
+        uses: ./actions/codeql/setup
       - name: Start MongoDB
         uses: ./actions/mongodb/start
       - name: Generate SBOM with Syft
@@ -542,10 +576,12 @@ jobs:
           target: test/fixtures/container
       - name: Verify the binaries are for arm64
         run: |
-          for tool in terraform tflint helm ct goreleaser task kube-linter kubeconform untt kind kubectl mongod mongosh syft trivy; do
+          for tool in terraform tflint helm ct goreleaser task kube-linter kubeconform untt kind kubectl opengrep mongod mongosh syft trivy; do
             # The ELF machine field, 0xb7 being aarch64, read without the file command a runner image may lack.
             [ "$(od -An -tx1 -j18 -N1 "$(command -v "$tool")" | tr -d ' ')" = b7 ]
           done
+          # The codeql command is a launcher script, run here so that its arm64 Java and extractors answer.
+          codeql version --format=terse
 
   test-mongodb-start:
     name: "Test / MongoDB start action"
