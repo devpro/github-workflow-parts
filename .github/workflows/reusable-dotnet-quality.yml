@@ -38,6 +38,11 @@ on:
         type: boolean
         required: false
         default: false
+      mongodb-version:
+        description: Version of the MongoDB server mongodb-enabled starts, an 8.0 one for instance, the latest release the MongoDB action names when empty
+        type: string
+        required: false
+        default: ""
       job-name:
         description: Job name
         type: string
@@ -166,6 +171,8 @@ jobs:
       - name: Start MongoDB
         if: ${{ inputs.mongodb-enabled }}
         uses: ./workflow-parts/actions/mongodb/start
+        with:
+          mongodb-version: ${{ inputs.mongodb-version }}
       - name: Run optional custom commands
         if: ${{ inputs.custom-commands != '' }}
         env:

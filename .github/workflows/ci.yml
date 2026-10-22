@@ -495,9 +495,25 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Start MongoDB
         uses: ./actions/mongodb/start
-      - name: Verify MongoDB answers
+      - name: Verify MongoDB answers, on the latest release by default
         run: |
           mongosh --quiet --eval 'db.runCommand({ ping: 1 }).ok' mongodb://127.0.0.1:27017 | grep -qx 1
+          mongosh --quiet --eval 'db.version()' mongodb://127.0.0.1:27017 | grep -q '^9\.0\.'
+
+  test-mongodb-start-version:
+    name: "Test / MongoDB start action, an earlier version"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Start MongoDB 8.0
+        uses: ./actions/mongodb/start
+        with:
+          mongodb-version: 8.0.34
+      - name: Verify the server is the version asked for
+        run: |
+          [ "$(mongosh --quiet --eval 'db.version()' mongodb://127.0.0.1:27017)" = 8.0.34 ]
 
   test-mongodb-start-replica-set:
     name: "Test / MongoDB start action, replica set"

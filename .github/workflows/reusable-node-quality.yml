@@ -33,6 +33,11 @@ on:
         type: boolean
         required: false
         default: false
+      mongodb-version:
+        description: Version of the MongoDB server mongodb-enabled starts, an 8.0 one for instance, the latest release the MongoDB action names when empty
+        type: string
+        required: false
+        default: ""
       node-version:
         description: Node.js version
         type: string
@@ -242,6 +247,7 @@ jobs:
         uses: ./workflow-parts/actions/mongodb/start
         with:
           replica-set: rs0
+          mongodb-version: ${{ inputs.mongodb-version }}
       # The scripts lint, format and test the repository, which the workflow parts are no part of.
       - name: Set aside workflow parts
         working-directory: .
