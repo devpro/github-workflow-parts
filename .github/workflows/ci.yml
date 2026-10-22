@@ -186,6 +186,47 @@ jobs:
           goreleaser --version
           command -v goreleaser
 
+  test-go-lint-govulncheck-scan:
+    name: "Test / Go lint and govulncheck scan actions"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: test/fixtures/go/module/go.mod
+          cache: false
+      - name: Lint a module that passes every check
+        uses: ./actions/go/lint
+        with:
+          working-directory: test/fixtures/go/module
+      - name: Scan the module with govulncheck
+        uses: ./actions/govulncheck/scan
+        with:
+          working-directory: test/fixtures/go/module
+      - name: Lint a module gofmt did not format, failing on it
+        id: unformatted
+        continue-on-error: true
+        uses: ./actions/go/lint
+        with:
+          working-directory: test/fixtures/go/unformatted
+      - name: Lint a module whose go.mod requires what it never imports, failing on it
+        id: untidy
+        continue-on-error: true
+        uses: ./actions/go/lint
+        with:
+          working-directory: test/fixtures/go/untidy
+      - name: Verify both failed and govulncheck is on the path
+        env:
+          UNFORMATTED: ${{ steps.unformatted.outcome }}
+          UNTIDY: ${{ steps.untidy.outcome }}
+        run: |
+          [ "$UNFORMATTED" = failure ]
+          [ "$UNTIDY" = failure ]
+          govulncheck -version
+
   test-task-setup:
     name: "Test / Task setup action"
     runs-on: ubuntu-latest

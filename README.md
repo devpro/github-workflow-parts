@@ -70,6 +70,8 @@ Git:
 
 Go:
 
+- [Lint the code with the Go toolchain](actions/go/lint/action.yml)
+- [Scan the code with govulncheck](actions/govulncheck/scan/action.yml)
 - [Setup GoReleaser](actions/goreleaser/setup/action.yml)
 
 Helm:

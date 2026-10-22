@@ -1,0 +1,33 @@
+name: Scan Go code with govulncheck
+description: |
+  Installs govulncheck, the vulnerability checker of the Go team, with go install, which checks the module against the Go checksum database,
+  then reports the known vulnerabilities of the code the module actually calls, and fails on any.
+  Needs Go on the path, from actions/setup-go or the image of the job.
+
+inputs:
+  govulncheck-version:
+    description: Version of govulncheck to install (check latest from https://pkg.go.dev/golang.org/x/vuln/cmd/govulncheck?tab=versions)
+    required: false
+    default: "v1.9.0"
+  working-directory:
+    description: Directory of the Go module (go.mod), relative to the workspace, which a composite action does not take from the defaults of the calling job
+    required: false
+    default: "."
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install govulncheck
+      shell: bash
+      env:
+        GOVULNCHECK_VERSION: ${{ inputs.govulncheck-version }}
+      run: |
+        # Installed where the job owns the directory, so neither root nor sudo is needed, on a hosted runner or in a container.
+        mkdir -p "${RUNNER_TEMP}/bin"
+        GOBIN="${RUNNER_TEMP}/bin" go install "golang.org/x/vuln/cmd/govulncheck@${GOVULNCHECK_VERSION}"
+        echo "${RUNNER_TEMP}/bin" >> "$GITHUB_PATH"
+        "${RUNNER_TEMP}/bin/govulncheck" -version
+    - name: Scan with govulncheck
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: govulncheck ./...
