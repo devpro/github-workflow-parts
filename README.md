@@ -93,6 +93,10 @@ Node.js:
 - [Publish a package unless its version already is](actions/npm/publish/action.yml)
 - [Install the Playwright browsers](actions/playwright/install/action.yml)
 
+Search engines:
+
+- [Submit the pages of a sitemap to IndexNow](actions/indexnow/submit/action.yml)
+
 Sonar:
 
 - [Analyze the code of a project other than .NET](actions/sonar/scan/action.yml)

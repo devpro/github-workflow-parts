@@ -227,6 +227,49 @@ jobs:
           [ "$UNTIDY" = failure ]
           govulncheck -version
 
+  test-indexnow-submit:
+    name: "Test / IndexNow submit action, against a local API"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # The server outlives this step, which the next ones reach, and goes with the job.
+      - name: Serve a sitemap index and an IndexNow API that records the submission
+        run: |
+          nohup node test/fixtures/indexnow/server.js "${RUNNER_TEMP}/indexnow.json" 18089 > "${RUNNER_TEMP}/indexnow.log" 2>&1 &
+          for _ in $(seq 1 20); do
+            curl -fs -o /dev/null http://127.0.0.1:18089/sitemap.xml && exit 0
+            sleep 0.5
+          done
+          cat "${RUNNER_TEMP}/indexnow.log"
+          exit 1
+      - name: Submit the pages of the sitemap index
+        uses: ./actions/indexnow/submit
+        with:
+          api-url: http://127.0.0.1:18089/indexnow
+          key: fixture-key
+          sitemap-url: http://127.0.0.1:18089/sitemap.xml
+      - name: Submit to an API refusing the submission, failing on it
+        id: refused
+        continue-on-error: true
+        uses: ./actions/indexnow/submit
+        with:
+          api-url: http://127.0.0.1:18089/refuse
+          key: fixture-key
+          sitemap-url: http://127.0.0.1:18089/sitemap.xml
+      - name: Verify the submission and the refusal
+        env:
+          REFUSED: ${{ steps.refused.outcome }}
+        run: |
+          jq -e '
+            .host == "127.0.0.1:18089"
+            and .key == "fixture-key"
+            and .keyLocation == "http://127.0.0.1:18089/fixture-key.txt"
+            and .urlList == ["http://127.0.0.1:18089/a?x=1&y=2", "http://127.0.0.1:18089/b", "http://127.0.0.1:18089/c"]
+          ' "${RUNNER_TEMP}/indexnow.json"
+          [ "$REFUSED" = failure ]
+
   test-task-setup:
     name: "Test / Task setup action"
     runs-on: ubuntu-latest
