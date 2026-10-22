@@ -5,9 +5,10 @@ on:
   workflow_call:
     inputs:
       build-command:
-        description: Commands building the site into site-path, run from the working directory
+        description: Commands building the site into site-path, run from the working directory, npm ci (npm install without a lock file) then npm run build when empty
         type: string
-        required: true
+        required: false
+        default: ""
       deploy:
         description: Deploy the site once built, false building it only, to check a pull request for instance
         type: boolean
@@ -27,7 +28,7 @@ on:
         description: Version of Node.js to install, with the npm cache of the lock file when there is one, none when empty
         type: string
         required: false
-        default: ""
+        default: "24"
       operating-system:
         description: Operating system executing the runner
         type: string
@@ -116,7 +117,17 @@ jobs:
         env:
           BUILD_COMMAND: ${{ inputs.build-command }}
         # Shell code by contract, run from a variable rather than pasted into the script by GitHub.
-        run: eval "$BUILD_COMMAND"
+        run: |
+          if [[ -n "$BUILD_COMMAND" ]]; then
+            eval "$BUILD_COMMAND"
+          else
+            if [[ -f package-lock.json ]]; then
+              npm ci
+            else
+              npm install
+            fi
+            npm run build
+          fi
       - name: Verify the site was built
         env:
           SITE_PATH: ${{ inputs.site-path }}

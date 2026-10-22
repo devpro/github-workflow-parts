@@ -791,6 +791,14 @@ jobs:
       additional-vars: |
         FIXTURE_SECRET=hidden
 
+  test-pages-deployment-conventions:
+    name: "Test / Pages deployment reusable workflow, building by convention"
+    uses: ./.github/workflows/reusable-pages-deployment.yml
+    with:
+      deploy: false
+      site-path: _site
+      working-directory: test/fixtures/pages
+
   test-node-quality-npm:
     name: "Test / Node.js quality reusable workflow, with npm"
     uses: ./.github/workflows/reusable-node-quality.yml
