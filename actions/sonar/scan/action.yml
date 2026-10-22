@@ -19,17 +19,17 @@ inputs:
     required: false
     default: "5e1c9328f4e261838de778c9e586ee608cca45ff7f0538108642219214628ba5"
   coverage-paths:
-    description: lcov reports of the coverage, relative to the working directory, separated by commas
+    description: lcov reports of the coverage, relative to the working directory, separated by commas, coverage/lcov.info when empty and the project has no sonar-project.properties
     required: false
-    default: "coverage/lcov.info"
+    default: ""
   cpd-exclusions:
     description: Files or directories that should be excluded from Sonar code duplication analysis
     required: false
     default: ""
   exclusions:
-    description: Files or directories that should be excluded from Sonar analysis
+    description: Files or directories that should be excluded from Sonar analysis, **/node_modules/** when empty and the project has no sonar-project.properties
     required: false
-    default: "**/node_modules/**"
+    default: ""
   host-url:
     description: Sonar host URL
     required: true
@@ -38,8 +38,9 @@ inputs:
     required: false
     default: ""
   project-key:
-    description: Sonar project key
-    required: true
+    description: Sonar project key, which sonar-project.properties gives otherwise
+    required: false
+    default: ""
   project-name:
     description: Sonar project name
     required: false
@@ -80,6 +81,7 @@ runs:
         path: ~/.sonar/cache
         key: ${{ runner.os }}-sonar
         restore-keys: ${{ runner.os }}-sonar
+    # A sonar-project.properties is the configuration of the project, which an input only overrides when it is given.
     - name: Analyze the code
       shell: bash
       working-directory: ${{ inputs.working-directory }}
@@ -93,20 +95,25 @@ runs:
         SONAR_PROJECT_NAME: ${{ inputs.project-name }}
         SONAR_TOKEN: ${{ inputs.token }}
       run: |
+        if [ ! -f sonar-project.properties ]; then
+          if [ -z "$SONAR_PROJECT_KEY" ]; then
+            echo "ERROR: No project-key, and no sonar-project.properties to read it from" >&2
+            exit 1
+          fi
+          COVERAGE_PATHS="${COVERAGE_PATHS:-coverage/lcov.info}"
+          SONAR_EXCLUSIONS="${SONAR_EXCLUSIONS:-**/node_modules/**}"
+        fi
         # The token is read from SONAR_TOKEN, rather than given on the command line any process can list.
-        args=(
-          -Dsonar.host.url="$SONAR_HOST_URL"
-          -Dsonar.projectKey="$SONAR_PROJECT_KEY"
-          -Dsonar.exclusions="$SONAR_EXCLUSIONS"
-          -Dsonar.javascript.lcov.reportPaths="$COVERAGE_PATHS"
-        )
-        if [ -n "$SONAR_CPD_EXCLUSIONS" ]; then
-          args+=(-Dsonar.cpd.exclusions="$SONAR_CPD_EXCLUSIONS")
-        fi
-        if [ -n "$SONAR_ORGANIZATION" ]; then
-          args+=(-Dsonar.organization="$SONAR_ORGANIZATION")
-        fi
-        if [ -n "$SONAR_PROJECT_NAME" ]; then
-          args+=(-Dsonar.projectName="$SONAR_PROJECT_NAME")
-        fi
+        args=(-Dsonar.host.url="$SONAR_HOST_URL")
+        add() {
+          if [ -n "$2" ]; then
+            args+=("-D$1=$2")
+          fi
+        }
+        add sonar.cpd.exclusions "$SONAR_CPD_EXCLUSIONS"
+        add sonar.exclusions "$SONAR_EXCLUSIONS"
+        add sonar.javascript.lcov.reportPaths "$COVERAGE_PATHS"
+        add sonar.organization "$SONAR_ORGANIZATION"
+        add sonar.projectKey "$SONAR_PROJECT_KEY"
+        add sonar.projectName "$SONAR_PROJECT_NAME"
         sonar-scanner "${args[@]}"

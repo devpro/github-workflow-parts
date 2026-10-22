@@ -13,7 +13,7 @@ runner:
     test-npm-publication: ghcr.io/devpro/debian-node:latest
   # The container scan workflow builds an image through the host Docker daemon, as a hosted runner does, and Cosign reads a digest with the Docker CLI.
   docker: ["test-container-scan-on-base*", "test-cosign-sign*", "test-container-build-push*"]
-  # The Sonar path of the .NET and Node.js quality workflows runs against a SonarQube of this machine, which GitHub does not have.
+  # The Sonar paths of the .NET and Node.js quality workflows and of the Sonar action run against a SonarQube of this machine, which GitHub does not have.
   sonarqube: true
 
 workflow:

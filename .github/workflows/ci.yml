@@ -799,6 +799,39 @@ jobs:
     secrets:
       sonar-token: ${{ secrets.SONAR_TOKEN }}
 
+  # Runs where a SonarQube is at hand, as IstarCI provides one locally, and is skipped on GitHub, which has none for this repository.
+  test-sonar-scan-properties:
+    name: "Test / Sonar scan action with a sonar-project.properties"
+    if: vars.SONAR_HOST_URL != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # As the Node.js quality workflow does with its workflow parts.
+      - name: Leave a folder of the fixture out of git
+        run: |
+          exclude="$(git rev-parse --git-path info/exclude)"
+          mkdir -p "$(dirname "$exclude")"
+          echo "/test/fixtures/sonar-properties/extra/" >> "$exclude"
+      # No project key nor exclusions given: the file holds them.
+      - name: Analyze the fixture
+        uses: ./actions/sonar/scan
+        env:
+          # The report the scanner sends is kept, for the step below to read which files were indexed.
+          SONAR_SCANNER_JSON_PARAMS: '{"sonar.scanner.keepReport": "true"}'
+        with:
+          host-url: ${{ vars.SONAR_HOST_URL }}
+          token: ${{ secrets.SONAR_TOKEN }}
+          working-directory: test/fixtures/sonar-properties
+      # The token of the run may only send an analysis, so the report the scanner kept tells what it indexed.
+      - name: Verify the analysis holds only the file neither the exclusions of the file nor git leave out
+        working-directory: test/fixtures/sonar-properties/.scannerwork
+        run: |
+          grep -q '^projectKey=github-workflow-parts-sonar-properties$' report-task.txt
+          indexed=$(cat scanner-report/component-*.pb | grep -aoE '[a-z/]+\.js' | sort -u | paste -sd ,)
+          [ "$indexed" = kept.js ]
+
   test-npm-publication:
     name: "Test / npm publication reusable workflow, without publishing"
     uses: ./.github/workflows/reusable-npm-publication.yml

@@ -54,20 +54,20 @@ on:
         required: false
         default: false
       sonar-coverage-paths:
-        description: lcov reports of the coverage the test script writes, relative to the working directory, separated by commas
+        description: lcov reports of the coverage the test script writes, relative to the working directory, separated by commas, coverage/lcov.info when empty and the project has no sonar-project.properties
         type: string
         required: false
-        default: "coverage/lcov.info"
+        default: ""
       sonar-cpd-exclusions:
         description: Files or directories that should be excluded from Sonar code duplication analysis
         type: string
         required: false
         default: ""
       sonar-exclusions:
-        description: Files or directories that should be excluded from Sonar analysis
+        description: Files or directories that should be excluded from Sonar analysis, **/node_modules/** when empty and the project has no sonar-project.properties
         type: string
         required: false
-        default: "**/node_modules/**"
+        default: ""
       sonar-host-url:
         description: Sonar host URL
         type: string
@@ -79,7 +79,7 @@ on:
         required: false
         default: ""
       sonar-project-key:
-        description: Sonar project key
+        description: Sonar project key, which sonar-project.properties gives otherwise
         type: string
         required: false
         default: ""
@@ -174,6 +174,13 @@ jobs:
           ref: ${{ github.repository == 'devpro/github-workflow-parts' && github.sha || inputs.workflow-parts-version }}
           path: workflow-parts
           persist-credentials: false
+      # Git ignores them, and so does Sonar, which leaves out what git ignores, without overriding the exclusions of the project.
+      - name: Leave workflow parts out of git
+        working-directory: .
+        run: |
+          exclude="$(git rev-parse --git-path info/exclude)"
+          mkdir -p "$(dirname "$exclude")"
+          echo "/workflow-parts/" >> "$exclude"
       - name: Setup Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
@@ -268,8 +275,7 @@ jobs:
         with:
           coverage-paths: ${{ inputs.sonar-coverage-paths }}
           cpd-exclusions: ${{ inputs.sonar-cpd-exclusions }}
-          # The workflow parts are back beside the repository, and not part of its code.
-          exclusions: workflow-parts/**,${{ inputs.sonar-exclusions }}
+          exclusions: ${{ inputs.sonar-exclusions }}
           host-url: ${{ inputs.sonar-host-url }}
           organization: ${{ inputs.sonar-organization }}
           project-key: ${{ inputs.sonar-project-key }}
@@ -302,9 +308,10 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: node-test-results
-          # The usual folders of the coverage and of Playwright, and report for anything else, a custom test's server log for instance.
+          # The usual folders of the coverage and of Playwright, those of a workspace included, and report for anything else, a custom test's server log for instance.
           path: |
             ${{ inputs.working-directory }}/report/
             ${{ inputs.working-directory }}/coverage/
-            ${{ inputs.working-directory }}/playwright-report/
-            ${{ inputs.working-directory }}/test-results/
+            ${{ inputs.working-directory }}/**/playwright-report/
+            ${{ inputs.working-directory }}/**/test-results/
+            !${{ inputs.working-directory }}/**/node_modules/**
