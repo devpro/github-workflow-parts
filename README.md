@@ -78,6 +78,13 @@ Helm:
 
 - [Setup Helm](actions/helm/setup/action.yml)
 - [Setup chart-testing](actions/chart-testing/setup/action.yml)
+- [Setup helm-unittest](actions/helm-unittest/setup/action.yml)
+- [Setup kube-linter](actions/kube-linter/setup/action.yml)
+- [Setup kubeconform](actions/kubeconform/setup/action.yml)
+
+Kubernetes:
+
+- [Setup kind and kubectl](actions/kind/setup/action.yml)
 
 License compliance:
 

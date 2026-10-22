@@ -80,6 +80,15 @@ jobs:
         uses: ./actions/task/setup
         with:
           task-version: v3.52.0
+      - name: Setup kubeconform
+        uses: ./actions/kubeconform/setup
+        with:
+          kubeconform-version: v0.7.0
+      - name: Setup kind
+        uses: ./actions/kind/setup
+        with:
+          kind-version: v0.32.0
+          kubectl-version: v1.36.4
       - name: Verify the versions
         run: |
           # Compared once captured, since a reader closing the pipe early fails the step with SIGPIPE under pipefail.
@@ -87,6 +96,9 @@ jobs:
           [[ "$(tflint --version)" == *"version 0.53.0"* ]]
           [[ "$(helm version --short)" == v3.16.4+* ]]
           [[ "$(task --version)" == *3.52.0* ]]
+          [[ "$(kubeconform -v)" == v0.7.0 ]]
+          [[ "$(kind version)" == "kind v0.32.0 "* ]]
+          [[ "$(kubectl version --client)" == *"v1.36.4"* ]]
 
   # A setup action that cannot verify what it downloaded stops the job rather than running it.
   test-setup-fails-closed:
@@ -126,6 +138,18 @@ jobs:
         uses: ./actions/task/setup
         with:
           task-version: v0.0.0
+      - name: Install kube-linter with a checksum that does not match
+        id: kube-linter-wrong-checksum
+        continue-on-error: true
+        uses: ./actions/kube-linter/setup
+        with:
+          kube-linter-sha256: "0000000000000000000000000000000000000000000000000000000000000000"
+      - name: Install a kind release that does not exist
+        id: kind-missing-release
+        continue-on-error: true
+        uses: ./actions/kind/setup
+        with:
+          kind-version: v0.0.0
       - name: Start MongoDB with a mongosh archive whose checksum does not match
         id: mongodb-wrong-checksum
         continue-on-error: true
@@ -155,6 +179,35 @@ jobs:
         run: |
           helm version
           command -v helm
+
+  test-kubernetes-tools-setup:
+    name: "Test / kube-linter, kubeconform, helm-unittest and kind setup actions"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup Helm
+        uses: ./actions/helm/setup
+      - name: Setup kube-linter
+        uses: ./actions/kube-linter/setup
+      - name: Setup kubeconform
+        uses: ./actions/kubeconform/setup
+      - name: Setup helm-unittest
+        uses: ./actions/helm-unittest/setup
+      - name: Setup kind
+        uses: ./actions/kind/setup
+      - name: Verify the tools run on a chart
+        run: |
+          helm create "${RUNNER_TEMP}/demo" >/dev/null
+          helm template demo "${RUNNER_TEMP}/demo" | kubeconform -strict -summary
+          kube-linter lint "${RUNNER_TEMP}/demo" --format json > "${RUNNER_TEMP}/kube-linter.json" || true
+          jq -e '.Reports != null' "${RUNNER_TEMP}/kube-linter.json"
+          mkdir -p "${RUNNER_TEMP}/demo/tests"
+          printf '%s\n' 'suite: deployment' 'templates: [templates/deployment.yaml]' 'tests:' '  - it: renders a deployment' '    asserts:' '      - isKind:' '          of: Deployment' > "${RUNNER_TEMP}/demo/tests/deployment_test.yaml"
+          untt "${RUNNER_TEMP}/demo"
+          kind version
+          kubectl version --client
 
   test-chart-testing-setup:
     name: "Test / chart-testing setup action"
@@ -467,6 +520,14 @@ jobs:
         uses: ./actions/goreleaser/setup
       - name: Setup Task
         uses: ./actions/task/setup
+      - name: Setup kube-linter
+        uses: ./actions/kube-linter/setup
+      - name: Setup kubeconform
+        uses: ./actions/kubeconform/setup
+      - name: Setup helm-unittest
+        uses: ./actions/helm-unittest/setup
+      - name: Setup kind
+        uses: ./actions/kind/setup
       - name: Start MongoDB
         uses: ./actions/mongodb/start
       - name: Generate SBOM with Syft
@@ -481,7 +542,7 @@ jobs:
           target: test/fixtures/container
       - name: Verify the binaries are for arm64
         run: |
-          for tool in terraform tflint helm ct goreleaser task mongod mongosh syft trivy; do
+          for tool in terraform tflint helm ct goreleaser task kube-linter kubeconform untt kind kubectl mongod mongosh syft trivy; do
             # The ELF machine field, 0xb7 being aarch64, read without the file command a runner image may lack.
             [ "$(od -An -tx1 -j18 -N1 "$(command -v "$tool")" | tr -d ' ')" = b7 ]
           done

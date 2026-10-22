@@ -1,0 +1,33 @@
+name: Setup kubeconform
+description: |
+  Installs kubeconform, which validates Kubernetes manifests against the schemas of the API,
+  by downloading the official binary from its GitHub release and verifying its SHA256 checksum.
+  Linux x64 or arm64 runners only (for example ubuntu-latest or ubuntu-24.04-arm).
+
+inputs:
+  kubeconform-version:
+    description: Version of kubeconform to install (check latest from https://github.com/yannh/kubeconform/releases)
+    required: false
+    default: "v0.8.0"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install kubeconform
+      shell: bash
+      env:
+        KUBECONFORM_VERSION: ${{ inputs.kubeconform-version }}
+        KUBECONFORM_TARBALL: kubeconform-linux-${{ runner.arch == 'ARM64' && 'arm64' || 'amd64' }}.tar.gz
+      run: |
+        # Downloaded into a directory of its own, since the repository may hold a file or a directory named like the binary.
+        cd "$(mktemp -d)"
+        BASE_URL="https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}"
+        curl -fsSL -O "${BASE_URL}/${KUBECONFORM_TARBALL}"
+        curl -fsSL -O "${BASE_URL}/CHECKSUMS"
+        grep " ${KUBECONFORM_TARBALL}$" CHECKSUMS | sha256sum --check --status
+        tar -xzf "${KUBECONFORM_TARBALL}" kubeconform
+        # Installed where the job owns the directory, so neither root nor sudo is needed, on a hosted runner or in a container.
+        mkdir -p "${RUNNER_TEMP}/bin"
+        mv kubeconform "${RUNNER_TEMP}/bin/kubeconform"
+        echo "${RUNNER_TEMP}/bin" >> "$GITHUB_PATH"
+        "${RUNNER_TEMP}/bin/kubeconform" -v
