@@ -1,24 +1,92 @@
 name: Start MongoDB
-description: Starts a local MongoDB database
+description: |
+  Starts a local MongoDB server on 127.0.0.1, with mongosh on the path,
+  from the official archives with their SHA256 checksums verified rather than the apt packages,
+  so neither root nor sudo is needed, on a hosted runner or in a container.
+  Linux x64 or arm64 runners on Ubuntu 24.04 only (for example ubuntu-latest or ubuntu-24.04-arm).
+
+inputs:
+  mongodb-version:
+    description: Version of the MongoDB server, an 8.0 one for instance, the latest release (9.0.4) when empty (check latest from https://www.mongodb.com/try/download/community)
+    required: false
+    default: ""
+  mongosh-version:
+    description: Version of mongosh (check latest from https://github.com/mongodb-js/mongosh/releases)
+    required: false
+    default: "2.14.0"
+  mongosh-sha256:
+    description: SHA256 of the mongosh archive for x64, given with any other mongosh-version, since its release publishes no checksum file
+    required: false
+    default: "c1c5f1a9709e91c5eb1c6861a99c305c165fa564afb465fabfd2b2334c08a23c"
+  mongosh-sha256-arm64:
+    description: SHA256 of the mongosh archive for arm64, given with any other mongosh-version
+    required: false
+    default: "3c6a3631667f9caf0a7b5dfe87e433f973f0a82f2cf04130cd52115076e945e4"
+  port:
+    description: Port the server listens on
+    required: false
+    default: "27017"
+  replica-set:
+    description: Name of a single-node replica set the server starts as, for an application writing in transactions, which a standalone server refuses, standalone when empty
+    required: false
+    default: ""
 
 runs:
   using: "composite"
   steps:
-    # ref. https://www.mongodb.com/docs/manual/tutorial/install-mongodb-on-ubuntu/
     - name: Install & start MongoDB
-      run: |
-        curl -fsSL https://www.mongodb.org/static/pgp/server-8.0.asc | \
-          sudo gpg -o /usr/share/keyrings/mongodb-server-8.0.gpg \
-          --dearmor
-        echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-8.0.gpg ] https://repo.mongodb.org/apt/ubuntu noble/mongodb-org/8.2 multiverse" |
-          sudo tee /etc/apt/sources.list.d/mongodb-org-8.2.list
-        sudo apt-get update
-        sudo apt-get install -y mongodb-org
-        sudo systemctl start mongod
-        timeout 30 bash -c "
-          until mongosh --host localhost:27017 --eval 'db.runCommand({ ping: 1 })' >/dev/null 2>&1; do
-            echo 'MongoDB not ready yet, retrying in 1 second...'
-            sleep 1
-          done
-        "
       shell: bash
+      env:
+        # The one place naming the default version, which the workflows calling this action leave empty.
+        MONGODB_ARCHIVE: mongodb-linux-${{ runner.arch == 'ARM64' && 'aarch64' || 'x86_64' }}-ubuntu2404-${{ inputs.mongodb-version || '9.0.4' }}.tgz
+        MONGOSH_VERSION: ${{ inputs.mongosh-version }}
+        MONGOSH_ARCHIVE: mongosh-${{ inputs.mongosh-version }}-linux-${{ runner.arch == 'ARM64' && 'arm64' || 'x64' }}.tgz
+        MONGOSH_SHA256: ${{ runner.arch == 'ARM64' && inputs.mongosh-sha256-arm64 || inputs.mongosh-sha256 }}
+        MONGODB_PORT: ${{ inputs.port }}
+        REPLICA_SET: ${{ inputs.replica-set }}
+      run: |
+        # Downloaded into a directory of its own, since the repository may hold a file or a directory named like an archive.
+        cd "$(mktemp -d)"
+
+        echo "Downloading MongoDB server and mongosh..."
+        curl -fsSL -O "https://fastdl.mongodb.org/linux/${MONGODB_ARCHIVE}"
+        curl -fsSL -O "https://fastdl.mongodb.org/linux/${MONGODB_ARCHIVE}.sha256"
+        curl -fsSL -O "https://github.com/mongodb-js/mongosh/releases/download/v${MONGOSH_VERSION}/${MONGOSH_ARCHIVE}"
+
+        echo "Verifying checksums..."
+        sha256sum --check --status "${MONGODB_ARCHIVE}.sha256"
+        echo "${MONGOSH_SHA256}  ${MONGOSH_ARCHIVE}" | sha256sum --check --status
+
+        # Installed where the job owns the directory, so neither root nor sudo is needed.
+        mkdir -p "${RUNNER_TEMP}/bin" "${RUNNER_TEMP}/mongodb/data"
+        tar xzf "${MONGODB_ARCHIVE}" --strip-components=2 -C "${RUNNER_TEMP}/bin" --wildcards "*/bin/mongod"
+        tar xzf "${MONGOSH_ARCHIVE}" --strip-components=2 -C "${RUNNER_TEMP}/bin" --wildcards "*/bin/mongosh"
+        echo "${RUNNER_TEMP}/bin" >> "$GITHUB_PATH"
+        export PATH="${RUNNER_TEMP}/bin:$PATH"
+        rm -f "${MONGODB_ARCHIVE}" "${MONGODB_ARCHIVE}.sha256" "${MONGOSH_ARCHIVE}"
+
+        # Forked rather than started by systemd, which a container has no instance of.
+        log="${RUNNER_TEMP}/mongodb/mongod.log"
+        args=(--dbpath "${RUNNER_TEMP}/mongodb/data" --bind_ip 127.0.0.1 --port "$MONGODB_PORT" --fork --logpath "$log")
+        check='db.runCommand({ ping: 1 })'
+        if [[ -n "$REPLICA_SET" ]]; then
+          args+=(--replSet "$REPLICA_SET")
+          # Ready once the node is primary, the set being initiated by the first check the server answers.
+          check="try { rs.status() } catch (e) { rs.initiate({ _id: '${REPLICA_SET}', members: [{ _id: 0, host: '127.0.0.1:${MONGODB_PORT}' }] }) } quit(db.hello().isWritablePrimary ? 0 : 1)"
+        fi
+        # The log is the only place saying why a server did not start, and it is gone with the runner.
+        if ! mongod "${args[@]}"; then
+          cat "$log"
+          exit 1
+        fi
+        for _ in $(seq 1 30); do
+          if mongosh --host "127.0.0.1:${MONGODB_PORT}" --quiet --eval "$check" >/dev/null 2>&1; then
+            mongod --version | head -1
+            exit 0
+          fi
+          echo "MongoDB not ready yet, retrying in 1 second..."
+          sleep 1
+        done
+        echo "::error::MongoDB was not ready within 30 seconds"
+        cat "$log"
+        exit 1

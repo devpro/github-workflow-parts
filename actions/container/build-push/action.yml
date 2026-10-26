@@ -1,0 +1,88 @@
+name: Build and push a container image
+description: |
+  Builds a container image with the BuildKit of the Docker daemon for one or more platforms and pushes it under a tag,
+  each platform of several being pushed under a tag of its own first, then put together under the tag.
+  The registry login is left to the job, which holds the credentials.
+  Linux runners only (for example ubuntu-latest or ubuntu-24.04-arm).
+
+inputs:
+  image-definition:
+    description: Path to the container definition file (Dockerfile, Containerfile), relative to the working directory
+    required: true
+  image-repository:
+    description: Repository of the image, with its registry (for example docker.io/devprofr/app)
+    required: true
+  image-tag:
+    description: Tag to push, the tag of each platform of several being this one followed by the platform (1.0.1-linux-arm64 for instance)
+    required: true
+  platforms:
+    description: Comma-separated platforms to build (a platform other than the runner's own needs the Setup QEMU action first)
+    required: false
+    default: "linux/amd64"
+  build-arguments:
+    description: Build arguments, one KEY=value per line
+    required: false
+    default: ""
+  working-directory:
+    description: Directory the build runs from, relative to the workspace, which a composite action does not take from the defaults of the calling job
+    required: false
+    default: "."
+
+outputs:
+  digest:
+    description: Digest of the pushed image, a manifest list when several platforms were built
+    value: ${{ steps.build.outputs.digest }}
+
+runs:
+  using: "composite"
+  steps:
+    # The Docker CLI of the runner does what the docker/* actions wrapped, with no third party action in between.
+    # The builder of the daemon runs no BuildKit image, which a builder of its own would pull, and keeps no state of its own a later job would find.
+    # It pushes no image by digest alone and builds one platform at a time on the classic image store, so each platform gets a tag.
+    - name: Build and push container image
+      id: build
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        IMAGE_DEFINITION: ${{ inputs.image-definition }}
+        IMAGE_REPOSITORY: ${{ inputs.image-repository }}
+        IMAGE_TAG: ${{ inputs.image-tag }}
+        PLATFORMS: ${{ inputs.platforms }}
+        BUILD_ARGUMENTS: ${{ inputs.build-arguments }}
+      run: |
+        build_args=()
+        while IFS= read -r argument; do
+          [ -n "$argument" ] && build_args+=(--build-arg "$argument")
+        done <<< "$BUILD_ARGUMENTS"
+
+        # Builds and pushes one platform under a tag, and prints the digest of what was pushed.
+        build_push() {
+          local platform="$1" ref="$2" metadata digest
+          metadata="$(mktemp)"
+          docker buildx build --builder default --file "$IMAGE_DEFINITION" --platform "$platform" \
+            --tag "$ref" --push --metadata-file "$metadata" "${build_args[@]}" . >&2
+          digest="$(jq -r '."containerimage.digest" // empty' "$metadata")"
+          # The daemon keeps the image it built, which the registry now holds.
+          docker image rm "$ref" >/dev/null 2>&1 || true
+          if [[ "$digest" != sha256:* ]]; then
+            echo "ERROR: The build reported no digest for ${ref}" >&2
+            return 1
+          fi
+          echo "$digest"
+        }
+
+        IFS=',' read -ra platform_list <<< "$PLATFORMS"
+        if [ "${#platform_list[@]}" -eq 1 ]; then
+          digest="$(build_push "${platform_list[0]}" "${IMAGE_REPOSITORY}:${IMAGE_TAG}")"
+        else
+          sources=()
+          for platform in "${platform_list[@]}"; do
+            platform_digest="$(build_push "$platform" "${IMAGE_REPOSITORY}:${IMAGE_TAG}-${platform//\//-}")"
+            sources+=("${IMAGE_REPOSITORY}@${platform_digest}")
+          done
+          # The tag names a complete image only once every platform is pushed.
+          docker buildx imagetools create --tag "${IMAGE_REPOSITORY}:${IMAGE_TAG}" "${sources[@]}"
+          digest="$(docker buildx imagetools inspect "${IMAGE_REPOSITORY}:${IMAGE_TAG}" --format '{{json .Manifest}}' | jq -r .digest)"
+        fi
+        echo "Pushed ${IMAGE_REPOSITORY}:${IMAGE_TAG}@${digest}"
+        echo "digest=$digest" >> "$GITHUB_OUTPUT"

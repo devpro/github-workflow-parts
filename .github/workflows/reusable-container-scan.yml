@@ -3,6 +3,16 @@ name: Reusable - Container scan
 on:
   workflow_call:
     inputs:
+      base-image-argument:
+        description: Build argument the image definition reads the base image from
+        type: string
+        required: false
+        default: BASE_IMAGE
+      base-image-definition:
+        description: Path to the definition of the image this one is built on, built first so that the scan reads what this commit produces rather than a published base
+        type: string
+        required: false
+        default: ""
       image-definition:
         description: Path to the container definition file (Dockerfile, Containerfile)
         type: string
@@ -24,33 +34,28 @@ on:
         type: string
         required: false
         default: Scan
-      max-high-cves:
-        description: Maximum number of high CVEs authorized
+      timeout-minutes:
+        description: Minutes the job may run before it is cancelled
         type: number
         required: false
-        default: 0
-      max-medium-cves:
-        description: Maximum number of medium CVEs authorized
-        type: number
-        required: false
-        default: 0
-      neuvector-enabled:
-        description: "Use NeuVector to scan the image?"
-        type: boolean
-        required: false
-        default: false
+        default: 30
       operating-system:
         description: Operating system executing the runner
         type: string
         required: false
         default: ubuntu-latest
-      trivy-enabled:
-        description: "Use Trivy to scan the image?"
-        type: boolean
+      severity:
+        description: Severities of a vulnerability with a fix that fail the scan, "CRITICAL,HIGH,MEDIUM" to hold an image to MEDIUM as well
+        type: string
         required: false
-        default: true
+        default: CRITICAL,HIGH
+      trivy-ignore-file:
+        description: Trivy ignore file, relative to the root of the repository, naming the vulnerabilities left out, each with the reason and the day it counts again (expired_at), read when it exists
+        type: string
+        required: false
+        default: .trivyignore.yaml
       workflow-parts-version:
-        description: "GitHub workflow parts version (branch/tag/SHA). Should match the ref/tag/SHA the caller pinned for this reusable workflow itself."
+        description: "GitHub workflow parts version (branch/tag/SHA). Should match the ref/tag/SHA the caller pinned for this reusable workflow itself. Ignored when the caller is this repository, whose checkout already holds the actions under test."
         type: string
         required: false
         default: "main"
@@ -64,33 +69,45 @@ jobs:
   container-scan:
     name: ${{ inputs.job-name }}
     runs-on: ${{ inputs.operating-system }}
+    timeout-minutes: ${{ inputs.timeout-minutes }}
     defaults:
       run:
         working-directory: ${{ inputs.working-directory }}
     steps:
       - name: Clone repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Checkout workflow parts
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: devpro/github-workflow-parts
-          ref: ${{ inputs.workflow-parts-version }}
+          # The caller being this repository, the actions under test are those of the commit under test.
+          ref: ${{ github.repository == 'devpro/github-workflow-parts' && github.sha || inputs.workflow-parts-version }}
           path: workflow-parts
-      - name: Build container image
-        run: docker build . --file ${{ inputs.image-definition }} --tag ${{ env.IMAGE_REF }}
+      # A scan judges what a clean build produces today.
+      # A cached `apt-get upgrade` layer or a stale base image keeps an already fixed package version, on a runner whose Docker daemon outlives the job.
+      - name: Build base container image
+        if: ${{ inputs.base-image-definition != '' }}
+        run: docker build . --pull --no-cache --file "$BASE_DEFINITION" --tag "$BASE_REF"
         shell: bash
-      # deactivated 2026-02-22: "Build container for action use... process "/bin/sh -c zypper in -y jq docker && zypper clean" did not complete successfully: exit code: 8"
-      # - name: Scan container image with NeuVector
-      #   if: ${{ inputs.neuvector-enabled }}
-      #   uses: neuvector/scan-action@main
-      #   with:
-      #     image-repository: ${{ inputs.image-path }}/${{ inputs.image-name }}
-      #     image-tag: ${{ inputs.image-tag }}
-      #     min-high-cves-to-fail: '${{ inputs.max-high-cves }}'
-      #     min-medium-cves-to-fail: '${{ inputs.max-medium-cves }}'
-      #     nv-scanner-image: neuvector/scanner:5
+        env:
+          BASE_DEFINITION: ${{ inputs.base-image-definition }}
+      # An image built on the base above reads it from the local daemon, which a pull would look for in a registry that has never seen it.
+      - name: Build container image
+        run: |
+          args=(--no-cache --file "$IMAGE_DEFINITION" --tag "$IMAGE_REF")
+          if [ -n "$BASE_DEFINITION" ]; then
+            args+=(--build-arg "${BASE_ARGUMENT}=${BASE_REF}")
+          else
+            args+=(--pull)
+          fi
+          docker build . "${args[@]}"
+        shell: bash
+        env:
+          BASE_ARGUMENT: ${{ inputs.base-image-argument }}
+          BASE_DEFINITION: ${{ inputs.base-image-definition }}
+          IMAGE_DEFINITION: ${{ inputs.image-definition }}
+      # The only judge of the image a repository builds: any vulnerability of those severities with a fix fails the job, unless the ignore file names it until a day.
       - name: Scan container image with Trivy
-        if: ${{ inputs.trivy-enabled }}
         uses: ./workflow-parts/actions/trivy/scan
         with:
           scan-type: image
@@ -98,8 +115,11 @@ jobs:
           format: table
           exit-code: "1"
           ignore-unfixed: "true"
+          # The default file is optional, and any other one named must exist.
+          ignore-file: ${{ (inputs.trivy-ignore-file != '.trivyignore.yaml' || hashFiles('.trivyignore.yaml') != '') && inputs.trivy-ignore-file || '' }}
           pkg-types: os,library
-          severity: CRITICAL,HIGH
+          severity: ${{ inputs.severity }}
     env:
       GITHUB_TOKEN: ${{ github.token }}
       IMAGE_REF: ${{ inputs.image-path }}/${{ inputs.image-name }}:${{ inputs.image-tag }}
+      BASE_REF: ${{ inputs.image-path }}/${{ inputs.image-name }}-base:${{ inputs.image-tag }}

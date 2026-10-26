@@ -1,0 +1,5 @@
+# Leaves out the root user of the base container fixture until a day that has passed, so it counts again.
+misconfigurations:
+  - id: DS-0002
+    statement: The base container fixture runs as root on purpose
+    expired_at: 2020-01-01

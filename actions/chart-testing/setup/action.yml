@@ -1,0 +1,64 @@
+name: Setup chart-testing
+description: |
+  Installs the chart-testing CLI (ct) by downloading the official release and verifying its SHA256 checksum, with the yamllint and yamale it calls
+  (replacement for helm/chart-testing-action, to reduce third-party GitHub Action supply-chain risk).
+  Helm and git must be installed beforehand, for example with the Setup Helm action.
+  Linux x64 or arm64 runners only (for example ubuntu-latest or ubuntu-24.04-arm).
+
+inputs:
+  chart-testing-version:
+    description: Version of chart-testing to install (check latest from https://github.com/helm/chart-testing/releases)
+    required: false
+    default: "v3.15.0"
+  yamllint-version:
+    description: Version of yamllint to install
+    required: false
+    default: "1.38.0"
+  yamale-version:
+    description: Version of yamale to install
+    required: false
+    default: "6.1.0"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install chart-testing
+      shell: bash
+      env:
+        CT_VERSION: ${{ inputs.chart-testing-version }}
+        CT_ARCH: ${{ runner.arch == 'ARM64' && 'arm64' || 'amd64' }}
+        YAMLLINT_VERSION: ${{ inputs.yamllint-version }}
+        YAMALE_VERSION: ${{ inputs.yamale-version }}
+      run: |
+        # Downloaded into a directory of its own, since the repository may hold a file or a directory named like the binary.
+        cd "$(mktemp -d)"
+        CT_TAR="chart-testing_${CT_VERSION#v}_linux_${CT_ARCH}.tar.gz"
+        BASE_URL="https://github.com/helm/chart-testing/releases/download/${CT_VERSION}"
+
+        echo "Downloading chart-testing binary and checksums..."
+        curl -fsSL -O "${BASE_URL}/${CT_TAR}"
+        curl -fsSL -O "${BASE_URL}/checksums.txt"
+
+        echo "Verifying checksum..."
+        if grep " ${CT_TAR}$" checksums.txt | sha256sum --check --status; then
+          echo "Verification successful!"
+          tar -xzf "${CT_TAR}" ct etc
+          # Installed where the job owns the directory, so neither root nor sudo is needed, on a hosted runner or in a container.
+          mkdir -p "${RUNNER_TEMP}/bin"
+          mv ct "${RUNNER_TEMP}/bin/ct"
+          # The schema and the lint rules are looked up by ct in $HOME/.ct when no flag names them.
+          mkdir -p "${HOME}/.ct"
+          cp etc/chart_schema.yaml etc/lintconf.yaml "${HOME}/.ct/"
+          # Kept in a virtual environment of their own, since the system Python may refuse a global install.
+          python3 -m venv "${RUNNER_TEMP}/ct-venv"
+          "${RUNNER_TEMP}/ct-venv/bin/pip" install --quiet "yamllint==${YAMLLINT_VERSION}" "yamale==${YAMALE_VERSION}"
+          ln -sf "${RUNNER_TEMP}/ct-venv/bin/yamllint" "${RUNNER_TEMP}/bin/yamllint"
+          ln -sf "${RUNNER_TEMP}/ct-venv/bin/yamale" "${RUNNER_TEMP}/bin/yamale"
+          echo "${RUNNER_TEMP}/bin" >> "$GITHUB_PATH"
+          export PATH="${RUNNER_TEMP}/bin:$PATH"
+          rm -rf etc "${CT_TAR}" checksums.txt
+          ct version
+        else
+          echo "ERROR: Checksum verification failed!" >&2
+          exit 1
+        fi

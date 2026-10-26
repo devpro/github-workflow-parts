@@ -1,0 +1,82 @@
+name: Submit pages to IndexNow
+description: |
+  Reads the pages of a site from its sitemap, a sitemap index included, and submits them to IndexNow,
+  which passes them on to the search engines taking part (Bing, Yandex, Naver, Seznam and others),
+  with curl and jq rather than a third party action.
+  The site serves the key at key-location, which proves it owns the key.
+
+inputs:
+  api-url:
+    description: Address of the IndexNow API the pages are submitted to
+    required: false
+    default: "https://api.indexnow.org/indexnow"
+  key:
+    description: IndexNow key of the site, kept in a secret, since it stands for the site with IndexNow
+    required: true
+  key-location:
+    description: Address of the file holding the key, https://<host>/<key>.txt of the host of the sitemap when empty
+    required: false
+    default: ""
+  sitemap-url:
+    description: Address of the sitemap (sitemap.xml) of the site, or of its sitemap index
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Submit the pages of the sitemap
+      shell: bash
+      env:
+        API_URL: ${{ inputs.api-url }}
+        INDEXNOW_KEY: ${{ inputs.key }}
+        KEY_LOCATION: ${{ inputs.key-location }}
+        SITEMAP_URL: ${{ inputs.sitemap-url }}
+      run: |
+        echo "::add-mask::$INDEXNOW_KEY"
+        origin="$(echo "$SITEMAP_URL" | sed -E 's#^(https?://[^/]+).*#\1#')"
+        host="${origin#*://}"
+        KEY_LOCATION="${KEY_LOCATION:-${origin}/${INDEXNOW_KEY}.txt}"
+
+        # The addresses of the <loc> elements, which XML writes with & as &amp;.
+        locations() {
+          curl -fsSL "$1" | tr -d '\r\n' | grep -o '<loc>[^<]*</loc>' | sed -e 's#</\?loc>##g' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' \
+            -e 's/&lt;/</g' -e 's/&gt;/>/g' -e "s/&apos;/'/g" -e 's/&quot;/"/g' -e 's/&amp;/\&/g'
+        }
+
+        urls=()
+        # Read whole, since grep -q leaving a pipe early fails the curl writing to it, under pipefail.
+        sitemap_content="$(curl -fsSL "$SITEMAP_URL")"
+        if [[ "$sitemap_content" == *"<sitemapindex"* ]]; then
+          while IFS= read -r sitemap; do
+            while IFS= read -r url; do
+              urls+=("$url")
+            done < <(locations "$sitemap")
+          done < <(locations "$SITEMAP_URL")
+        else
+          while IFS= read -r url; do
+            urls+=("$url")
+          done < <(locations "$SITEMAP_URL")
+        fi
+        if [ "${#urls[@]}" -eq 0 ]; then
+          echo "ERROR: No page found in ${SITEMAP_URL}" >&2
+          exit 1
+        fi
+        echo "Submitting ${#urls[@]} page(s) of ${host} to ${API_URL}"
+
+        # IndexNow takes at most 10,000 addresses a request.
+        for ((start = 0; start < ${#urls[@]}; start += 10000)); do
+          payload="$(mktemp)"
+          jq -n --arg host "$host" --arg key "$INDEXNOW_KEY" --arg keyLocation "$KEY_LOCATION" \
+            '{host: $host, key: $key, keyLocation: $keyLocation, urlList: $ARGS.positional}' \
+            --args "${urls[@]:start:10000}" > "$payload"
+          response="$(mktemp)"
+          status="$(curl -sS -o "$response" -w '%{http_code}' -H 'Content-Type: application/json; charset=utf-8' --data-binary "@$payload" "$API_URL")"
+          # 200 is a submission taken, 202 one taken before the key is checked.
+          if [[ "$status" != 200 && "$status" != 202 ]]; then
+            echo "ERROR: IndexNow answered ${status}" >&2
+            cat "$response" >&2
+            echo >&2
+            exit 1
+          fi
+          echo "IndexNow answered ${status}"
+        done

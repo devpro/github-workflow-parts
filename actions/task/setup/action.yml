@@ -1,0 +1,44 @@
+name: Setup Task
+description: |
+  Installs Task (taskfile.dev) by downloading the official binary from its GitHub release and verifying its SHA256 checksum
+  (replacement for go-task/setup-task and for an install through npm, to reduce supply-chain risk).
+  Linux x64 or arm64 runners only (for example ubuntu-latest or ubuntu-24.04-arm).
+
+inputs:
+  task-version:
+    description: Version of Task to install (check latest from https://github.com/go-task/task/releases)
+    required: false
+    default: "v3.54.0"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install Task
+      shell: bash
+      env:
+        TASK_VERSION: ${{ inputs.task-version }}
+        TASK_TARBALL: task_linux_${{ runner.arch == 'ARM64' && 'arm64' || 'amd64' }}.tar.gz
+      run: |
+        # Downloaded into a directory of its own, since the repository may hold a file or a directory named like the binary.
+        cd "$(mktemp -d)"
+        BASE_URL="https://github.com/go-task/task/releases/download/${TASK_VERSION}"
+
+        echo "Downloading Task binary and checksums..."
+        curl -fsSL -O "${BASE_URL}/${TASK_TARBALL}"
+        curl -fsSL -O "${BASE_URL}/task_checksums.txt"
+
+        echo "Verifying checksum..."
+        if grep " ${TASK_TARBALL}$" task_checksums.txt | sha256sum --check --status; then
+          echo "Verification successful!"
+          tar -xzf "${TASK_TARBALL}" task
+          # Installed where the job owns the directory, so neither root nor sudo is needed, on a hosted runner or in a container.
+          mkdir -p "${RUNNER_TEMP}/bin"
+          mv task "${RUNNER_TEMP}/bin/task"
+          echo "${RUNNER_TEMP}/bin" >> "$GITHUB_PATH"
+          export PATH="${RUNNER_TEMP}/bin:$PATH"
+          rm -f "${TASK_TARBALL}" task_checksums.txt
+          task --version
+        else
+          echo "ERROR: Checksum verification failed!" >&2
+          exit 1
+        fi

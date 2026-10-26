@@ -1,0 +1,27 @@
+# IstarCI configuration, read from the root of the repository.
+
+runner:
+  # The .NET jobs need the SDK, which a hosted runner has and the default image does not.
+  images:
+    "test-dotnet-*": ghcr.io/devpro/ubuntu-dotnet:latest
+    # The npm test runs npm, and the Playwright one needs the system packages of the browser, which a local run cannot install without root.
+    test-npm-publish: ghcr.io/devpro/debian-node:latest
+    test-playwright-install: ghcr.io/devpro/debian-node-playwright:latest
+    test-node-quality-npm: ghcr.io/devpro/debian-node-playwright:latest
+    test-node-quality-pnpm: ghcr.io/devpro/debian-node:latest
+    test-node-quality-sonar: ghcr.io/devpro/debian-node-playwright:latest
+    test-npm-publication: ghcr.io/devpro/debian-node:latest
+    # The Go actions need the Go toolchain, which setup-go installs on GitHub and a local run takes from the SUSE image, rebuilt with the Debian fixes the official one still lacks at times.
+    test-go-lint-govulncheck-scan: registry.suse.com/bci/golang:1.27
+  # The container scan workflow builds an image through the host Docker daemon, as a hosted runner does, and Cosign reads a digest with the Docker CLI.
+  docker: ["test-container-scan-on-base*", "test-cosign-sign*", "test-container-build-push*"]
+  # The Sonar paths of the .NET and Node.js quality workflows and of the Sonar action run against a SonarQube of this machine, which GitHub does not have.
+  sonarqube: true
+
+workflow:
+  # Registering an emulator changes the kernel of the machine, which a local run leaves alone.
+  skipJobs: [test-qemu-setup]
+
+vars:
+  # The local SonarQube has no organization, which only SonarCloud needs.
+  SONAR_ORGANIZATION: ""

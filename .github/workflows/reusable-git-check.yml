@@ -1,0 +1,94 @@
+name: Reusable - Git check
+
+on:
+  workflow_call:
+    inputs:
+      job-name:
+        description: Job name
+        type: string
+        required: false
+        default: Check
+      timeout-minutes:
+        description: Minutes the job may run before it is cancelled
+        type: number
+        required: false
+        default: 10
+      operating-system:
+        description: Operating system executing the runner
+        type: string
+        required: false
+        default: ubuntu-latest
+      paths:
+        description: Paths whose change the changed output tells, separated by spaces
+        type: string
+        required: false
+        default: "src test"
+      version-file:
+        description: MSBuild file whose VersionPrefix gives the version-major-minor output (Directory.Build.props for instance), none when empty
+        type: string
+        required: false
+        default: ""
+      workflow-parts-version:
+        description: "GitHub workflow parts version (branch/tag/SHA). Should match the ref/tag/SHA the caller pinned for this reusable workflow itself. Ignored when the caller is this repository, whose checkout already holds the actions under test."
+        type: string
+        required: false
+        default: "main"
+    outputs:
+      branch-slug:
+        description: Branch name without its first segment (feature/, release/), lower case, with only letters, digits and dashes, to name an environment
+        value: ${{ jobs.git-check.outputs.branch-slug }}
+      changed:
+        description: "\"true\" when the commit changes one of the paths, or when there is no base to compare with"
+        value: ${{ jobs.git-check.outputs.changed }}
+      version-major-minor:
+        description: Major and minor parts of the VersionPrefix of the version file, to tag an image
+        value: ${{ jobs.git-check.outputs.version-major-minor }}
+
+jobs:
+  git-check:
+    name: ${{ inputs.job-name }}
+    runs-on: ${{ inputs.operating-system }}
+    timeout-minutes: ${{ inputs.timeout-minutes }}
+    outputs:
+      branch-slug: ${{ steps.slug.outputs.branch-slug }}
+      changed: ${{ steps.changes.outputs.changed }}
+      version-major-minor: ${{ steps.version.outputs.version-major-minor }}
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The base of the comparison is in the history.
+          fetch-depth: 0
+      - name: Checkout workflow parts
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: devpro/github-workflow-parts
+          # The caller being this repository, the actions under test are those of the commit under test.
+          ref: ${{ github.repository == 'devpro/github-workflow-parts' && github.sha || inputs.workflow-parts-version }}
+          path: workflow-parts
+      - name: Check changes
+        id: changes
+        uses: ./workflow-parts/actions/git/check-changes
+        with:
+          paths: ${{ inputs.paths }}
+      - name: Read the version
+        id: version
+        if: inputs.version-file != ''
+        env:
+          VERSION_FILE: ${{ inputs.version-file }}
+        run: |
+          version=$(grep -oP '(?<=<VersionPrefix>)[^<]+' "$VERSION_FILE" | head -n 1 | tr -d '[:space:]')
+          if [ -z "$version" ]; then
+            echo "ERROR: no VersionPrefix in ${VERSION_FILE}" >&2
+            exit 1
+          fi
+          echo "Version ${version}"
+          echo "version-major-minor=$(cut -d . -f 1-2 <<< "$version")" >> "$GITHUB_OUTPUT"
+      # A pull request names its branch in GITHUB_HEAD_REF, GITHUB_REF_NAME holding its merge ref.
+      - name: Name the branch
+        id: slug
+        run: |
+          branch="${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}"
+          slug=$(tr '/' '-' <<< "${branch#*/}" | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9-')
+          echo "Branch ${branch}, slug ${slug}"
+          echo "branch-slug=${slug}" >> "$GITHUB_OUTPUT"

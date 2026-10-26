@@ -33,11 +33,26 @@ on:
         type: boolean
         required: false
         default: false
+      mongodb-enabled:
+        description: Start a local MongoDB server on 127.0.0.1:27017, with mongosh on the path, before build & test
+        type: boolean
+        required: false
+        default: false
+      mongodb-version:
+        description: Version of the MongoDB server mongodb-enabled starts, an 8.0 one for instance, the latest release the MongoDB action names when empty
+        type: string
+        required: false
+        default: ""
       job-name:
         description: Job name
         type: string
         required: false
         default: Quality
+      timeout-minutes:
+        description: Minutes the job may run before it is cancelled
+        type: number
+        required: false
+        default: 60
       operating-system:
         description: Operating system executing the runner
         type: string
@@ -79,7 +94,7 @@ on:
         required: false
         default: ""
       workflow-parts-version:
-        description: GitHub workflow parts version (branch/tag/SHA). Should match the ref/tag/SHA the caller pinned for this reusable workflow itself.
+        description: GitHub workflow parts version (branch/tag/SHA). Should match the ref/tag/SHA the caller pinned for this reusable workflow itself. Ignored when the caller is this repository, whose checkout already holds the actions under test.
         type: string
         required: false
         default: main
@@ -103,12 +118,15 @@ jobs:
   dotnet-quality:
     name: ${{ inputs.job-name }}
     runs-on: ${{ inputs.operating-system }}
+    timeout-minutes: ${{ inputs.timeout-minutes }}
     defaults:
       run:
         working-directory: ${{ inputs.working-directory }}
     steps:
       - name: Set additional variables
         shell: bash
+        # Run before the clone, which creates the working directory.
+        working-directory: .
         env:
           EXTRA_VARS: ${{ inputs.extra-vars }}
         run: |
@@ -117,11 +135,13 @@ jobs:
           fi
       - name: Set additional secrets
         shell: bash
+        # Run before the clone, which creates the working directory.
+        working-directory: .
         env:
           ADDITIONAL_VARS: ${{ secrets.additional-vars }}
         run: |
           if [[ -n "$ADDITIONAL_VARS" ]]; then
-            echo "$ADDITIONAL_VARS" | while IFS='=' read -r key val; do
+            echo "$ADDITIONAL_VARS" | while IFS='=' read -r _ val; do
               if [[ -n "$val" ]]; then
                 echo "::add-mask::$val"
               fi
@@ -133,33 +153,44 @@ jobs:
         run: git config --global core.autocrlf false
         shell: bash
       - name: Clone repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
       - name: Checkout workflow parts
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: devpro/github-workflow-parts
-          ref: ${{ inputs.workflow-parts-version }}
+          # The caller being this repository, the actions under test are those of the commit under test.
+          ref: ${{ github.repository == 'devpro/github-workflow-parts' && github.sha || inputs.workflow-parts-version }}
           path: workflow-parts
       - name: Install .NET & lint
         uses: ./workflow-parts/actions/dotnet/install-lint-restore
         with:
           dotnet-version: ${{ inputs.dotnet-version }}
+          working-directory: ${{ inputs.working-directory }}
+      - name: Start MongoDB
+        if: ${{ inputs.mongodb-enabled }}
+        uses: ./workflow-parts/actions/mongodb/start
+        with:
+          mongodb-version: ${{ inputs.mongodb-version }}
       - name: Run optional custom commands
         if: ${{ inputs.custom-commands != '' }}
-        run: |
-          ${{ inputs.custom-commands }}
+        env:
+          CUSTOM_COMMANDS: ${{ inputs.custom-commands }}
+        # Shell code by contract, run from a variable rather than pasted into the script by GitHub.
+        run: eval "$CUSTOM_COMMANDS"
       - name: Build & test
         if: ${{ ! inputs.sonar-enabled }}
         uses: ./workflow-parts/actions/dotnet/build-test
         with:
           dotnet-test-args: ${{ inputs.dotnet-test-args }}
+          working-directory: ${{ inputs.working-directory }}
       - name: Build, test & analyze
         if: ${{ inputs.sonar-enabled }}
         uses: ./workflow-parts/actions/dotnet/build-test-sonar
         with:
           dotnet-test-args: ${{ inputs.dotnet-test-args }}
+          working-directory: ${{ inputs.working-directory }}
           sonar-cpd-exclusions: ${{ inputs.sonar-cpd-exclusions }}
           sonar-exclusions: ${{ inputs.sonar-exclusions }}
           sonar-host-url: ${{ inputs.sonar-host-url }}
@@ -168,6 +199,7 @@ jobs:
           sonar-project-name: ${{ inputs.sonar-project-name }}
           sonar-token: ${{ secrets.sonar-token }}
       - name: Check license compliance with FOSSA
+        # A repository turns it off where FOSSA cannot be reached, a local run holding no API key.
         if: ${{ inputs.fossa-enabled }}
         uses: ./workflow-parts/actions/fossa/analyze
         # https://status.fossa.com/
@@ -175,24 +207,28 @@ jobs:
         timeout-minutes: 3
         with:
           api-key: "${{ secrets.fossa-api-key }}"
+          # The workflow parts are checked out beside the code, and are no part of it.
+          exclude-paths: workflow-parts
           run-tests: ${{ inputs.fossa-test && github.event_name == 'pull_request' }}
           test-diff-revision: ${{ github.event.pull_request.base.sha }}
           report-file: report/fossa.html
+          working-directory: ${{ inputs.working-directory }}
       - name: Generate SBOM with Syft
         uses: ./workflow-parts/actions/syft/generate-sbom
         continue-on-error: true
+        with:
+          exclude-paths: workflow-parts
+          target-path: ${{ inputs.working-directory }}
       - name: Archive test results
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: dotnet-test-results
+          # The build, test and FOSSA actions write the results, the coverage and the reports in the report folder of the working directory.
           path: |
+            ${{ inputs.working-directory }}/report/
             ./**/*test-result.xml
-            ./test/*/TestResults/*/coverage.cobertura.xml
             ./**/failure_*.png*
-            ./**/SonarQube.xml
-            ./**/Summary.txt
-            ./**/fossa.html
     env:
       DOTNET_CLI_TELEMETRY_OPTOUT: 1
       DOTNET_NOLOGO: 1

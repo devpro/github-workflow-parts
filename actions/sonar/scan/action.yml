@@ -1,0 +1,119 @@
+name: Analyze with Sonar
+description: |
+  Installs the Sonar scanner CLI from the official archive, its SHA256 checksum verified, with the Java runtime it bundles,
+  and analyzes the code of a project built by another tool than .NET, JavaScript and TypeScript first, with the coverage of its lcov reports
+  (replacement for SonarSource/sonarqube-scan-action, to reduce third-party GitHub Action supply-chain risk).
+  Linux x64 or arm64 runners only (for example ubuntu-latest or ubuntu-24.04-arm).
+
+inputs:
+  scanner-version:
+    description: Version of the Sonar scanner CLI (check latest from https://github.com/SonarSource/sonar-scanner-cli/releases)
+    required: false
+    default: "8.2.0.6438"
+  scanner-sha256:
+    description: SHA256 of the scanner archive for x64, given with any other scanner-version
+    required: false
+    default: "83257bf97a475d626b8ba2b214aeeb37334ca84db1b3e3be5105783e4facb053"
+  scanner-sha256-arm64:
+    description: SHA256 of the scanner archive for arm64, given with any other scanner-version
+    required: false
+    default: "3add94b481f1d541897b8d667f4c0e86bc7855bd3eaeb1a7c9ee5f162b909e6e"
+  coverage-paths:
+    description: lcov reports of the coverage, relative to the working directory, separated by commas, coverage/lcov.info when empty and the project has no sonar-project.properties
+    required: false
+    default: ""
+  cpd-exclusions:
+    description: Files or directories that should be excluded from Sonar code duplication analysis
+    required: false
+    default: ""
+  exclusions:
+    description: Files or directories that should be excluded from Sonar analysis, **/node_modules/** when empty and the project has no sonar-project.properties
+    required: false
+    default: ""
+  host-url:
+    description: Sonar host URL
+    required: true
+  organization:
+    description: Sonar organization, which SonarCloud needs and a SonarQube server has no notion of
+    required: false
+    default: ""
+  project-key:
+    description: Sonar project key, which sonar-project.properties gives otherwise
+    required: false
+    default: ""
+  project-name:
+    description: Sonar project name
+    required: false
+    default: ""
+  token:
+    description: Sonar token for login
+    required: true
+  working-directory:
+    description: Directory of the project to analyze, relative to the workspace, which a composite action does not take from the defaults of the calling job
+    required: false
+    default: "."
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install Sonar scanner
+      shell: bash
+      env:
+        SCANNER_VERSION: ${{ inputs.scanner-version }}
+        SCANNER_PLATFORM: linux-${{ runner.arch == 'ARM64' && 'aarch64' || 'x64' }}
+        SCANNER_SHA256: ${{ runner.arch == 'ARM64' && inputs.scanner-sha256-arm64 || inputs.scanner-sha256 }}
+      run: |
+        # Downloaded into a directory of its own, since the repository may hold a file or a directory named like the archive.
+        cd "$(mktemp -d)"
+        archive="sonar-scanner-cli-${SCANNER_VERSION}-${SCANNER_PLATFORM}.zip"
+        curl -fsSL -O "https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/${archive}"
+        echo "${SCANNER_SHA256}  ${archive}" | sha256sum --check --status
+        unzip -q "$archive"
+        # Installed where the job owns the directory, so neither root nor sudo is needed, on a hosted runner or in a container.
+        rm -rf "${RUNNER_TEMP}/sonar-scanner"
+        mv "sonar-scanner-${SCANNER_VERSION}-${SCANNER_PLATFORM}" "${RUNNER_TEMP}/sonar-scanner"
+        rm -f "$archive"
+        echo "${RUNNER_TEMP}/sonar-scanner/bin" >> "$GITHUB_PATH"
+    # The analyzers Sonar downloads land in its user home.
+    - name: Cache Sonar packages
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ~/.sonar/cache
+        key: ${{ runner.os }}-sonar
+        restore-keys: ${{ runner.os }}-sonar
+    # A sonar-project.properties is the configuration of the project, which an input only overrides when it is given.
+    - name: Analyze the code
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        COVERAGE_PATHS: ${{ inputs.coverage-paths }}
+        SONAR_CPD_EXCLUSIONS: ${{ inputs.cpd-exclusions }}
+        SONAR_EXCLUSIONS: ${{ inputs.exclusions }}
+        SONAR_HOST_URL: ${{ inputs.host-url }}
+        SONAR_ORGANIZATION: ${{ inputs.organization }}
+        SONAR_PROJECT_KEY: ${{ inputs.project-key }}
+        SONAR_PROJECT_NAME: ${{ inputs.project-name }}
+        SONAR_TOKEN: ${{ inputs.token }}
+      run: |
+        if [ ! -f sonar-project.properties ]; then
+          if [ -z "$SONAR_PROJECT_KEY" ]; then
+            echo "ERROR: No project-key, and no sonar-project.properties to read it from" >&2
+            exit 1
+          fi
+          COVERAGE_PATHS="${COVERAGE_PATHS:-coverage/lcov.info}"
+          SONAR_EXCLUSIONS="${SONAR_EXCLUSIONS:-**/node_modules/**}"
+        fi
+        # The token is read from SONAR_TOKEN, rather than given on the command line any process can list.
+        args=(-Dsonar.host.url="$SONAR_HOST_URL")
+        add() {
+          if [ -n "$2" ]; then
+            args+=("-D$1=$2")
+          fi
+        }
+        add sonar.cpd.exclusions "$SONAR_CPD_EXCLUSIONS"
+        add sonar.exclusions "$SONAR_EXCLUSIONS"
+        add sonar.javascript.lcov.reportPaths "$COVERAGE_PATHS"
+        add sonar.organization "$SONAR_ORGANIZATION"
+        add sonar.projectKey "$SONAR_PROJECT_KEY"
+        add sonar.projectName "$SONAR_PROJECT_NAME"
+        sonar-scanner "${args[@]}"

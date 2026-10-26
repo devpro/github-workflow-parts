@@ -1,0 +1,53 @@
+name: Setup QEMU
+description: |
+  Registers QEMU user emulation for other platforms than the runner's own, so that Docker builds and runs their images,
+  from the qemu-user-static package of the Ubuntu archive (qemu-user-binfmt from Ubuntu 26.04), which apt verifies against the keys of the runner's own distribution
+  (replacement for docker/setup-qemu-action and its tonistiigi/binfmt image, to run no third party image with privileges).
+  Linux runners on Ubuntu only (for example ubuntu-latest), with sudo, since the registration is made in the kernel.
+
+inputs:
+  platforms:
+    description: Comma-separated platforms to check the emulation of, as Docker names them (for example "linux/arm64,linux/arm/v7")
+    required: false
+    default: "linux/arm64"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install QEMU
+      shell: bash
+      run: |
+        sudo apt-get update -qq
+        # From QEMU 9.1 (Ubuntu 26.04), qemu-user ships the static binaries and qemu-user-static is only a virtual package, which apt cannot install.
+        package=qemu-user-static
+        if apt-cache show --no-all-versions qemu-user-binfmt | grep -q '^Provides:.*\bqemu-user-static\b'; then
+          package=qemu-user-binfmt
+        fi
+        sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends "$package"
+        # The package ships its registrations in binfmt.d, which systemd-binfmt loads into the kernel.
+        sudo /usr/lib/systemd/systemd-binfmt
+    - name: Check the emulation of each platform
+      shell: bash
+      env:
+        PLATFORMS: ${{ inputs.platforms }}
+      run: |
+        IFS=',' read -ra requested <<< "$PLATFORMS"
+        for platform in "${requested[@]}"; do
+          platform="${platform// /}"
+          case "$platform" in
+            linux/amd64|linux/386) continue ;;
+            linux/arm64*) name=aarch64 ;;
+            linux/arm/*) name=arm ;;
+            linux/ppc64le) name=ppc64le ;;
+            linux/riscv64) name=riscv64 ;;
+            linux/s390x) name=s390x ;;
+            *) echo "ERROR: No QEMU emulation known for ${platform}" >&2; exit 1 ;;
+          esac
+          registration="/proc/sys/fs/binfmt_misc/qemu-${name}"
+          # The F flag opens the interpreter at registration, which is how a container without it in its file system runs the binaries.
+          if ! grep -qx enabled "$registration" 2>/dev/null || ! grep -q '^flags: .*F' "$registration"; then
+            echo "ERROR: ${platform} is not emulated: ${registration} is missing, disabled or without the F flag" >&2
+            exit 1
+          fi
+          echo "${platform} is emulated by $(grep '^interpreter' "$registration")"
+        done

@@ -6,12 +6,20 @@ inputs:
     description: .NET SDK version to be used
     required: false
     default: "10.0"
+  reportgenerator-version:
+    description: Version of ReportGenerator (check latest from https://www.nuget.org/packages/dotnet-reportgenerator-globaltool)
+    required: false
+    default: "5.5.11"
+  working-directory:
+    description: Directory of the .NET code, relative to the workspace, which a composite action does not take from the defaults of the calling job
+    required: false
+    default: "."
 
 runs:
   using: "composite"
   steps:
     - name: Install .NET
-      uses: actions/setup-dotnet@v6
+      uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
       with:
         dotnet-version: ${{ inputs.dotnet-version }}
     - name: Install .NET linters
@@ -20,12 +28,16 @@ runs:
       shell: bash
     - name: Install .NET tools
       run: |
-        dotnet tool install --global dotnet-reportgenerator-globaltool
+        dotnet tool install --global dotnet-reportgenerator-globaltool --version "$REPORTGENERATOR_VERSION"
         echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
       shell: bash
+      env:
+        REPORTGENERATOR_VERSION: ${{ inputs.reportgenerator-version }}
     - name: Restore .NET packages
       run: dotnet restore
       shell: bash
+      working-directory: ${{ inputs.working-directory }}
     - name: Lint .NET code
       run: dotnet format --verify-no-changes --severity warn --verbosity:diagnostic
       shell: bash
+      working-directory: ${{ inputs.working-directory }}

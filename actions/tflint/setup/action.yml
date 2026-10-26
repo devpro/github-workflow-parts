@@ -2,13 +2,13 @@ name: Setup TFLint
 description: |
   Installs TFLint by downloading the official binary from its GitHub release and verifying its SHA256 checksum (replacement for terraform-linters/setup-tflint,
   to reduce third-party GitHub Action supply-chain risk).
-  Linux runners only (for example ubuntu-latest).
+  Linux x64 or arm64 runners only (for example ubuntu-latest or ubuntu-24.04-arm).
 
 inputs:
   tflint-version:
     description: Version of TFLint to install (check latest from https://github.com/terraform-linters/tflint/releases)
     required: false
-    default: "v0.60.0"
+    default: "v0.65.0"
 
 runs:
   using: "composite"
@@ -17,20 +17,18 @@ runs:
       shell: bash
       env:
         TFLINT_VERSION: ${{ inputs.tflint-version }}
-        TFLINT_ZIP: tflint_linux_amd64.zip
+        TFLINT_ZIP: tflint_linux_${{ runner.arch == 'ARM64' && 'arm64' || 'amd64' }}.zip
       run: |
         # Downloaded into a directory of its own, since the repository may hold a file or a directory named like the binary.
         cd "$(mktemp -d)"
         BASE_URL="https://github.com/terraform-linters/tflint/releases/download/${TFLINT_VERSION}"
 
         echo "Downloading TFLint binary and checksums..."
-        curl -sSL -O "${BASE_URL}/${TFLINT_ZIP}"
-        curl -sSL -O "${BASE_URL}/checksums.txt"
+        curl -fsSL -O "${BASE_URL}/${TFLINT_ZIP}"
+        curl -fsSL -O "${BASE_URL}/checksums.txt"
 
         echo "Verifying checksum..."
-        grep " ${TFLINT_ZIP}$" checksums.txt | sha256sum --check --status
-
-        if [ $? -eq 0 ]; then
+        if grep " ${TFLINT_ZIP}$" checksums.txt | sha256sum --check --status; then
           echo "Verification successful!"
           unzip -o "${TFLINT_ZIP}"
           chmod +x tflint

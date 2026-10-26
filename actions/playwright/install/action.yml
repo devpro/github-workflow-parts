@@ -1,0 +1,36 @@
+name: Install Playwright browsers
+description: |
+  Installs the browsers of the Playwright version the project depends on, with their system packages on a hosted runner.
+  The browser build has to match that version, so it is installed after the dependencies (npm ci) rather than baked into an image.
+  System packages need root, which a hosted runner gets through sudo, and a container job's image already installed them.
+
+inputs:
+  browsers:
+    description: Browsers to install, separated by spaces
+    required: false
+    default: chromium
+  working-directory:
+    description: Directory of the project depending on Playwright
+    required: false
+    default: "."
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install the system packages of the browsers
+      if: runner.environment == 'github-hosted'
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        BROWSERS: ${{ inputs.browsers }}
+      run: |
+        read -ra browser_list <<< "$BROWSERS"
+        npx --no-install playwright install-deps "${browser_list[@]}"
+    - name: Install the browsers
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        BROWSERS: ${{ inputs.browsers }}
+      run: |
+        read -ra browser_list <<< "$BROWSERS"
+        npx --no-install playwright install "${browser_list[@]}"

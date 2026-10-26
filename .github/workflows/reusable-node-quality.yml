@@ -1,0 +1,323 @@
+name: Reusable - Node.js quality
+
+on:
+  workflow_call:
+    inputs:
+      custom-tests:
+        description: Optional shell commands testing what build & test produced, such as end-to-end tests against the built application
+        type: string
+        required: false
+        default: ""
+      extra-vars:
+        description: "Additional environment variables at the start of the pipeline"
+        type: string
+        required: false
+        default: ""
+      fossa-enabled:
+        description: Enable license compliance with FOSSA
+        type: boolean
+        required: false
+        default: false
+      fossa-test:
+        description: Run FOSSA test on PR
+        type: boolean
+        required: false
+        default: false
+      job-name:
+        description: Job name
+        type: string
+        required: false
+        default: Quality
+      mongodb-enabled:
+        description: Start a local MongoDB server on 127.0.0.1:27017, as the single-node replica set rs0 transactions need, with mongosh on the path, before lint, build & test
+        type: boolean
+        required: false
+        default: false
+      mongodb-version:
+        description: Version of the MongoDB server mongodb-enabled starts, an 8.0 one for instance, the latest release the MongoDB action names when empty
+        type: string
+        required: false
+        default: ""
+      node-version:
+        description: Node.js version
+        type: string
+        required: false
+        default: "24"
+      operating-system:
+        description: Operating system executing the runner
+        type: string
+        required: false
+        default: ubuntu-latest
+      pnpm-version:
+        description: Version of pnpm installing the dependencies from pnpm-lock.yaml, npm installing them from package-lock.json when empty
+        type: string
+        required: false
+        default: ""
+      sonar-enabled:
+        description: Enable check done by Sonar (SonarQube or SonarCloud)
+        type: boolean
+        required: false
+        default: false
+      sonar-coverage-paths:
+        description: lcov reports of the coverage the test script writes, relative to the working directory, separated by commas, coverage/lcov.info when empty and the project has no sonar-project.properties
+        type: string
+        required: false
+        default: ""
+      sonar-cpd-exclusions:
+        description: Files or directories that should be excluded from Sonar code duplication analysis
+        type: string
+        required: false
+        default: ""
+      sonar-exclusions:
+        description: Files or directories that should be excluded from Sonar analysis, **/node_modules/** when empty and the project has no sonar-project.properties
+        type: string
+        required: false
+        default: ""
+      sonar-host-url:
+        description: Sonar host URL
+        type: string
+        required: false
+        default: "https://sonarcloud.io"
+      sonar-organization:
+        description: Sonar organization
+        type: string
+        required: false
+        default: ""
+      sonar-project-key:
+        description: Sonar project key, which sonar-project.properties gives otherwise
+        type: string
+        required: false
+        default: ""
+      sonar-project-name:
+        description: Sonar project name
+        type: string
+        required: false
+        default: ""
+      task-enabled:
+        description: Install Task (taskfile.dev) for the scripts and the custom tests
+        type: boolean
+        required: false
+        default: false
+      terraform-version:
+        description: Version of Terraform to install for the scripts and the custom tests, none when empty
+        type: string
+        required: false
+        default: ""
+      test-script:
+        description: Script of package.json running the tests, for example "test:coverage" to write the coverage Sonar reads
+        type: string
+        required: false
+        default: test
+      timeout-minutes:
+        description: Minutes the job may run before it is cancelled
+        type: number
+        required: false
+        default: 60
+      workflow-parts-version:
+        description: GitHub workflow parts version (branch/tag/SHA). Should match the ref/tag/SHA the caller pinned for this reusable workflow itself. Ignored when the caller is this repository, whose checkout already holds the actions under test.
+        type: string
+        required: false
+        default: main
+      working-directory:
+        description: Directory holding the package.json and the lock file
+        type: string
+        required: false
+        default: "."
+    secrets:
+      fossa-api-key:
+        description: FOSSA API KEY
+        required: false
+      sonar-token:
+        description: Sonar token for login
+        required: false
+      additional-vars:
+        description: "Additional variables"
+        required: false
+
+jobs:
+  node-quality:
+    name: ${{ inputs.job-name }}
+    runs-on: ${{ inputs.operating-system }}
+    timeout-minutes: ${{ inputs.timeout-minutes }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - name: Set additional variables
+        # Run before the clone, which creates the working directory.
+        working-directory: .
+        env:
+          EXTRA_VARS: ${{ inputs.extra-vars }}
+        run: |
+          if [[ -n "$EXTRA_VARS" ]]; then
+            echo "$EXTRA_VARS" >> "$GITHUB_ENV"
+          fi
+      - name: Set additional secrets
+        # Run before the clone, which creates the working directory.
+        working-directory: .
+        env:
+          ADDITIONAL_VARS: ${{ secrets.additional-vars }}
+        run: |
+          if [[ -n "$ADDITIONAL_VARS" ]]; then
+            echo "$ADDITIONAL_VARS" | while IFS='=' read -r _ val; do
+              if [[ -n "$val" ]]; then
+                echo "::add-mask::$val"
+              fi
+            done
+            echo "$ADDITIONAL_VARS" >> "$GITHUB_ENV"
+          fi
+      - name: Clone repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Checkout workflow parts
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: devpro/github-workflow-parts
+          # The caller being this repository, the actions under test are those of the commit under test.
+          ref: ${{ github.repository == 'devpro/github-workflow-parts' && github.sha || inputs.workflow-parts-version }}
+          path: workflow-parts
+          persist-credentials: false
+      # Git ignores them, and so does Sonar, which leaves out what git ignores, without overriding the exclusions of the project.
+      - name: Leave workflow parts out of git
+        working-directory: .
+        run: |
+          exclude="$(git rev-parse --git-path info/exclude)"
+          mkdir -p "$(dirname "$exclude")"
+          echo "/workflow-parts/" >> "$exclude"
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ inputs.node-version }}
+          # The npm cache is keyed on the lock file, which a package without dependencies does not have.
+          cache: ${{ inputs.pnpm-version == '' && hashFiles(format('{0}/package-lock.json', inputs.working-directory)) != '' && 'npm' || '' }}
+          cache-dependency-path: ${{ inputs.working-directory }}/package-lock.json
+      # pnpm installed with the npm of the Node set up above, rather than through a third party action.
+      - name: Setup pnpm
+        id: pnpm
+        if: inputs.pnpm-version != ''
+        env:
+          PNPM_VERSION: ${{ inputs.pnpm-version }}
+        run: |
+          # An image already carrying that version, as a container job's may, needs no install.
+          current=$(pnpm --version 2>/dev/null || true)
+          if [[ "$current" != "$PNPM_VERSION" && "$current" != "$PNPM_VERSION".* ]]; then
+            npm install --global "pnpm@${PNPM_VERSION}"
+          fi
+          echo "store-path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+      - name: Cache pnpm store
+        if: inputs.pnpm-version != ''
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.pnpm.outputs.store-path }}
+          key: pnpm-${{ runner.os }}-${{ hashFiles(format('{0}/pnpm-lock.yaml', inputs.working-directory)) }}
+          restore-keys: pnpm-${{ runner.os }}-
+      - name: Install dependencies
+        id: install
+        env:
+          PNPM_VERSION: ${{ inputs.pnpm-version }}
+        run: |
+          if [[ -n "$PNPM_VERSION" ]]; then
+            pnpm install --frozen-lockfile
+          elif [[ -f package-lock.json ]]; then
+            npm ci
+          else
+            echo "No package-lock.json, nothing to install"
+          fi
+          # The browsers have to match the Playwright version installed, so a project depending on it gets them without asking.
+          if [[ -x node_modules/.bin/playwright ]]; then
+            echo "playwright=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Install Playwright browsers
+        if: steps.install.outputs.playwright == 'true'
+        uses: ./workflow-parts/actions/playwright/install
+        with:
+          working-directory: ${{ inputs.working-directory }}
+      - name: Setup Task
+        if: ${{ inputs.task-enabled }}
+        uses: ./workflow-parts/actions/task/setup
+      - name: Setup Terraform
+        if: inputs.terraform-version != ''
+        uses: ./workflow-parts/actions/terraform/setup
+        with:
+          terraform-version: ${{ inputs.terraform-version }}
+      - name: Start MongoDB
+        if: ${{ inputs.mongodb-enabled }}
+        uses: ./workflow-parts/actions/mongodb/start
+        with:
+          replica-set: rs0
+          mongodb-version: ${{ inputs.mongodb-version }}
+      # The scripts lint, format and test the repository, which the workflow parts are no part of.
+      - name: Set aside workflow parts
+        working-directory: .
+        run: mv workflow-parts "${RUNNER_TEMP}/workflow-parts"
+      - name: Lint
+        env:
+          PACKAGE_MANAGER: ${{ inputs.pnpm-version != '' && 'pnpm' || 'npm' }}
+        run: |
+          for script in lint format:check typecheck; do
+            "$PACKAGE_MANAGER" run --if-present "$script"
+          done
+      - name: Build & test
+        env:
+          PACKAGE_MANAGER: ${{ inputs.pnpm-version != '' && 'pnpm' || 'npm' }}
+          TEST_SCRIPT: ${{ inputs.test-script }}
+        run: |
+          "$PACKAGE_MANAGER" run --if-present build
+          "$PACKAGE_MANAGER" run --if-present "$TEST_SCRIPT"
+      - name: Run optional custom tests
+        if: ${{ inputs.custom-tests != '' }}
+        env:
+          CUSTOM_TESTS: ${{ inputs.custom-tests }}
+        # Shell code by contract, run from a variable rather than pasted into the script by GitHub.
+        run: eval "$CUSTOM_TESTS"
+      - name: Bring back workflow parts
+        working-directory: .
+        run: mv "${RUNNER_TEMP}/workflow-parts" workflow-parts
+      - name: Analyze with Sonar
+        if: ${{ inputs.sonar-enabled }}
+        uses: ./workflow-parts/actions/sonar/scan
+        with:
+          coverage-paths: ${{ inputs.sonar-coverage-paths }}
+          cpd-exclusions: ${{ inputs.sonar-cpd-exclusions }}
+          exclusions: ${{ inputs.sonar-exclusions }}
+          host-url: ${{ inputs.sonar-host-url }}
+          organization: ${{ inputs.sonar-organization }}
+          project-key: ${{ inputs.sonar-project-key }}
+          project-name: ${{ inputs.sonar-project-name }}
+          token: ${{ secrets.sonar-token }}
+          working-directory: ${{ inputs.working-directory }}
+      - name: Check license compliance with FOSSA
+        # A repository turns it off where FOSSA cannot be reached, a local run holding no API key.
+        if: ${{ inputs.fossa-enabled }}
+        uses: ./workflow-parts/actions/fossa/analyze
+        # https://status.fossa.com/
+        continue-on-error: true
+        timeout-minutes: 3
+        with:
+          api-key: "${{ secrets.fossa-api-key }}"
+          # The workflow parts are checked out beside the code, and are no part of it.
+          exclude-paths: workflow-parts
+          run-tests: ${{ inputs.fossa-test && github.event_name == 'pull_request' }}
+          test-diff-revision: ${{ github.event.pull_request.base.sha }}
+          report-file: report/fossa.html
+          working-directory: ${{ inputs.working-directory }}
+      - name: Generate SBOM with Syft
+        uses: ./workflow-parts/actions/syft/generate-sbom
+        continue-on-error: true
+        with:
+          exclude-paths: workflow-parts
+          target-path: ${{ inputs.working-directory }}
+      - name: Archive test results
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: node-test-results
+          # The usual folders of the coverage and of Playwright, those of a workspace included, and report for anything else, a custom test's server log for instance.
+          path: |
+            ${{ inputs.working-directory }}/report/
+            ${{ inputs.working-directory }}/coverage/
+            ${{ inputs.working-directory }}/**/playwright-report/
+            ${{ inputs.working-directory }}/**/test-results/
+            !${{ inputs.working-directory }}/**/node_modules/**

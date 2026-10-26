@@ -19,12 +19,23 @@ jobs:
     name: Markup
     uses: ./.github/workflows/reusable-markup-lint.yml
 
+  static-checks:
+    name: "Test / Static checks of the actions and workflows"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Run actionlint, shellcheck and the conventions of this repository
+        run: test/run_static_checks.sh
+
   test-terraform-setup:
     name: "Test / Terraform setup action"
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Clone repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install terraform
         uses: ./actions/terraform/setup
       - name: Verify terraform is installed
@@ -35,9 +46,10 @@ jobs:
   test-tflint-setup:
     name: "Test / TFLint setup action"
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Clone repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Setup TFLint
         uses: ./actions/tflint/setup
       - name: Verify tflint is installed
@@ -45,29 +57,618 @@ jobs:
           tflint --version
           command -v tflint
 
+  test-setup-versions:
+    name: "Test / Setup actions install the version asked for"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install terraform
+        uses: ./actions/terraform/setup
+        with:
+          terraform-version: 1.9.8
+      - name: Setup TFLint
+        uses: ./actions/tflint/setup
+        with:
+          tflint-version: v0.53.0
+      - name: Setup Helm
+        uses: ./actions/helm/setup
+        with:
+          helm-version: v3.16.4
+      - name: Setup Task
+        uses: ./actions/task/setup
+        with:
+          task-version: v3.52.0
+      - name: Setup kubeconform
+        uses: ./actions/kubeconform/setup
+        with:
+          kubeconform-version: v0.7.0
+      - name: Setup kind
+        uses: ./actions/kind/setup
+        with:
+          kind-version: v0.32.0
+          kubectl-version: v1.36.4
+      - name: Verify the versions
+        run: |
+          # Compared once captured, since a reader closing the pipe early fails the step with SIGPIPE under pipefail.
+          [[ "$(terraform version)" == "Terraform v1.9.8"* ]]
+          [[ "$(tflint --version)" == *"version 0.53.0"* ]]
+          [[ "$(helm version --short)" == v3.16.4+* ]]
+          [[ "$(task --version)" == *3.52.0* ]]
+          [[ "$(kubeconform -v)" == v0.7.0 ]]
+          [[ "$(kind version)" == "kind v0.32.0 "* ]]
+          [[ "$(kubectl version --client)" == *"v1.36.4"* ]]
+
+  # A setup action that cannot verify what it downloaded stops the job rather than running it.
+  test-setup-fails-closed:
+    name: "Test / Setup actions fail on a missing release or a wrong checksum"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install a terraform release that does not exist
+        id: terraform-missing-release
+        continue-on-error: true
+        uses: ./actions/terraform/setup
+        with:
+          terraform-version: 0.0.0
+      - name: Install a Trivy release that does not exist
+        id: trivy-missing-release
+        continue-on-error: true
+        uses: ./actions/trivy/scan
+        with:
+          trivy-version: 0.0.0
+          scan-type: config
+          target: test/fixtures/terraform
+      - name: Install a Cosign release that does not exist
+        id: cosign-missing-release
+        continue-on-error: true
+        uses: ./actions/cosign/sign
+        with:
+          cosign-version: v0.0.0
+          image-name: busybox
+          image-path: docker.io/library
+          image-tag: "1.37"
+          readonly: "true"
+      - name: Install a Task release that does not exist
+        id: task-missing-release
+        continue-on-error: true
+        uses: ./actions/task/setup
+        with:
+          task-version: v0.0.0
+      - name: Install kube-linter with a checksum that does not match
+        id: kube-linter-wrong-checksum
+        continue-on-error: true
+        uses: ./actions/kube-linter/setup
+        with:
+          kube-linter-sha256: "0000000000000000000000000000000000000000000000000000000000000000"
+      - name: Install Opengrep with a checksum that does not match
+        id: opengrep-wrong-checksum
+        continue-on-error: true
+        uses: ./actions/opengrep/setup
+        with:
+          opengrep-sha256: "0000000000000000000000000000000000000000000000000000000000000000"
+      - name: Install a kind release that does not exist
+        id: kind-missing-release
+        continue-on-error: true
+        uses: ./actions/kind/setup
+        with:
+          kind-version: v0.0.0
+      - name: Start MongoDB with a mongosh archive whose checksum does not match
+        id: mongodb-wrong-checksum
+        continue-on-error: true
+        uses: ./actions/mongodb/start
+        with:
+          mongosh-sha256: "0000000000000000000000000000000000000000000000000000000000000000"
+      - name: Verify every step failed
+        env:
+          STEPS: ${{ toJSON(steps) }}
+        run: |
+          passed=$(jq -r 'to_entries[] | select(.value.outcome != "failure") | .key' <<< "$STEPS")
+          if [ -n "$passed" ]; then
+            echo "Steps that did not fail: $passed" >&2
+            exit 1
+          fi
+
+  test-helm-setup:
+    name: "Test / Helm setup action"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup Helm
+        uses: ./actions/helm/setup
+      - name: Verify helm is installed
+        run: |
+          helm version
+          command -v helm
+
+  test-kubernetes-tools-setup:
+    name: "Test / kube-linter, kubeconform, helm-unittest and kind setup actions"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup Helm
+        uses: ./actions/helm/setup
+      - name: Setup kube-linter
+        uses: ./actions/kube-linter/setup
+      - name: Setup kubeconform
+        uses: ./actions/kubeconform/setup
+      - name: Setup helm-unittest
+        uses: ./actions/helm-unittest/setup
+      - name: Setup kind
+        uses: ./actions/kind/setup
+      - name: Verify the tools run on a chart
+        run: |
+          helm create "${RUNNER_TEMP}/demo" >/dev/null
+          helm template demo "${RUNNER_TEMP}/demo" | kubeconform -strict -summary
+          kube-linter lint "${RUNNER_TEMP}/demo" --format json > "${RUNNER_TEMP}/kube-linter.json" || true
+          jq -e '.Reports != null' "${RUNNER_TEMP}/kube-linter.json"
+          mkdir -p "${RUNNER_TEMP}/demo/tests"
+          printf '%s\n' 'suite: deployment' 'templates: [templates/deployment.yaml]' 'tests:' '  - it: renders a deployment' '    asserts:' '      - isKind:' '          of: Deployment' > "${RUNNER_TEMP}/demo/tests/deployment_test.yaml"
+          untt "${RUNNER_TEMP}/demo"
+          kind version
+          kubectl version --client
+
+  test-scanner-setup:
+    name: "Test / Opengrep, Trivy and CodeQL setup actions"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup Opengrep
+        uses: ./actions/opengrep/setup
+      - name: Setup Trivy
+        uses: ./actions/trivy/setup
+      - name: Setup CodeQL
+        uses: ./actions/codeql/setup
+      - name: Verify each scanner runs
+        run: |
+          mkdir -p "${RUNNER_TEMP}/opengrep-fixture"
+          printf '%s\n' 'const input = process.argv[2];' 'eval(input);' > "${RUNNER_TEMP}/opengrep-fixture/app.js"
+          # $X is a metavariable of the Opengrep pattern, which the shell must leave as it is.
+          # shellcheck disable=SC2016
+          [ "$(opengrep scan --quiet --json -e 'eval($X)' --lang js "${RUNNER_TEMP}/opengrep-fixture" | jq '.results | length')" = 1 ]
+          trivy fs --quiet --scanners vuln --exit-code 0 test/fixtures/node
+          [[ "$(trivy --version)" == *"Version: "* ]]
+          codeql resolve languages --format=json | jq -e 'has("javascript") and has("python")'
+
+  test-chart-testing-setup:
+    name: "Test / chart-testing setup action"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup Helm
+        uses: ./actions/helm/setup
+      - name: Setup chart-testing
+        uses: ./actions/chart-testing/setup
+      - name: Verify chart-testing is installed
+        run: |
+          ct version
+          command -v ct yamllint yamale
+
+  test-goreleaser-setup:
+    name: "Test / GoReleaser setup action"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup GoReleaser
+        uses: ./actions/goreleaser/setup
+      - name: Verify goreleaser is installed
+        run: |
+          goreleaser --version
+          command -v goreleaser
+
+  test-go-lint-govulncheck-scan:
+    name: "Test / Go lint and govulncheck scan actions"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: test/fixtures/go/module/go.mod
+          cache: false
+      - name: Lint a module that passes every check
+        uses: ./actions/go/lint
+        with:
+          working-directory: test/fixtures/go/module
+      - name: Scan the module with govulncheck
+        uses: ./actions/govulncheck/scan
+        with:
+          working-directory: test/fixtures/go/module
+      - name: Lint a module gofmt did not format, failing on it
+        id: unformatted
+        continue-on-error: true
+        uses: ./actions/go/lint
+        with:
+          working-directory: test/fixtures/go/unformatted
+      - name: Lint a module whose go.mod requires what it never imports, failing on it
+        id: untidy
+        continue-on-error: true
+        uses: ./actions/go/lint
+        with:
+          working-directory: test/fixtures/go/untidy
+      - name: Verify both failed and govulncheck is on the path
+        env:
+          UNFORMATTED: ${{ steps.unformatted.outcome }}
+          UNTIDY: ${{ steps.untidy.outcome }}
+        run: |
+          [ "$UNFORMATTED" = failure ]
+          [ "$UNTIDY" = failure ]
+          govulncheck -version
+
+  test-indexnow-submit:
+    name: "Test / IndexNow submit action, against a local API"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # The server outlives this step, which the next ones reach, and goes with the job.
+      - name: Serve a sitemap index and an IndexNow API that records the submission
+        run: |
+          nohup node test/fixtures/indexnow/server.js "${RUNNER_TEMP}/indexnow.json" 18089 > "${RUNNER_TEMP}/indexnow.log" 2>&1 &
+          for _ in $(seq 1 20); do
+            curl -fs -o /dev/null http://127.0.0.1:18089/sitemap.xml && exit 0
+            sleep 0.5
+          done
+          cat "${RUNNER_TEMP}/indexnow.log"
+          exit 1
+      - name: Submit the pages of the sitemap index
+        uses: ./actions/indexnow/submit
+        with:
+          api-url: http://127.0.0.1:18089/indexnow
+          key: fixture-key
+          sitemap-url: http://127.0.0.1:18089/sitemap.xml
+      - name: Submit to an API refusing the submission, failing on it
+        id: refused
+        continue-on-error: true
+        uses: ./actions/indexnow/submit
+        with:
+          api-url: http://127.0.0.1:18089/refuse
+          key: fixture-key
+          sitemap-url: http://127.0.0.1:18089/sitemap.xml
+      - name: Verify the submission and the refusal
+        env:
+          REFUSED: ${{ steps.refused.outcome }}
+        run: |
+          jq -e '
+            .host == "127.0.0.1:18089"
+            and .key == "fixture-key"
+            and .keyLocation == "http://127.0.0.1:18089/fixture-key.txt"
+            and .urlList == ["http://127.0.0.1:18089/a?x=1&y=2", "http://127.0.0.1:18089/b", "http://127.0.0.1:18089/c"]
+          ' "${RUNNER_TEMP}/indexnow.json"
+          [ "$REFUSED" = failure ]
+
+  test-task-setup:
+    name: "Test / Task setup action"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup Task
+        uses: ./actions/task/setup
+      - name: Verify task is installed
+        run: |
+          task --version
+          command -v task
+
+  test-cosign-sign:
+    name: "Test / Cosign sign action, without signing"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # Signing needs an OIDC token and a registry to push to, so the run stops short of it.
+      - name: Install Cosign and read the digest of a public image
+        id: cosign
+        uses: ./actions/cosign/sign
+        with:
+          image-name: busybox
+          image-path: docker.io/library
+          image-tag: "1.37"
+          readonly: "true"
+      - name: Read the digest of an image that does not exist
+        id: missing-image
+        continue-on-error: true
+        uses: ./actions/cosign/sign
+        with:
+          image-name: busybox
+          image-path: docker.io/library
+          image-tag: tag-that-does-not-exist
+          readonly: "true"
+      - name: Verify the digest and the failure
+        env:
+          DIGEST: ${{ steps.cosign.outputs.digest }}
+          MISSING_IMAGE_OUTCOME: ${{ steps.missing-image.outcome }}
+        run: |
+          command -v cosign
+          [[ "$DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+          [ "$MISSING_IMAGE_OUTCOME" = failure ]
+
+  test-dotnet-pack-push:
+    name: "Test / .NET pack-push action, without pushing"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Package the library fixture
+        uses: ./actions/dotnet/pack-push
+        with:
+          registry-token: unused
+          working-directory: test/fixtures/dotnet-library
+      - name: Verify the package was created
+        run: test -s test/fixtures/dotnet-library/output/Fixture.Library.1.0.0.nupkg
+
+  test-qemu-setup:
+    name: "Test / QEMU setup action runs an arm64 image"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      registry:
+        image: registry:3.1.2
+        ports:
+          - 5000:5000
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup QEMU
+        uses: ./actions/qemu/setup
+        with:
+          platforms: linux/amd64,linux/arm64,linux/arm/v7
+      - name: Verify an arm64 image runs
+        run: |
+          [ "$(docker run --rm --platform linux/arm64 busybox:1.37 uname -m)" = aarch64 ]
+      - name: Build an image for two platforms, one emulated
+        id: emulated
+        uses: ./actions/container/build-push
+        with:
+          image-definition: test/fixtures/container/base/Dockerfile
+          image-repository: localhost:5000/emulated-test
+          image-tag: ${{ github.run_id }}
+          platforms: linux/amd64,linux/arm64
+      - name: Verify the tag names a manifest list holding both platforms, each also under a tag of its own
+        env:
+          DIGEST: ${{ steps.emulated.outputs.digest }}
+        run: |
+          image="localhost:5000/emulated-test:${GITHUB_RUN_ID}"
+          [ "$(docker buildx imagetools inspect "$image" --format '{{json .Manifest}}' | jq -r .digest)" = "$DIGEST" ]
+          platforms=$(docker buildx imagetools inspect "$image" --raw | jq -r '[.manifests[].platform | select(.os == "linux") | .architecture] | sort | join(",")')
+          [ "$platforms" = amd64,arm64 ]
+          for platform in linux-amd64 linux-arm64; do
+            docker buildx imagetools inspect "${image}-${platform}" >/dev/null
+          done
+
+  test-container-build-push:
+    name: "Test / Container build-push action, a base and an image built on it"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      registry:
+        image: registry:3.1.2
+        ports:
+          - 5000:5000
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Build and push the base image under a tag
+        id: base
+        uses: ./actions/container/build-push
+        with:
+          image-definition: test/fixtures/container/base/Dockerfile
+          image-repository: localhost:5000/build-test-base
+          image-tag: ${{ github.run_id }}
+      # The derived image fails to build unless the build argument names the base pushed above.
+      - name: Build and push the derived image
+        id: derived
+        uses: ./actions/container/build-push
+        with:
+          image-definition: test/fixtures/container/derived/Dockerfile
+          image-repository: localhost:5000/build-test-derived
+          image-tag: ${{ github.run_id }}
+          build-arguments: |
+            BASE_IMAGE=localhost:5000/build-test-base:${{ github.run_id }}
+      - name: Verify both images are in the registry under their digest, and not left in the daemon
+        env:
+          BASE_DIGEST: ${{ steps.base.outputs.digest }}
+          DERIVED_DIGEST: ${{ steps.derived.outputs.digest }}
+        run: |
+          for image in "build-test-base:${GITHUB_RUN_ID}=${BASE_DIGEST}" "build-test-derived:${GITHUB_RUN_ID}=${DERIVED_DIGEST}"; do
+            ref="localhost:5000/${image%%=*}"
+            [ "$(docker buildx imagetools inspect "$ref" --format '{{json .Manifest}}' | jq -r .digest)" = "${image#*=}" ]
+            if docker image inspect "$ref" >/dev/null 2>&1; then
+              echo "ERROR: ${ref} is left in the daemon" >&2
+              exit 1
+            fi
+          done
+
+  test-container-build-push-arm64:
+    name: "Test / Container build-push action on an arm64 runner"
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 20
+    services:
+      registry:
+        image: registry:3.1.2
+        ports:
+          - 5000:5000
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Build and push the base image natively
+        id: native
+        uses: ./actions/container/build-push
+        with:
+          image-definition: test/fixtures/container/base/Dockerfile
+          image-repository: localhost:5000/native-test
+          image-tag: ${{ github.run_id }}
+          platforms: linux/arm64
+      - name: Verify the image is for arm64
+        env:
+          DIGEST: ${{ steps.native.outputs.digest }}
+        run: |
+          image="localhost:5000/native-test@${DIGEST}"
+          architectures=$(docker buildx imagetools inspect "$image" --raw | jq -r '[.manifests[]?.platform | select(.os == "linux") | .architecture] | join(",")')
+          # A single platform pushed without attestations is a manifest rather than a list, and names its architecture in its configuration.
+          if [ -z "$architectures" ]; then
+            architectures=$(docker buildx imagetools inspect "$image" --format '{{json .Image}}' | jq -r .architecture)
+          fi
+          [ "$architectures" = arm64 ]
+
+  # Each tool runs once installed, which a binary built for another processor does not.
+  test-setup-arm64:
+    name: "Test / Setup actions install arm64 binaries on an arm64 runner"
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 20
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup Terraform
+        uses: ./actions/terraform/setup
+      - name: Setup TFLint
+        uses: ./actions/tflint/setup
+      - name: Setup Helm
+        uses: ./actions/helm/setup
+      - name: Setup chart-testing
+        uses: ./actions/chart-testing/setup
+      - name: Setup GoReleaser
+        uses: ./actions/goreleaser/setup
+      - name: Setup Task
+        uses: ./actions/task/setup
+      - name: Setup kube-linter
+        uses: ./actions/kube-linter/setup
+      - name: Setup kubeconform
+        uses: ./actions/kubeconform/setup
+      - name: Setup helm-unittest
+        uses: ./actions/helm-unittest/setup
+      - name: Setup kind
+        uses: ./actions/kind/setup
+      - name: Setup Opengrep
+        uses: ./actions/opengrep/setup
+      - name: Setup CodeQL
+        uses: ./actions/codeql/setup
+      - name: Start MongoDB
+        uses: ./actions/mongodb/start
+      - name: Generate SBOM with Syft
+        uses: ./actions/syft/generate-sbom
+        with:
+          target-path: test/fixtures/container
+          upload-artifact: "false"
+      - name: Scan with Trivy
+        uses: ./actions/trivy/scan
+        with:
+          scan-type: config
+          target: test/fixtures/container
+      - name: Verify the binaries are for arm64
+        run: |
+          for tool in terraform tflint helm ct goreleaser task kube-linter kubeconform untt kind kubectl opengrep mongod mongosh syft trivy; do
+            # The ELF machine field, 0xb7 being aarch64, read without the file command a runner image may lack.
+            [ "$(od -An -tx1 -j18 -N1 "$(command -v "$tool")" | tr -d ' ')" = b7 ]
+          done
+          # The codeql command is a launcher script, run here so that its arm64 Java and extractors answer.
+          codeql version --format=terse
+
+  test-mongodb-start:
+    name: "Test / MongoDB start action"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Start MongoDB
+        uses: ./actions/mongodb/start
+      - name: Verify MongoDB answers, on the latest release by default
+        run: |
+          mongosh --quiet --eval 'db.runCommand({ ping: 1 }).ok' mongodb://127.0.0.1:27017 | grep -qx 1
+          mongosh --quiet --eval 'db.version()' mongodb://127.0.0.1:27017 | grep -q '^9\.0\.'
+
+  test-mongodb-start-version:
+    name: "Test / MongoDB start action, an earlier version"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Start MongoDB 8.0
+        uses: ./actions/mongodb/start
+        with:
+          mongodb-version: 8.0.34
+      - name: Verify the server is the version asked for
+        run: |
+          [ "$(mongosh --quiet --eval 'db.version()' mongodb://127.0.0.1:27017)" = 8.0.34 ]
+
+  test-mongodb-start-replica-set:
+    name: "Test / MongoDB start action, replica set"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Start MongoDB
+        uses: ./actions/mongodb/start
+        with:
+          port: "27117"
+          replica-set: rs0
+      - name: Verify MongoDB is the primary of the replica set
+        run: |
+          mongosh --quiet --eval 'db.hello().isWritablePrimary' "mongodb://127.0.0.1:27117/?directConnection=true" | grep -qx true
+
   test-syft-generate-sbom:
     name: "Test / Syft generate-sbom action"
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Clone repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Generate SBOM for this repository
         uses: ./actions/syft/generate-sbom
         with:
           target-path: actions
           output-file: sbom-test.spdx.json
           upload-artifact: "false"
+      - name: Generate SBOM for a directory, one folder left out
+        uses: ./actions/syft/generate-sbom
+        with:
+          exclude-paths: node
+          target-path: test/fixtures
+          output-file: sbom-exclude-test.spdx.json
+          upload-artifact: "false"
+      - name: Generate SBOM for a public image
+        uses: ./actions/syft/generate-sbom
+        with:
+          target-image: busybox:1.37
+          output-format: cyclonedx-json
+          output-file: sbom-image-test.cdx.json
+          upload-artifact: "false"
       - name: Verify SBOM was generated
         run: |
           test -s sbom-test.spdx.json
           grep -q '"spdxVersion"' sbom-test.spdx.json
+          jq -e '.bomFormat == "CycloneDX" and (.components | length > 0)' sbom-image-test.cdx.json
+          jq -e '[.packages[].name] | index("playwright-fixture") and (index("node-fixture") | not)' sbom-exclude-test.spdx.json
 
   test-trivy-scan:
     name: "Test / Trivy scan action"
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Clone repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Scan a real image with Trivy
         uses: ./actions/trivy/scan
         with:
@@ -83,14 +684,380 @@ jobs:
           format: sarif
           output-file: trivy-test.sarif
           severity: HIGH,CRITICAL
-      - name: Verify SARIF report was generated
-        run: test -s trivy-test.sarif
+      # The base fixture runs as root, which Trivy reports as a HIGH misconfiguration.
+      - name: Scan a directory with a finding, failing on it
+        id: trivy-finding
+        continue-on-error: true
+        uses: ./actions/trivy/scan
+        with:
+          scan-type: config
+          target: test/fixtures/container/base
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+      - name: Scan a directory with a finding the ignore file leaves out
+        uses: ./actions/trivy/scan
+        with:
+          scan-type: config
+          target: test/fixtures/container/base
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+          ignore-file: test/fixtures/trivy/ignore-current.yaml
+      - name: Scan a directory with a finding whose ignore entry expired, failing on it
+        id: trivy-expired
+        continue-on-error: true
+        uses: ./actions/trivy/scan
+        with:
+          scan-type: config
+          target: test/fixtures/container/base
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+          ignore-file: test/fixtures/trivy/ignore-expired.yaml
+      - name: Scan with an ignore file that does not exist, failing on it
+        id: trivy-missing-ignore-file
+        continue-on-error: true
+        uses: ./actions/trivy/scan
+        with:
+          scan-type: config
+          target: test/fixtures/terraform
+          ignore-file: test/fixtures/trivy/missing.yaml
+      - name: Verify SARIF report was generated and the findings failed the scans
+        env:
+          EXPIRED_OUTCOME: ${{ steps.trivy-expired.outcome }}
+          FINDING_OUTCOME: ${{ steps.trivy-finding.outcome }}
+          MISSING_IGNORE_FILE_OUTCOME: ${{ steps.trivy-missing-ignore-file.outcome }}
+        run: |
+          jq -e '.version == "2.1.0"' trivy-test.sarif
+          [ "$FINDING_OUTCOME" = failure ]
+          [ "$EXPIRED_OUTCOME" = failure ]
+          [ "$MISSING_IGNORE_FILE_OUTCOME" = failure ]
 
   test-terraform-quality:
     name: "Test / Terraform quality reusable workflow"
     uses: ./.github/workflows/reusable-terraform-quality.yml
     with:
       working-directory: test/fixtures/terraform
-      # explicit override: for this same-repo local "./" call, github.workflow_sha's behavior is unverified,
-      # so pin to a ref we know is fetchable (branch on push, PR merge ref on PRs)
-      workflow-parts-version: ${{ github.ref }}
+
+  test-dotnet-quality:
+    name: "Test / .NET quality reusable workflow"
+    uses: ./.github/workflows/reusable-dotnet-quality.yml
+    with:
+      working-directory: test/fixtures/dotnet
+      # Each line runs as written, quotes included, or the commands fail.
+      custom-commands: |
+        words=("two words" three)
+        [ "${#words[@]}" = 2 ]
+        [ "$(dotnet --version | cut -d . -f 1)" -ge 10 ]
+      # The fixture holds a test that fails, which only the filter keeps the job from running, its quotes being read as shell quotes rather than passed on.
+      dotnet-test-args: --report-xunit-trx --coverage --coverage-output-format cobertura --filter-not-namespace 'Fixture.Tests.LeftOut*'
+
+  # Runs where a Sonar server is set in SONAR_HOST_URL, as IstarCI provides a SonarQube locally, and is skipped otherwise.
+  test-dotnet-quality-sonar:
+    name: "Test / .NET quality reusable workflow with Sonar"
+    if: vars.SONAR_HOST_URL != ''
+    uses: ./.github/workflows/reusable-dotnet-quality.yml
+    with:
+      working-directory: test/fixtures/dotnet
+      dotnet-test-args: --report-xunit-trx --coverage --coverage-output-format cobertura --filter-not-namespace 'Fixture.Tests.LeftOut*'
+      sonar-enabled: true
+      sonar-host-url: ${{ vars.SONAR_HOST_URL }}
+      sonar-organization: ${{ vars.SONAR_ORGANIZATION }}
+      sonar-project-key: github-workflow-parts-dotnet-fixture
+      sonar-project-name: GitHub workflow parts .NET fixture
+    secrets:
+      sonar-token: ${{ secrets.SONAR_TOKEN }}
+
+  test-dotnet-build-test:
+    name: "Test / .NET build-test action writes results, coverage and reports"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install .NET & lint
+        uses: ./actions/dotnet/install-lint-restore
+        with:
+          working-directory: test/fixtures/dotnet
+      - name: Build & test
+        uses: ./actions/dotnet/build-test
+        with:
+          dotnet-test-args: --report-xunit-trx --coverage --coverage-output-format cobertura --filter-not-namespace 'Fixture.Tests.LeftOut*'
+          working-directory: test/fixtures/dotnet
+      # The paths are those the .NET quality workflow uploads as its artifact.
+      - name: Verify the results, the coverage and the reports
+        working-directory: test/fixtures/dotnet/report
+        run: |
+          compgen -G "TestResults/*.trx" >/dev/null
+          compgen -G "TestResults/*.cobertura.xml" >/dev/null
+          test -s Summary.txt
+          test -s index.html
+          grep -q 'Line coverage' Summary.txt
+
+  test-container-scan-on-base:
+    name: "Test / Container scan reusable workflow on a base built in the run"
+    uses: ./.github/workflows/reusable-container-scan.yml
+    with:
+      base-image-definition: test/fixtures/container/base/Dockerfile
+      image-definition: test/fixtures/container/derived/Dockerfile
+      image-name: scan-test
+      image-path: local
+      image-tag: ${{ github.run_id }}
+      severity: CRITICAL,HIGH,MEDIUM
+      trivy-ignore-file: test/fixtures/trivy/ignore-current.yaml
+
+  test-git-check-changes:
+    name: "Test / Git check-changes action"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # The empty tree of git stands for a base holding nothing, which needs no history in the clone.
+      - name: Compare a path with the empty tree
+        id: added
+        uses: ./actions/git/check-changes
+        with:
+          paths: README.md actions
+          base: 4b825dc642cb6eb9a060e54bf8d69288fbee4904
+      - name: Compare a path that does not exist with the empty tree
+        id: absent
+        uses: ./actions/git/check-changes
+        with:
+          paths: path-that-does-not-exist
+          base: 4b825dc642cb6eb9a060e54bf8d69288fbee4904
+      - name: Compare a path with the commit itself
+        id: unchanged
+        uses: ./actions/git/check-changes
+        with:
+          paths: README.md
+          base: HEAD
+      - name: Compare a path with a commit the clone does not have
+        id: unreadable
+        uses: ./actions/git/check-changes
+        with:
+          paths: README.md
+          base: "0000000000000000000000000000000000000000"
+      - name: Verify the comparisons
+        env:
+          ADDED: ${{ steps.added.outputs.changed }}
+          ABSENT: ${{ steps.absent.outputs.changed }}
+          UNCHANGED: ${{ steps.unchanged.outputs.changed }}
+          UNREADABLE: ${{ steps.unreadable.outputs.changed }}
+        run: |
+          [ "$ADDED" = true ]
+          [ "$ABSENT" = false ]
+          [ "$UNCHANGED" = false ]
+          [ "$UNREADABLE" = true ]
+
+  # A local run reads the outputs of a called workflow under the id of the job inside it, which the caller shares.
+  git-check:
+    name: "Test / Git check reusable workflow"
+    uses: ./.github/workflows/reusable-git-check.yml
+    with:
+      paths: test/fixtures
+      version-file: test/fixtures/version/Directory.Build.props
+
+  test-git-check-outputs:
+    name: "Test / Git check reusable workflow outputs"
+    needs: git-check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify the outputs
+        env:
+          BRANCH_SLUG: ${{ needs.git-check.outputs.branch-slug }}
+          CHANGED: ${{ needs.git-check.outputs.changed }}
+          VERSION_MAJOR_MINOR: ${{ needs.git-check.outputs.version-major-minor }}
+        run: |
+          [ "$VERSION_MAJOR_MINOR" = 1.2 ]
+          [[ "$BRANCH_SLUG" =~ ^[a-z0-9-]+$ ]]
+          [[ "$CHANGED" =~ ^(true|false)$ ]]
+
+  test-npm-publish:
+    name: "Test / npm publish action, without publishing"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Publish a version the registry already has
+        id: published
+        uses: ./actions/npm/publish
+        with:
+          publish-command: "false"
+          working-directory: test/fixtures/npm/published
+      # A dry run goes through every step of a publication but the upload, which needs no credentials.
+      - name: Publish a package the registry does not have
+        id: unpublished
+        uses: ./actions/npm/publish
+        with:
+          publish-command: npm publish --dry-run
+          working-directory: test/fixtures/npm/unpublished
+      # GitHub Packages refuses to answer a run with no token about a package it holds, as a local run is, and answers E404 for one it does not.
+      - name: Publish with no credential
+        id: no-credential
+        uses: ./actions/npm/publish
+        with:
+          publish-command: touch "${RUNNER_TEMP}/packed" && npm publish
+          working-directory: test/fixtures/npm/no-credential
+      - name: Verify only the new package was published
+        env:
+          NO_CREDENTIAL: ${{ steps.no-credential.outputs.published }}
+          PUBLISHED: ${{ steps.published.outputs.published }}
+          PUBLISHED_VERSION: ${{ steps.published.outputs.version }}
+          UNPUBLISHED: ${{ steps.unpublished.outputs.published }}
+        run: |
+          [ "$PUBLISHED" = false ]
+          [ "$PUBLISHED_VERSION" = 1.3.0 ]
+          [ "$UNPUBLISHED" = true ]
+          [ "$NO_CREDENTIAL" = false ]
+          [ -f "${RUNNER_TEMP}/packed" ]
+
+  test-playwright-install:
+    name: "Test / Playwright install action"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install the dependencies
+        working-directory: test/fixtures/playwright
+        run: npm ci
+      - name: Install Playwright browsers
+        uses: ./actions/playwright/install
+        with:
+          working-directory: test/fixtures/playwright
+      - name: Verify the browser starts
+        working-directory: test/fixtures/playwright
+        run: node -e "require('playwright').chromium.launch().then((browser) => browser.close())"
+
+  test-pages-deployment:
+    name: "Test / Pages deployment reusable workflow, without deploying"
+    uses: ./.github/workflows/reusable-pages-deployment.yml
+    with:
+      build-command: |
+        [ "$FIXTURE_SECRET" = hidden ]
+        task --version
+        npm ci
+        npm run build
+      deploy: false
+      node-version: "24"
+      site-path: _site
+      task-enabled: true
+      working-directory: test/fixtures/pages
+    secrets:
+      additional-vars: |
+        FIXTURE_SECRET=hidden
+
+  test-pages-deployment-conventions:
+    name: "Test / Pages deployment reusable workflow, building by convention"
+    uses: ./.github/workflows/reusable-pages-deployment.yml
+    with:
+      deploy: false
+      site-path: _site
+      working-directory: test/fixtures/pages
+
+  test-node-quality-npm:
+    name: "Test / Node.js quality reusable workflow, with npm"
+    uses: ./.github/workflows/reusable-node-quality.yml
+    with:
+      custom-tests: |
+        [ "$FIXTURE_VALUE" = extra ]
+        words=("two words" three)
+        [ "${#words[@]}" = 2 ]
+        mongosh --quiet --eval 'db.hello().isWritablePrimary' "mongodb://127.0.0.1:27017/?replicaSet=rs0" | grep -qx true
+        task --version
+        terraform version
+        node -e "require('playwright').chromium.launch().then((browser) => browser.close())"
+        [ -f coverage/lcov.info ]
+        # Each script ran once, in that order, the missing ones being skipped.
+        diff <(printf '%s\n' lint format:check typecheck build test:coverage) report/scripts.log
+        # The custom tests see the repository alone, without the workflow parts checked out beside it.
+        [ ! -e "${GITHUB_WORKSPACE}/workflow-parts" ]
+      extra-vars: |
+        FIXTURE_VALUE=extra
+      mongodb-enabled: true
+      task-enabled: true
+      terraform-version: 1.17.0
+      test-script: test:coverage
+      working-directory: test/fixtures/node
+
+  test-node-quality-pnpm:
+    name: "Test / Node.js quality reusable workflow, with pnpm"
+    uses: ./.github/workflows/reusable-node-quality.yml
+    with:
+      custom-tests: |
+        [[ "$(pnpm --version)" == 12.* ]]
+      pnpm-version: "12"
+      working-directory: test/fixtures/pnpm
+
+  # Runs where a Sonar server is set in SONAR_HOST_URL, as IstarCI provides a SonarQube locally, and is skipped otherwise.
+  test-node-quality-sonar:
+    name: "Test / Node.js quality reusable workflow with Sonar"
+    if: vars.SONAR_HOST_URL != ''
+    uses: ./.github/workflows/reusable-node-quality.yml
+    with:
+      sonar-enabled: true
+      sonar-host-url: ${{ vars.SONAR_HOST_URL }}
+      sonar-organization: ${{ vars.SONAR_ORGANIZATION }}
+      sonar-project-key: github-workflow-parts-node-fixture
+      sonar-project-name: GitHub workflow parts Node.js fixture
+      test-script: test:coverage
+      working-directory: test/fixtures/node
+    secrets:
+      sonar-token: ${{ secrets.SONAR_TOKEN }}
+
+  # Runs where a Sonar server is set in SONAR_HOST_URL, as IstarCI provides a SonarQube locally, and is skipped otherwise.
+  test-sonar-scan-properties:
+    name: "Test / Sonar scan action with a sonar-project.properties"
+    if: vars.SONAR_HOST_URL != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # As the Node.js quality workflow does with its workflow parts.
+      - name: Leave a folder of the fixture out of git
+        run: |
+          exclude="$(git rev-parse --git-path info/exclude)"
+          mkdir -p "$(dirname "$exclude")"
+          echo "/test/fixtures/sonar-properties/extra/" >> "$exclude"
+      # No project key nor exclusions given: the file holds them.
+      - name: Analyze the fixture
+        uses: ./actions/sonar/scan
+        env:
+          # The report the scanner sends is kept, for the step below to read which files were indexed.
+          SONAR_SCANNER_JSON_PARAMS: '{"sonar.scanner.keepReport": "true"}'
+        with:
+          host-url: ${{ vars.SONAR_HOST_URL }}
+          organization: ${{ vars.SONAR_ORGANIZATION }}
+          token: ${{ secrets.SONAR_TOKEN }}
+          working-directory: test/fixtures/sonar-properties
+      # The token of the run may only send an analysis, so the report the scanner kept tells what it indexed.
+      - name: Verify the analysis holds only the file neither the exclusions of the file nor git leave out
+        working-directory: test/fixtures/sonar-properties/.scannerwork
+        run: |
+          grep -q '^projectKey=github-workflow-parts-sonar-properties$' report-task.txt
+          indexed=$(cat scanner-report/component-*.pb | grep -aoE '[a-z/]+\.js' | sort -u | paste -sd ,)
+          [ "$indexed" = kept.js ]
+
+  test-npm-publication:
+    name: "Test / npm publication reusable workflow, without publishing"
+    uses: ./.github/workflows/reusable-npm-publication.yml
+    with:
+      # A dry run goes through every step of a publication but the upload, which needs no credentials.
+      publish-command: npm publish --dry-run
+      working-directory: test/fixtures/npm/unpublished
+
+  test-npm-publication-outputs:
+    name: "Test / npm publication reusable workflow outputs"
+    needs: test-npm-publication
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify the package was published
+        env:
+          PUBLISHED: ${{ needs.test-npm-publication.outputs.published }}
+          VERSION: ${{ needs.test-npm-publication.outputs.version }}
+        run: |
+          [ "$PUBLISHED" = true ]
+          [ "$VERSION" = 0.0.0 ]

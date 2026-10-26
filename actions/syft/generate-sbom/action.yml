@@ -3,13 +3,13 @@ description: |
   Installs Syft by downloading the official binary from its GitHub release, verifying its SHA256 checksum,
   and uses it to generate a Software Bill of Materials for a container image or a source directory
   (replacement for anchore/sbom-action, to reduce third-party GitHub Action supply-chain risk).
-  Linux runners only (for example ubuntu-latest).
+  Linux x64 or arm64 runners only (for example ubuntu-latest or ubuntu-24.04-arm).
 
 inputs:
   syft-version:
     description: Version of Syft to install (check latest from https://github.com/anchore/syft/releases)
     required: false
-    default: "1.49.0"
+    default: "1.55.0"
   target-image:
     description: Container image reference to scan (mutually exclusive with target-path)
     required: false
@@ -18,6 +18,10 @@ inputs:
     description: Source directory to scan, used only when target-image is not set
     required: false
     default: "."
+  exclude-paths:
+    description: Paths left out of a source directory's SBOM, relative to target-path, one per line
+    required: false
+    default: ""
   output-format:
     description: SBOM format (see https://github.com/anchore/syft#supported-output-formats)
     required: false
@@ -42,7 +46,7 @@ runs:
       shell: bash
       env:
         SYFT_VERSION: ${{ inputs.syft-version }}
-        SYFT_TARBALL: syft_${{ inputs.syft-version }}_linux_amd64.tar.gz
+        SYFT_TARBALL: syft_${{ inputs.syft-version }}_linux_${{ runner.arch == 'ARM64' && 'arm64' || 'amd64' }}.tar.gz
         SYFT_CHECKSUMS: syft_${{ inputs.syft-version }}_checksums.txt
       run: |
         # Downloaded into a directory of its own, since the repository may hold a file or a directory named like the binary.
@@ -50,13 +54,11 @@ runs:
         BASE_URL="https://github.com/anchore/syft/releases/download/v${SYFT_VERSION}"
 
         echo "Downloading Syft binary and checksums..."
-        curl -sSL -O "${BASE_URL}/${SYFT_TARBALL}"
-        curl -sSL -O "${BASE_URL}/${SYFT_CHECKSUMS}"
+        curl -fsSL -O "${BASE_URL}/${SYFT_TARBALL}"
+        curl -fsSL -O "${BASE_URL}/${SYFT_CHECKSUMS}"
 
         echo "Verifying checksum..."
-        grep " ${SYFT_TARBALL}$" "${SYFT_CHECKSUMS}" | sha256sum --check --status
-
-        if [ $? -eq 0 ]; then
+        if grep " ${SYFT_TARBALL}$" "${SYFT_CHECKSUMS}" | sha256sum --check --status; then
           echo "Verification successful!"
           tar -xzf "${SYFT_TARBALL}" syft
           chmod +x syft
@@ -76,6 +78,7 @@ runs:
       env:
         TARGET_IMAGE: ${{ inputs.target-image }}
         TARGET_PATH: ${{ inputs.target-path }}
+        EXCLUDE_PATHS: ${{ inputs.exclude-paths }}
         OUTPUT_FORMAT: ${{ inputs.output-format }}
         OUTPUT_FILE: ${{ inputs.output-file }}
       run: |
@@ -85,11 +88,19 @@ runs:
           SOURCE="dir:${TARGET_PATH}"
         fi
 
+        # Syft matches the exclusions of a directory against paths starting with ./
+        args=()
+        while IFS= read -r path; do
+          if [ -n "$path" ]; then
+            args+=(--exclude "./${path#./}")
+          fi
+        done <<< "$EXCLUDE_PATHS"
+
         echo "Scanning ${SOURCE} with Syft..."
-        syft "$SOURCE" -o "${OUTPUT_FORMAT}=${OUTPUT_FILE}"
+        syft "$SOURCE" "${args[@]}" -o "${OUTPUT_FORMAT}=${OUTPUT_FILE}"
     - name: Upload SBOM as artifact
       if: ${{ inputs.upload-artifact == 'true' }}
-      uses: actions/upload-artifact@v7
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
       with:
         name: ${{ inputs.artifact-name }}
         path: ${{ inputs.output-file }}

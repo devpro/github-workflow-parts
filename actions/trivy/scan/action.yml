@@ -3,13 +3,13 @@ description: |
   Installs Trivy by downloading the official binary from its GitHub release and verifying its SHA256 checksum,
   then scans a container image or a source directory for vulnerabilities or misconfigurations (replacement for aquasecurity/trivy-action,
   to reduce third-party GitHub Action supply-chain risk).
-  Linux runners only (for example ubuntu-latest).
+  Linux x64 or arm64 runners only (for example ubuntu-latest or ubuntu-24.04-arm).
 
 inputs:
   trivy-version:
     description: Version of Trivy to install (check latest from https://github.com/aquasecurity/trivy/releases)
     required: false
-    default: "0.72.0"
+    default: "0.76.1"
   scan-type:
     description: What to scan, "image" (container image reference) or "config" (misconfiguration/IaC scan of a directory)
     required: false
@@ -41,6 +41,10 @@ inputs:
     description: Comma-separated package types to scan, os and/or library (scan-type "image" only)
     required: false
     default: "os,library"
+  ignore-file:
+    description: Trivy ignore file (.trivyignore.yaml) naming the findings left out, each with the reason and the day it counts again (expired_at), none when empty
+    required: false
+    default: ""
 
 runs:
   using: "composite"
@@ -49,7 +53,7 @@ runs:
       shell: bash
       env:
         TRIVY_VERSION: ${{ inputs.trivy-version }}
-        TRIVY_TARBALL: trivy_${{ inputs.trivy-version }}_Linux-64bit.tar.gz
+        TRIVY_TARBALL: trivy_${{ inputs.trivy-version }}_Linux-${{ runner.arch == 'ARM64' && 'ARM64' || '64bit' }}.tar.gz
         TRIVY_CHECKSUMS: trivy_${{ inputs.trivy-version }}_checksums.txt
       run: |
         # Downloaded into a directory of its own, since the repository may hold a file or a directory named like the binary.
@@ -57,13 +61,11 @@ runs:
         BASE_URL="https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}"
 
         echo "Downloading Trivy binary and checksums..."
-        curl -sSL -O "${BASE_URL}/${TRIVY_TARBALL}"
-        curl -sSL -O "${BASE_URL}/${TRIVY_CHECKSUMS}"
+        curl -fsSL -O "${BASE_URL}/${TRIVY_TARBALL}"
+        curl -fsSL -O "${BASE_URL}/${TRIVY_CHECKSUMS}"
 
         echo "Verifying checksum..."
-        grep " ${TRIVY_TARBALL}$" "${TRIVY_CHECKSUMS}" | sha256sum --check --status
-
-        if [ $? -eq 0 ]; then
+        if grep " ${TRIVY_TARBALL}$" "${TRIVY_CHECKSUMS}" | sha256sum --check --status; then
           echo "Verification successful!"
           tar -xzf "${TRIVY_TARBALL}" trivy
           chmod +x trivy
@@ -89,15 +91,27 @@ runs:
         EXIT_CODE: ${{ inputs.exit-code }}
         IGNORE_UNFIXED: ${{ inputs.ignore-unfixed }}
         PKG_TYPES: ${{ inputs.pkg-types }}
+        IGNORE_FILE: ${{ inputs.ignore-file }}
       run: |
         args=("$SCAN_TYPE" --format "$FORMAT" --severity "$SEVERITY" --exit-code "$EXIT_CODE")
+
+        # Trivy goes on without an ignore file it cannot find, which would hide a path given wrong.
+        if [ -n "$IGNORE_FILE" ]; then
+          if [ ! -f "$IGNORE_FILE" ]; then
+            echo "ERROR: Ignore file ${IGNORE_FILE} not found" >&2
+            exit 1
+          fi
+          args+=(--ignorefile "$IGNORE_FILE")
+        fi
 
         if [ -n "$OUTPUT_FILE" ]; then
           args+=(--output "$OUTPUT_FILE")
         fi
 
-        # ignore-unfixed and pkg-types only make sense for vulnerability (image) scans
+        # no-progress, ignore-unfixed and pkg-types only exist for vulnerability (image) scans
         if [ "$SCAN_TYPE" = "image" ]; then
+          # A CI log is not a terminal, and every redraw of the database download bar becomes log text.
+          args+=(--no-progress)
           if [ "$IGNORE_UNFIXED" = "true" ]; then
             args+=(--ignore-unfixed)
           fi

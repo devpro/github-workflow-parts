@@ -43,22 +43,32 @@ on:
         type: string
         required: true
       image-platform:
-        description: Image platform
+        description: Platforms to build, emulated with QEMU on operating-system, unless arm64-runner is set
         type: string
         required: false
         default: "linux/amd64,linux/arm64"
+      arm64-runner:
+        description: Runner label building linux/arm64 natively (for example "ubuntu-24.04-arm"), beside linux/amd64 on operating-system, rather than emulating every platform with QEMU on operating-system, image-platform being then not read
+        type: string
+        required: false
+        default: ""
       job-name:
         description: Job name
         type: string
         required: false
         default: Publication
+      timeout-minutes:
+        description: Minutes the job may run before it is cancelled
+        type: number
+        required: false
+        default: 60
       operating-system:
         description: Operating system executing the runner
         type: string
         required: false
         default: ubuntu-latest
       workflow-parts-version:
-        description: GitHub workflow parts version (branch/tag/SHA). Should match the ref/tag/SHA the caller pinned for this reusable workflow itself.
+        description: GitHub workflow parts version (branch/tag/SHA). Should match the ref/tag/SHA the caller pinned for this reusable workflow itself. Ignored when the caller is this repository, whose checkout already holds the actions under test.
         type: string
         required: false
         default: main
@@ -79,12 +89,11 @@ on:
         required: false
 
 jobs:
-  container-publication:
-    name: ${{ inputs.job-name }}
+  build-emulated:
+    name: ${{ inputs.job-name }} build (emulated)
+    if: ${{ inputs.arm64-runner == '' }}
     runs-on: ${{ inputs.operating-system }}
-    defaults:
-      run:
-        working-directory: ${{ inputs.working-directory }}
+    timeout-minutes: ${{ inputs.timeout-minutes }}
     steps:
       - name: Set secret variables
         shell: bash
@@ -92,7 +101,7 @@ jobs:
           SECRET_VARS: ${{ secrets.secret-vars }}
         run: |
           if [[ -n "$SECRET_VARS" ]]; then
-            echo "$SECRET_VARS" | while IFS='=' read -r key val; do
+            echo "$SECRET_VARS" | while IFS='=' read -r _ val; do
               if [[ -n "$val" ]]; then
                 echo "::add-mask::$val"
               fi
@@ -100,14 +109,14 @@ jobs:
             echo "$SECRET_VARS" >> "$GITHUB_ENV"
           fi
       - name: Clone repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Checkout workflow parts
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: devpro/github-workflow-parts
-          ref: ${{ inputs.workflow-parts-version }}
+          # The caller being this repository, the actions under test are those of the commit under test.
+          ref: ${{ github.repository == 'devpro/github-workflow-parts' && github.sha || inputs.workflow-parts-version }}
           path: workflow-parts
-      # The Docker CLI of the runner does what the docker/* actions wrapped, with no third party action in between.
       - name: Login to container registry
         env:
           REGISTRY: ${{ inputs.container-registry }}
@@ -117,21 +126,146 @@ jobs:
       - name: Set up QEMU
         # Emulation is only needed for a platform other than the runner's own.
         if: ${{ inputs.image-platform != 'linux/amd64' }}
-        run: docker run --privileged --rm tonistiigi/binfmt --install all
-      - name: Set up Buildx
-        run: docker buildx create --use --driver docker-container
+        uses: ./workflow-parts/actions/qemu/setup
+        with:
+          platforms: ${{ inputs.image-platform }}
+      # The action puts the platforms together under the tag once each is pushed.
       - name: Build and push container image
-        # The gha cache backend is reachable from JavaScript actions only, so the build runs without a cache.
+        uses: ./workflow-parts/actions/container/build-push
+        with:
+          image-definition: ${{ inputs.image-definition }}
+          image-repository: ${{ env.IMAGE_REPOSITORY }}
+          image-tag: ${{ inputs.image-tag }}
+          platforms: ${{ inputs.image-platform }}
+          build-arguments: ${{ inputs.extra-build-arguments }}
+          working-directory: ${{ inputs.working-directory }}
+
+  build-amd64:
+    name: ${{ inputs.job-name }} build (linux/amd64)
+    if: ${{ inputs.arm64-runner != '' }}
+    runs-on: ${{ inputs.operating-system }}
+    timeout-minutes: ${{ inputs.timeout-minutes }}
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - name: Set secret variables
+        shell: bash
         env:
-          IMAGE_DEFINITION: ${{ inputs.image-definition }}
-          IMAGE_PLATFORM: ${{ inputs.image-platform }}
-          BUILD_ARGUMENTS: ${{ inputs.extra-build-arguments }}
+          SECRET_VARS: ${{ secrets.secret-vars }}
         run: |
-          args=(--file "$IMAGE_DEFINITION" --platform "$IMAGE_PLATFORM" --tag "$IMAGE_REF" --push)
-          while IFS= read -r argument; do
-            [ -n "$argument" ] && args+=(--build-arg "$argument")
-          done <<< "$BUILD_ARGUMENTS"
-          docker buildx build "${args[@]}" .
+          if [[ -n "$SECRET_VARS" ]]; then
+            echo "$SECRET_VARS" | while IFS='=' read -r _ val; do
+              if [[ -n "$val" ]]; then
+                echo "::add-mask::$val"
+              fi
+            done
+            echo "$SECRET_VARS" >> "$GITHUB_ENV"
+          fi
+      - name: Clone repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Checkout workflow parts
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: devpro/github-workflow-parts
+          # The caller being this repository, the actions under test are those of the commit under test.
+          ref: ${{ github.repository == 'devpro/github-workflow-parts' && github.sha || inputs.workflow-parts-version }}
+          path: workflow-parts
+      - name: Login to container registry
+        env:
+          REGISTRY: ${{ inputs.container-registry }}
+          REGISTRY_USERNAME: ${{ secrets.container-registry-username }}
+          REGISTRY_PASSWORD: ${{ secrets.container-registry-password }}
+        run: echo "$REGISTRY_PASSWORD" | docker login "$REGISTRY" --username "$REGISTRY_USERNAME" --password-stdin
+      - name: Build and push container image under the tag of its platform
+        id: build
+        uses: ./workflow-parts/actions/container/build-push
+        with:
+          image-definition: ${{ inputs.image-definition }}
+          image-repository: ${{ env.IMAGE_REPOSITORY }}
+          image-tag: ${{ inputs.image-tag }}-linux-amd64
+          platforms: linux/amd64
+          build-arguments: ${{ inputs.extra-build-arguments }}
+          working-directory: ${{ inputs.working-directory }}
+
+  build-arm64:
+    name: ${{ inputs.job-name }} build (linux/arm64)
+    if: ${{ inputs.arm64-runner != '' }}
+    runs-on: ${{ inputs.arm64-runner }}
+    timeout-minutes: ${{ inputs.timeout-minutes }}
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - name: Set secret variables
+        shell: bash
+        env:
+          SECRET_VARS: ${{ secrets.secret-vars }}
+        run: |
+          if [[ -n "$SECRET_VARS" ]]; then
+            echo "$SECRET_VARS" | while IFS='=' read -r _ val; do
+              if [[ -n "$val" ]]; then
+                echo "::add-mask::$val"
+              fi
+            done
+            echo "$SECRET_VARS" >> "$GITHUB_ENV"
+          fi
+      - name: Clone repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Checkout workflow parts
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: devpro/github-workflow-parts
+          # The caller being this repository, the actions under test are those of the commit under test.
+          ref: ${{ github.repository == 'devpro/github-workflow-parts' && github.sha || inputs.workflow-parts-version }}
+          path: workflow-parts
+      - name: Login to container registry
+        env:
+          REGISTRY: ${{ inputs.container-registry }}
+          REGISTRY_USERNAME: ${{ secrets.container-registry-username }}
+          REGISTRY_PASSWORD: ${{ secrets.container-registry-password }}
+        run: echo "$REGISTRY_PASSWORD" | docker login "$REGISTRY" --username "$REGISTRY_USERNAME" --password-stdin
+      - name: Build and push container image under the tag of its platform
+        id: build
+        uses: ./workflow-parts/actions/container/build-push
+        with:
+          image-definition: ${{ inputs.image-definition }}
+          image-repository: ${{ env.IMAGE_REPOSITORY }}
+          image-tag: ${{ inputs.image-tag }}-linux-arm64
+          platforms: linux/arm64
+          build-arguments: ${{ inputs.extra-build-arguments }}
+          working-directory: ${{ inputs.working-directory }}
+
+  # The platforms built on runners of their own are only put under the tag here, so that the image a tag names is complete.
+  publication:
+    name: ${{ inputs.job-name }}
+    needs: [build-emulated, build-amd64, build-arm64]
+    # One build path is skipped by design, which an implicit success() would take for a failure.
+    if: ${{ !cancelled() && !contains(needs.*.result, 'failure') }}
+    runs-on: ${{ inputs.operating-system }}
+    timeout-minutes: ${{ inputs.timeout-minutes }}
+    steps:
+      - name: Checkout workflow parts
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: devpro/github-workflow-parts
+          # The caller being this repository, the actions under test are those of the commit under test.
+          ref: ${{ github.repository == 'devpro/github-workflow-parts' && github.sha || inputs.workflow-parts-version }}
+          path: workflow-parts
+      - name: Login to container registry
+        env:
+          REGISTRY: ${{ inputs.container-registry }}
+          REGISTRY_USERNAME: ${{ secrets.container-registry-username }}
+          REGISTRY_PASSWORD: ${{ secrets.container-registry-password }}
+        run: echo "$REGISTRY_PASSWORD" | docker login "$REGISTRY" --username "$REGISTRY_USERNAME" --password-stdin
+      - name: Tag the image of every platform
+        if: ${{ inputs.arm64-runner != '' }}
+        env:
+          DIGESTS: ${{ needs.build-amd64.outputs.digest }} ${{ needs.build-arm64.outputs.digest }}
+        run: |
+          sources=()
+          for digest in $DIGESTS; do
+            sources+=("${IMAGE_REPOSITORY}@${digest}")
+          done
+          docker buildx imagetools create --tag "$IMAGE_REF" "${sources[@]}"
       - name: Generate SBOM with Syft
         uses: ./workflow-parts/actions/syft/generate-sbom
         continue-on-error: true
@@ -140,15 +274,15 @@ jobs:
       - name: Push latest tag
         if: ${{ inputs.create-latest }}
         run: |
-          docker buildx imagetools create \
-            --tag ${{ env.IMAGE_REF_LATEST }} \
-            ${{ env.IMAGE_REF }}
+          docker buildx imagetools create --tag "$IMAGE_REF_LATEST" "$IMAGE_REF"
       - name: Sign container image with Cosign
         uses: ./workflow-parts/actions/cosign/sign
         with:
           image-name: ${{ inputs.image-name }}
           image-path: ${{ inputs.image-path }}
           image-tag: ${{ inputs.image-tag }}
-    env:
-      IMAGE_REF: ${{ inputs.image-path }}/${{ inputs.image-name }}:${{ inputs.image-tag }}
-      IMAGE_REF_LATEST: ${{ inputs.image-path }}/${{ inputs.image-name }}:latest
+
+env:
+  IMAGE_REPOSITORY: ${{ inputs.image-path }}/${{ inputs.image-name }}
+  IMAGE_REF: ${{ inputs.image-path }}/${{ inputs.image-name }}:${{ inputs.image-tag }}
+  IMAGE_REF_LATEST: ${{ inputs.image-path }}/${{ inputs.image-name }}:latest
