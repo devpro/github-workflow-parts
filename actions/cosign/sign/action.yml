@@ -11,7 +11,7 @@ inputs:
   cosign-version:
     description: Version of cosign (check latest from https://github.com/sigstore/cosign/releases)
     required: false
-    default: 'v3.1.3'
+    default: 'v3.1.4'
   image-name:
     description: Image name
     required: true

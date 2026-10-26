@@ -37,6 +37,6 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # The linters are pinned, so that a new release changes the verdict on a repository only when this one moves to it.
       - name: Lint Markdown files
-        run: npx --yes markdownlint-cli2@0.23.3 "**/*.md"
+        run: npx --yes markdownlint-cli2@0.24.0 "**/*.md"
       - name: Lint YAML files
         run: pipx run --spec yamllint==1.38.0 yamllint .

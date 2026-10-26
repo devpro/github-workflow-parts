@@ -8,7 +8,7 @@ inputs:
   goreleaser-version:
     description: Version of GoReleaser to install (check latest from https://github.com/goreleaser/goreleaser/releases)
     required: false
-    default: "2.18.3"
+    default: "2.19.0"
 
 runs:
   using: "composite"
