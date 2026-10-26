@@ -1,7 +1,7 @@
 name: Setup QEMU
 description: |
   Registers QEMU user emulation for other platforms than the runner's own, so that Docker builds and runs their images,
-  from the qemu-user-static package of the Ubuntu archive, which apt verifies against the keys of the runner's own distribution
+  from the qemu-user-static package of the Ubuntu archive (qemu-user-binfmt from Ubuntu 26.04), which apt verifies against the keys of the runner's own distribution
   (replacement for docker/setup-qemu-action and its tonistiigi/binfmt image, to run no third party image with privileges).
   Linux runners on Ubuntu only (for example ubuntu-latest), with sudo, since the registration is made in the kernel.
 
@@ -18,7 +18,12 @@ runs:
       shell: bash
       run: |
         sudo apt-get update -qq
-        sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends qemu-user-static
+        # From QEMU 9.1 (Ubuntu 26.04), qemu-user ships the static binaries and qemu-user-static is only a virtual package, which apt cannot install.
+        package=qemu-user-static
+        if apt-cache show --no-all-versions qemu-user-binfmt | grep -q '^Provides:.*\bqemu-user-static\b'; then
+          package=qemu-user-binfmt
+        fi
+        sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends "$package"
         # The package ships its registrations in binfmt.d, which systemd-binfmt loads into the kernel.
         sudo /usr/lib/systemd/systemd-binfmt
     - name: Check the emulation of each platform
