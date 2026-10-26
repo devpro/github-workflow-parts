@@ -11,8 +11,8 @@ runner:
     test-node-quality-pnpm: ghcr.io/devpro/debian-node:latest
     test-node-quality-sonar: ghcr.io/devpro/debian-node-playwright:latest
     test-npm-publication: ghcr.io/devpro/debian-node:latest
-    # The Go actions need the Go toolchain, which setup-go installs on GitHub and a local run takes from the official image.
-    test-go-lint-govulncheck-scan: golang:1.27-trixie
+    # The Go actions need the Go toolchain, which setup-go installs on GitHub and a local run takes from the SUSE image, rebuilt with the Debian fixes the official one still lacks at times.
+    test-go-lint-govulncheck-scan: registry.suse.com/bci/golang:1.27
   # The container scan workflow builds an image through the host Docker daemon, as a hosted runner does, and Cosign reads a digest with the Docker CLI.
   docker: ["test-container-scan-on-base*", "test-cosign-sign*", "test-container-build-push*"]
   # The Sonar paths of the .NET and Node.js quality workflows and of the Sonar action run against a SonarQube of this machine, which GitHub does not have.
