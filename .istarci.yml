@@ -21,3 +21,7 @@ runner:
 workflow:
   # Registering an emulator changes the kernel of the machine, which a local run leaves alone.
   skipJobs: [test-qemu-setup]
+
+vars:
+  # The local SonarQube has no organization, which only SonarCloud needs.
+  SONAR_ORGANIZATION: ""
