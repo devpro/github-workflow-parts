@@ -750,7 +750,7 @@ jobs:
       # The fixture holds a test that fails, which only the filter keeps the job from running, its quotes being read as shell quotes rather than passed on.
       dotnet-test-args: --report-xunit-trx --coverage --coverage-output-format cobertura --filter-not-namespace 'Fixture.Tests.LeftOut*'
 
-  # Runs where a SonarQube is at hand, as IstarCI provides one locally, and is skipped on GitHub, which has none for this repository.
+  # Runs where a Sonar server is set in SONAR_HOST_URL, as IstarCI provides a SonarQube locally, and is skipped otherwise.
   test-dotnet-quality-sonar:
     name: "Test / .NET quality reusable workflow with Sonar"
     if: vars.SONAR_HOST_URL != ''
@@ -760,8 +760,9 @@ jobs:
       dotnet-test-args: --report-xunit-trx --coverage --coverage-output-format cobertura --filter-not-namespace 'Fixture.Tests.LeftOut*'
       sonar-enabled: true
       sonar-host-url: ${{ vars.SONAR_HOST_URL }}
-      sonar-project-key: github-workflow-parts-fixture
-      sonar-project-name: GitHub workflow parts fixture
+      sonar-organization: ${{ vars.SONAR_ORGANIZATION }}
+      sonar-project-key: github-workflow-parts-dotnet-fixture
+      sonar-project-name: GitHub workflow parts .NET fixture
     secrets:
       sonar-token: ${{ secrets.SONAR_TOKEN }}
 
@@ -989,7 +990,7 @@ jobs:
       pnpm-version: "12"
       working-directory: test/fixtures/pnpm
 
-  # Runs where a SonarQube is at hand, as IstarCI provides one locally, and is skipped on GitHub, which has none for this repository.
+  # Runs where a Sonar server is set in SONAR_HOST_URL, as IstarCI provides a SonarQube locally, and is skipped otherwise.
   test-node-quality-sonar:
     name: "Test / Node.js quality reusable workflow with Sonar"
     if: vars.SONAR_HOST_URL != ''
@@ -997,6 +998,7 @@ jobs:
     with:
       sonar-enabled: true
       sonar-host-url: ${{ vars.SONAR_HOST_URL }}
+      sonar-organization: ${{ vars.SONAR_ORGANIZATION }}
       sonar-project-key: github-workflow-parts-node-fixture
       sonar-project-name: GitHub workflow parts Node.js fixture
       test-script: test:coverage
@@ -1004,7 +1006,7 @@ jobs:
     secrets:
       sonar-token: ${{ secrets.SONAR_TOKEN }}
 
-  # Runs where a SonarQube is at hand, as IstarCI provides one locally, and is skipped on GitHub, which has none for this repository.
+  # Runs where a Sonar server is set in SONAR_HOST_URL, as IstarCI provides a SonarQube locally, and is skipped otherwise.
   test-sonar-scan-properties:
     name: "Test / Sonar scan action with a sonar-project.properties"
     if: vars.SONAR_HOST_URL != ''
@@ -1027,6 +1029,7 @@ jobs:
           SONAR_SCANNER_JSON_PARAMS: '{"sonar.scanner.keepReport": "true"}'
         with:
           host-url: ${{ vars.SONAR_HOST_URL }}
+          organization: ${{ vars.SONAR_ORGANIZATION }}
           token: ${{ secrets.SONAR_TOKEN }}
           working-directory: test/fixtures/sonar-properties
       # The token of the run may only send an analysis, so the report the scanner kept tells what it indexed.
