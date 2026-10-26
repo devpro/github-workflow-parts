@@ -40,3 +40,26 @@ jobs:
         run: npx --yes markdownlint-cli2@0.24.0 "**/*.md"
       - name: Lint YAML files
         run: pipx run --spec yamllint==1.38.0 yamllint .
+      - name: Lint shell scripts
+        env:
+          SHELLCHECK_ARCH: ${{ runner.arch == 'ARM64' && 'aarch64' || 'x86_64' }}
+        run: |
+          # ShellCheck publishes no checksum file, so the SHA256 of each archive is pinned here, as GitHub reports it for the release assets.
+          shellcheck_version="v0.11.0"
+          declare -A shellcheck_sha256=(
+            [x86_64]="b7af85e41cc99489dcc21d66c6d5f3685138f06d34651e6d34b42ec6d54fe6f6"
+            [aarch64]="68a8133197a50beb8803f8d42f9908d1af1c5540d4bb05fdfca8c1fa47decefc"
+          )
+          archive="${RUNNER_TEMP}/shellcheck.tar.gz"
+          curl -fsSL --proto "=https" --tlsv1.2 -o "$archive" "https://github.com/koalaman/shellcheck/releases/download/${shellcheck_version}/shellcheck-${shellcheck_version}.linux.${SHELLCHECK_ARCH}.tar.gz"
+          echo "${shellcheck_sha256[$SHELLCHECK_ARCH]}  ${archive}" | sha256sum --check --strict
+          tar -xzf "$archive" -C "$RUNNER_TEMP"
+          shellcheck="${RUNNER_TEMP}/shellcheck-${shellcheck_version}/shellcheck"
+          # A script without the .sh extension, such as a Git hook, is found by its shebang.
+          mapfile -t scripts < <(git ls-files -z | xargs -0 -r awk 'FNR == 1 { if (FILENAME ~ /\.sh$/ || /^#!.*[\/ ](ba)?sh([ \t]|$)/) print FILENAME; nextfile }')
+          if [[ ${#scripts[@]} -eq 0 ]]; then
+            echo "No shell script to lint"
+            exit 0
+          fi
+          "$shellcheck" --version
+          "$shellcheck" "${scripts[@]}"

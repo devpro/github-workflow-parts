@@ -30,7 +30,7 @@ GitHub Pages:
 
 - [Build a site and deploy it](.github/workflows/reusable-pages-deployment.yml)
 
-Markup (Markdown, YAML):
+Markup (Markdown, YAML, shell scripts):
 
 - [Ensure the quality of the content](.github/workflows/reusable-markup-lint.yml)
 
