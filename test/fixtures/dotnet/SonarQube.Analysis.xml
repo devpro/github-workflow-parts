@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!-- The scanner stops the analysis when the file passed with /s: is missing or invalid, so loading this one proves the path reaches it.
+     The issue exclusion is the shape a calling repository writes, and matches nothing in the fixture. -->
+<SonarQubeAnalysisProperties xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.sonarsource.com/msbuild/integration/2015/1">
+  <Property Name="sonar.issue.ignore.multicriteria">e1</Property>
+  <Property Name="sonar.issue.ignore.multicriteria.e1.ruleKey">csharpsquid:S2699</Property>
+  <Property Name="sonar.issue.ignore.multicriteria.e1.resourceKey">**/LeftOutTests.cs</Property>
+</SonarQubeAnalysisProperties>

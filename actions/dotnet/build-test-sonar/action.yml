@@ -38,6 +38,10 @@ inputs:
     description: Sonar project name
     required: false
     default: ""
+  sonar-settings-file:
+    description: SonarQube.Analysis.xml file of the repository, relative to the working directory, holding analysis settings such as issue exclusions
+    required: false
+    default: ""
   sonarscanner-version:
     description: Version of the Sonar scanner for .NET (check latest from https://www.nuget.org/packages/dotnet-sonarscanner)
     required: false
@@ -99,6 +103,10 @@ runs:
         if [ -n "$SONAR_PROJECT_NAME" ]; then
           args+=(/n:"$SONAR_PROJECT_NAME")
         fi
+        # The scanner for .NET never reads a sonar-project.properties, so a settings file passed with /s: is how a repository versions its own settings.
+        if [ -n "$SONAR_SETTINGS_FILE" ]; then
+          args+=(/s:"$SONAR_SETTINGS_FILE")
+        fi
         "$GITHUB_WORKSPACE/.sonar/scanner/dotnet-sonarscanner" begin "${args[@]}"
       shell: bash
       working-directory: ${{ inputs.working-directory }}
@@ -110,6 +118,7 @@ runs:
         SONAR_ORGANIZATION: ${{ inputs.sonar-organization }}
         SONAR_PROJECT_KEY: ${{ inputs.sonar-project-key }}
         SONAR_PROJECT_NAME: ${{ inputs.sonar-project-name }}
+        SONAR_SETTINGS_FILE: ${{ inputs.sonar-settings-file }}
         SONAR_TOKEN: ${{ inputs.sonar-token }}
     - name: Build .NET solution
       run: dotnet build --no-restore --configuration Debug
