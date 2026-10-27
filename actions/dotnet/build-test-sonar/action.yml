@@ -104,8 +104,9 @@ runs:
           args+=(/n:"$SONAR_PROJECT_NAME")
         fi
         # The scanner for .NET never reads a sonar-project.properties, so a settings file passed with /s: is how a repository versions its own settings.
+        # The path is made absolute, since the scanner resolves a relative one against its own .sonarqube folder.
         if [ -n "$SONAR_SETTINGS_FILE" ]; then
-          args+=(/s:"$SONAR_SETTINGS_FILE")
+          args+=(/s:"$(realpath "$SONAR_SETTINGS_FILE")")
         fi
         "$GITHUB_WORKSPACE/.sonar/scanner/dotnet-sonarscanner" begin "${args[@]}"
       shell: bash
