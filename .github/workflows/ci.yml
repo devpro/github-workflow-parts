@@ -26,6 +26,8 @@ jobs:
     steps:
       - name: Clone repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Run actionlint, shellcheck and the conventions of this repository
         run: test/run_static_checks.sh
 
@@ -36,6 +38,8 @@ jobs:
     steps:
       - name: Clone repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Install terraform
         uses: ./actions/terraform/setup
       - name: Verify terraform is installed
@@ -50,6 +54,8 @@ jobs:
     steps:
       - name: Clone repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Setup TFLint
         uses: ./actions/tflint/setup
       - name: Verify tflint is installed
@@ -64,6 +70,8 @@ jobs:
     steps:
       - name: Clone repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Install terraform
         uses: ./actions/terraform/setup
         with:
@@ -108,6 +116,8 @@ jobs:
     steps:
       - name: Clone repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Install a terraform release that does not exist
         id: terraform-missing-release
         continue-on-error: true
@@ -179,6 +189,8 @@ jobs:
     steps:
       - name: Clone repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Setup Helm
         uses: ./actions/helm/setup
       - name: Verify helm is installed
@@ -193,6 +205,8 @@ jobs:
     steps:
       - name: Clone repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Setup Helm
         uses: ./actions/helm/setup
       - name: Setup kube-linter
@@ -222,6 +236,8 @@ jobs:
     steps:
       - name: Clone repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Setup Opengrep
         uses: ./actions/opengrep/setup
       - name: Setup Trivy
@@ -246,6 +262,8 @@ jobs:
     steps:
       - name: Clone repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Setup Helm
         uses: ./actions/helm/setup
       - name: Setup chart-testing
@@ -262,6 +280,8 @@ jobs:
     steps:
       - name: Clone repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Setup GoReleaser
         uses: ./actions/goreleaser/setup
       - name: Verify goreleaser is installed
@@ -276,6 +296,8 @@ jobs:
     steps:
       - name: Clone repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
@@ -317,6 +339,8 @@ jobs:
     steps:
       - name: Clone repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       # The server outlives this step, which the next ones reach, and goes with the job.
       - name: Serve a sitemap index and an IndexNow API that records the submission
         run: |
@@ -360,6 +384,8 @@ jobs:
     steps:
       - name: Clone repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Setup Task
         uses: ./actions/task/setup
       - name: Verify task is installed
@@ -374,6 +400,8 @@ jobs:
     steps:
       - name: Clone repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       # Signing needs an OIDC token and a registry to push to, so the run stops short of it.
       - name: Install Cosign and read the digest of a public image
         id: cosign
@@ -408,6 +436,8 @@ jobs:
     steps:
       - name: Clone repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Package the library fixture
         uses: ./actions/dotnet/pack-push
         with:
@@ -428,6 +458,8 @@ jobs:
     steps:
       - name: Clone repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Setup QEMU
         uses: ./actions/qemu/setup
         with:
@@ -467,6 +499,8 @@ jobs:
     steps:
       - name: Clone repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Build and push the base image under a tag
         id: base
         uses: ./actions/container/build-push
@@ -510,6 +544,8 @@ jobs:
     steps:
       - name: Clone repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Build and push the base image natively
         id: native
         uses: ./actions/container/build-push
@@ -538,6 +574,8 @@ jobs:
     steps:
       - name: Clone repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Setup Terraform
         uses: ./actions/terraform/setup
       - name: Setup TFLint
@@ -590,6 +628,8 @@ jobs:
     steps:
       - name: Clone repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Start MongoDB
         uses: ./actions/mongodb/start
       - name: Verify MongoDB answers, on the latest release by default
@@ -604,6 +644,8 @@ jobs:
     steps:
       - name: Clone repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Start MongoDB 8.0
         uses: ./actions/mongodb/start
         with:
@@ -619,6 +661,8 @@ jobs:
     steps:
       - name: Clone repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Start MongoDB
         uses: ./actions/mongodb/start
         with:
@@ -635,6 +679,8 @@ jobs:
     steps:
       - name: Clone repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Generate SBOM for this repository
         uses: ./actions/syft/generate-sbom
         with:
@@ -669,6 +715,8 @@ jobs:
     steps:
       - name: Clone repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Scan a real image with Trivy
         uses: ./actions/trivy/scan
         with:
@@ -774,6 +822,8 @@ jobs:
     steps:
       - name: Clone repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Install .NET & lint
         uses: ./actions/dotnet/install-lint-restore
         with:
@@ -812,6 +862,8 @@ jobs:
     steps:
       - name: Clone repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       # The empty tree of git stands for a base holding nothing, which needs no history in the clone.
       - name: Compare a path with the empty tree
         id: added
@@ -880,6 +932,8 @@ jobs:
     steps:
       - name: Clone repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Publish a version the registry already has
         id: published
         uses: ./actions/npm/publish
@@ -920,6 +974,8 @@ jobs:
     steps:
       - name: Clone repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Install the dependencies
         working-directory: test/fixtures/playwright
         run: npm ci
@@ -1016,6 +1072,8 @@ jobs:
     steps:
       - name: Clone repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       # As the Node.js quality workflow does with its workflow parts.
       - name: Leave a folder of the fixture out of git
         run: |

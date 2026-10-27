@@ -102,6 +102,8 @@ jobs:
     steps:
       - name: Clone repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Checkout workflow parts
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -109,6 +111,7 @@ jobs:
           # The caller being this repository, the actions under test are those of the commit under test.
           ref: ${{ github.repository == 'devpro/github-workflow-parts' && github.sha || inputs.workflow-parts-version }}
           path: workflow-parts
+          persist-credentials: false
       - name: Add runner ID to MongoDB Atlas
         uses: ./workflow-parts/actions/mongodb-atlas/add-runner-ip
         with:
