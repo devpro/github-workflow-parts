@@ -160,6 +160,18 @@ jobs:
         uses: ./actions/opengrep/setup
         with:
           opengrep-sha256: "0000000000000000000000000000000000000000000000000000000000000000"
+      - name: Install chart-releaser with a checksum that does not match
+        id: chart-releaser-wrong-checksum
+        continue-on-error: true
+        uses: ./actions/chart-releaser/setup
+        with:
+          chart-releaser-sha256: "0000000000000000000000000000000000000000000000000000000000000000"
+      - name: Install helm-repo-html with a checksum that does not match
+        id: helm-repo-html-wrong-checksum
+        continue-on-error: true
+        uses: ./actions/helm-repo-html/setup
+        with:
+          helm-repo-html-sha256: "0000000000000000000000000000000000000000000000000000000000000000"
       - name: Install a kind release that does not exist
         id: kind-missing-release
         continue-on-error: true
@@ -199,7 +211,7 @@ jobs:
           command -v helm
 
   test-kubernetes-tools-setup:
-    name: "Test / kube-linter, kubeconform, helm-unittest and kind setup actions"
+    name: "Test / kube-linter, kubeconform, helm-unittest, kind, chart-releaser and helm-repo-html setup actions"
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -217,6 +229,10 @@ jobs:
         uses: ./actions/helm-unittest/setup
       - name: Setup kind
         uses: ./actions/kind/setup
+      - name: Setup chart-releaser
+        uses: ./actions/chart-releaser/setup
+      - name: Setup helm-repo-html
+        uses: ./actions/helm-repo-html/setup
       - name: Verify the tools run on a chart
         run: |
           helm create "${RUNNER_TEMP}/demo" >/dev/null
@@ -228,6 +244,13 @@ jobs:
           untt "${RUNNER_TEMP}/demo"
           kind version
           kubectl version --client
+          cr package "${RUNNER_TEMP}/demo" --package-path "${RUNNER_TEMP}/packages"
+          helm repo index "${RUNNER_TEMP}/packages"
+          # A Go template, whose variables the shell must leave alone.
+          # shellcheck disable=SC2016
+          echo '{{ range $name, $versions := .Entries }}{{ $name }}{{ end }}' > "${RUNNER_TEMP}/packages/index.tpl"
+          helm-repo-html --input "${RUNNER_TEMP}/packages/index.yaml" --template "${RUNNER_TEMP}/packages/index.tpl" --output "${RUNNER_TEMP}/packages/index.html"
+          grep -qx demo "${RUNNER_TEMP}/packages/index.html"
 
   test-scanner-setup:
     name: "Test / Opengrep, Trivy and CodeQL setup actions"

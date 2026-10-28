@@ -1,0 +1,41 @@
+name: Setup helm-repo-html
+description: |
+  Installs helm-repo-html, which renders the index.html of a Helm chart repository from its index.yaml and a Go template,
+  by downloading the official binary from its GitHub release and verifying its SHA256 checksum, pinned here rather than read from the release it would vouch for
+  (replacement for go install, which builds the latest code of every dependency the module allows).
+  Linux x64 or arm64 runners only (for example ubuntu-latest or ubuntu-24.04-arm).
+
+inputs:
+  helm-repo-html-version:
+    description: Version of helm-repo-html to install (check latest from https://github.com/halkeye/helm-repo-html/releases)
+    required: false
+    default: "v0.2.1"
+  helm-repo-html-sha256:
+    description: SHA256 of the helm-repo-html archive for x64, given with any other helm-repo-html-version
+    required: false
+    default: "d83d96899dc79986336e6fa32ffd9245c487510dd458c741fceb1eaadcff4168"
+  helm-repo-html-sha256-arm64:
+    description: SHA256 of the helm-repo-html archive for arm64, given with any other helm-repo-html-version
+    required: false
+    default: "338bd99388ad672cb3bdb2cf8c16d23db66b9ac3b8951a660e2e9fd460bbfb95"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install helm-repo-html
+      shell: bash
+      env:
+        HELM_REPO_HTML_VERSION: ${{ inputs.helm-repo-html-version }}
+        HELM_REPO_HTML_TARBALL: helm-repo-html_Linux_${{ runner.arch == 'ARM64' && 'arm64' || 'x86_64' }}.tar.gz
+        HELM_REPO_HTML_SHA256: ${{ runner.arch == 'ARM64' && inputs.helm-repo-html-sha256-arm64 || inputs.helm-repo-html-sha256 }}
+      run: |
+        # Downloaded into a directory of its own, since the repository may hold a file or a directory named like the binary.
+        cd "$(mktemp -d)"
+        curl -fsSL -O "https://github.com/halkeye/helm-repo-html/releases/download/${HELM_REPO_HTML_VERSION}/${HELM_REPO_HTML_TARBALL}"
+        echo "${HELM_REPO_HTML_SHA256}  ${HELM_REPO_HTML_TARBALL}" | sha256sum --check --status
+        tar -xzf "${HELM_REPO_HTML_TARBALL}" bin/helm-repo-html
+        # Installed where the job owns the directory, so neither root nor sudo is needed, on a hosted runner or in a container.
+        mkdir -p "${RUNNER_TEMP}/bin"
+        mv bin/helm-repo-html "${RUNNER_TEMP}/bin/helm-repo-html"
+        echo "${RUNNER_TEMP}/bin" >> "$GITHUB_PATH"
+        "${RUNNER_TEMP}/bin/helm-repo-html" --help > /dev/null

@@ -23,6 +23,7 @@ UNTESTED_PARTS = {
     "actions/fossa/analyze": "needs a FOSSA API key",
     "actions/mongodb-atlas/add-runner-ip": "needs MongoDB Atlas credentials",
     ".github/workflows/reusable-container-publication.yml": "needs registry credentials and an OIDC token to sign",
+    ".github/workflows/reusable-helm-publication.yml": "creates GitHub releases and pushes to the Pages branch of the repository",
     ".github/workflows/reusable-terraform-deployment.yml": "needs MongoDB Atlas credentials and a Terraform backend",
 }
 
