@@ -30,7 +30,11 @@ GitHub Pages:
 
 - [Build a site and deploy it](.github/workflows/reusable-pages-deployment.yml)
 
-Markup (Markdown, YAML):
+Helm:
+
+- [Publish the new chart versions as GitHub releases and a chart repository on GitHub Pages](.github/workflows/reusable-helm-publication.yml)
+
+Markup (Markdown, YAML, shell scripts):
 
 - [Ensure the quality of the content](.github/workflows/reusable-markup-lint.yml)
 
@@ -78,7 +82,9 @@ Go:
 Helm:
 
 - [Setup Helm](actions/helm/setup/action.yml)
+- [Setup chart-releaser](actions/chart-releaser/setup/action.yml)
 - [Setup chart-testing](actions/chart-testing/setup/action.yml)
+- [Setup helm-repo-html](actions/helm-repo-html/setup/action.yml)
 - [Setup helm-unittest](actions/helm-unittest/setup/action.yml)
 - [Setup kube-linter](actions/kube-linter/setup/action.yml)
 - [Setup kubeconform](actions/kubeconform/setup/action.yml)

@@ -93,6 +93,11 @@ on:
         type: string
         required: false
         default: ""
+      sonar-settings-file:
+        description: SonarQube.Analysis.xml file of the repository, relative to the working directory, holding analysis settings such as issue exclusions
+        type: string
+        required: false
+        default: ""
       workflow-parts-version:
         description: GitHub workflow parts version (branch/tag/SHA). Should match the ref/tag/SHA the caller pinned for this reusable workflow itself. Ignored when the caller is this repository, whose checkout already holds the actions under test.
         type: string
@@ -156,6 +161,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          persist-credentials: false
       - name: Checkout workflow parts
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -163,6 +169,7 @@ jobs:
           # The caller being this repository, the actions under test are those of the commit under test.
           ref: ${{ github.repository == 'devpro/github-workflow-parts' && github.sha || inputs.workflow-parts-version }}
           path: workflow-parts
+          persist-credentials: false
       - name: Install .NET & lint
         uses: ./workflow-parts/actions/dotnet/install-lint-restore
         with:
@@ -197,6 +204,7 @@ jobs:
           sonar-organization: ${{ inputs.sonar-organization }}
           sonar-project-key: ${{ inputs.sonar-project-key }}
           sonar-project-name: ${{ inputs.sonar-project-name }}
+          sonar-settings-file: ${{ inputs.sonar-settings-file }}
           sonar-token: ${{ secrets.sonar-token }}
       - name: Check license compliance with FOSSA
         # A repository turns it off where FOSSA cannot be reached, a local run holding no API key.

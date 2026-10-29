@@ -1,0 +1,41 @@
+name: Setup chart-releaser
+description: |
+  Installs chart-releaser (cr) by downloading the official binary from its GitHub release and verifying its SHA256 checksum, pinned here rather than read from the release it would vouch for
+  (replacement for helm/chart-releaser-action, to reduce third-party GitHub Action supply-chain risk).
+  Linux x64 or arm64 runners only (for example ubuntu-latest or ubuntu-24.04-arm).
+
+inputs:
+  chart-releaser-version:
+    description: Version of chart-releaser to install, v1.9.0 or later for a repository with immutable releases (check latest from https://github.com/helm/chart-releaser/releases)
+    required: false
+    default: "v1.9.0"
+  chart-releaser-sha256:
+    description: SHA256 of the chart-releaser archive for x64, given with any other chart-releaser-version
+    required: false
+    default: "8131cb6016e2bcc9e4f63cadfdd7026ae3fa4d2c4d319f4cb72ff3c6a43a5a36"
+  chart-releaser-sha256-arm64:
+    description: SHA256 of the chart-releaser archive for arm64, given with any other chart-releaser-version
+    required: false
+    default: "fb01f90a8097083bcdd14de0ef8976c42ddfba302ded3a395464857eb832d036"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install chart-releaser
+      shell: bash
+      env:
+        CHART_RELEASER_VERSION: ${{ inputs.chart-releaser-version }}
+        CHART_RELEASER_ARCH: ${{ runner.arch == 'ARM64' && 'arm64' || 'amd64' }}
+        CHART_RELEASER_SHA256: ${{ runner.arch == 'ARM64' && inputs.chart-releaser-sha256-arm64 || inputs.chart-releaser-sha256 }}
+      run: |
+        # Downloaded into a directory of its own, since the repository may hold a file or a directory named like the binary.
+        cd "$(mktemp -d)"
+        tarball="chart-releaser_${CHART_RELEASER_VERSION#v}_linux_${CHART_RELEASER_ARCH}.tar.gz"
+        curl -fsSL -O "https://github.com/helm/chart-releaser/releases/download/${CHART_RELEASER_VERSION}/${tarball}"
+        echo "${CHART_RELEASER_SHA256}  ${tarball}" | sha256sum --check --status
+        tar -xzf "${tarball}" cr
+        # Installed where the job owns the directory, so neither root nor sudo is needed, on a hosted runner or in a container.
+        mkdir -p "${RUNNER_TEMP}/bin"
+        mv cr "${RUNNER_TEMP}/bin/cr"
+        echo "${RUNNER_TEMP}/bin" >> "$GITHUB_PATH"
+        "${RUNNER_TEMP}/bin/cr" version
