@@ -64,4 +64,5 @@ jobs:
             exit 0
           fi
           "$shellcheck" --version
-          "$shellcheck" "${scripts[@]}"
+          # A sourced file is resolved from the directory of its script, as it is at run time, so it is checked rather than reported as not followed.
+          "$shellcheck" --external-sources --source-path=SCRIPTDIR "${scripts[@]}"
