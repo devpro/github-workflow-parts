@@ -13,11 +13,11 @@ inputs:
   helm-repo-html-sha256:
     description: SHA256 of the helm-repo-html archive for x64, given with any other helm-repo-html-version
     required: false
-    default: "d83d96899dc79986336e6fa32ffd9245c487510dd458c741fceb1eaadcff4168"
+    default: "d83d96899dc79986336e6fa32ffd9245c487510dd458c741fceb1eaadcff4168"  # v0.2.1
   helm-repo-html-sha256-arm64:
     description: SHA256 of the helm-repo-html archive for arm64, given with any other helm-repo-html-version
     required: false
-    default: "338bd99388ad672cb3bdb2cf8c16d23db66b9ac3b8951a660e2e9fd460bbfb95"
+    default: "338bd99388ad672cb3bdb2cf8c16d23db66b9ac3b8951a660e2e9fd460bbfb95"  # v0.2.1
 
 runs:
   using: "composite"

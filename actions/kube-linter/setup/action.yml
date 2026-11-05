@@ -12,11 +12,11 @@ inputs:
   kube-linter-sha256:
     description: SHA256 of the kube-linter archive for x64, given with any other kube-linter-version, since its release publishes no checksum file
     required: false
-    default: "1a6d8419b11971372971fdbc22682b684ebfb7cf1c39591662d1b6ca736c41df"
+    default: "1a6d8419b11971372971fdbc22682b684ebfb7cf1c39591662d1b6ca736c41df"  # v0.8.3
   kube-linter-sha256-arm64:
     description: SHA256 of the kube-linter archive for arm64, given with any other kube-linter-version
     required: false
-    default: "802e1b09eabd08f6f0a060a6b8ab2bf7bc7e6bf4f673bb2692303704c84b3e22"
+    default: "802e1b09eabd08f6f0a060a6b8ab2bf7bc7e6bf4f673bb2692303704c84b3e22"  # v0.8.3
 
 runs:
   using: "composite"

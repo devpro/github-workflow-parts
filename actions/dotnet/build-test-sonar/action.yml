@@ -59,13 +59,13 @@ runs:
   using: "composite"
   steps:
     - name: Set up JDK for Sonar
-      uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+      uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78  # v6.2.0
       with:
         java-version: ${{ inputs.java-version }}
         distribution: "zulu"
     # The analyzers Sonar downloads land in its user home.
     - name: Cache Sonar packages
-      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
       with:
         path: ~/.sonar/cache
         key: ${{ runner.os }}-sonar
@@ -73,7 +73,7 @@ runs:
     # Keyed by version with no fallback, since a scanner restored from another key would be another version.
     - name: Cache Sonar scanner
       id: cache-sonar-scanner
-      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
       with:
         path: ./.sonar/scanner
         key: ${{ runner.os }}-sonar-scanner-${{ inputs.sonarscanner-version }}

@@ -39,7 +39,7 @@ INPUT_REFERENCE = re.compile(r"\binputs\.([A-Za-z0-9_-]+)")
 SECRET_REFERENCE = re.compile(r"\bsecrets\.([A-Za-z0-9_-]+)")
 ACTION_REFERENCE = re.compile(r"^actions/[a-z0-9-]+@[0-9a-f]{40}$")
 # A tag can be moved to another commit, a commit cannot, and the comment tells which release it is.
-PINNED_LINE = re.compile(r"uses: actions/[a-z0-9-]+@[0-9a-f]{40} # v\d+\.\d+\.\d+$")
+PINNED_LINE = re.compile(r"uses: actions/[a-z0-9-]+@[0-9a-f]{40} {2,}# v\d+\.\d+\.\d+$")
 
 failures = []
 
@@ -251,7 +251,7 @@ def check_references(path, document):
     name = relative(path)
     for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
         if "uses: actions/" in line and not PINNED_LINE.search(line):
-            fail(f"{name}:{number}", "pins a first party action otherwise than to a full commit SHA followed by '# vX.Y.Z'")
+            fail(f"{name}:{number}", "pins a first party action otherwise than to a full commit SHA followed by two spaces and '# vX.Y.Z'")
     references = [step for step in steps_of(document) if "uses" in step]
     references += [job for job in (document.get("jobs") or {}).values() if "uses" in job]
     for item in references:

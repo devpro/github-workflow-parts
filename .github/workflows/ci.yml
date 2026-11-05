@@ -25,7 +25,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Clone repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
       - name: Run actionlint, shellcheck and the conventions of this repository
@@ -37,7 +37,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Clone repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
       - name: Install terraform
@@ -53,7 +53,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Clone repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
       - name: Setup TFLint
@@ -69,7 +69,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Clone repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
       - name: Install terraform
@@ -115,7 +115,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Clone repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
       - name: Install a terraform release that does not exist
@@ -200,7 +200,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Clone repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
       - name: Setup Helm
@@ -216,7 +216,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Clone repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
       - name: Setup Helm
@@ -258,7 +258,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Clone repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
       - name: Setup Opengrep
@@ -284,7 +284,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Clone repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
       - name: Setup Helm
@@ -302,7 +302,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Clone repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
       - name: Setup GoReleaser
@@ -318,11 +318,11 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Clone repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
       - name: Setup Go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
         with:
           go-version-file: test/fixtures/go/module/go.mod
           cache: false
@@ -361,7 +361,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Clone repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
       # The server outlives this step, which the next ones reach, and goes with the job.
@@ -406,7 +406,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Clone repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
       - name: Setup Task
@@ -422,7 +422,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Clone repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
       # Signing needs an OIDC token and a registry to push to, so the run stops short of it.
@@ -458,7 +458,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Clone repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
       - name: Package the library fixture
@@ -480,7 +480,7 @@ jobs:
           - 5000:5000
     steps:
       - name: Clone repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
       - name: Setup QEMU
@@ -489,7 +489,7 @@ jobs:
           platforms: linux/amd64,linux/arm64,linux/arm/v7
       - name: Verify an arm64 image runs
         run: |
-          [ "$(docker run --rm --platform linux/arm64 busybox:1.37 uname -m)" = aarch64 ]
+          [ "$(docker run --rm --platform linux/arm64 busybox:1.38 uname -m)" = aarch64 ]
       - name: Build an image for two platforms, one emulated
         id: emulated
         uses: ./actions/container/build-push
@@ -521,7 +521,7 @@ jobs:
           - 5000:5000
     steps:
       - name: Clone repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
       - name: Build and push the base image under a tag
@@ -566,7 +566,7 @@ jobs:
           - 5000:5000
     steps:
       - name: Clone repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
       - name: Build and push the base image natively
@@ -596,7 +596,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Clone repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
       - name: Setup Terraform
@@ -650,7 +650,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Clone repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
       - name: Start MongoDB
@@ -666,7 +666,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Clone repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
       - name: Start MongoDB 8.0
@@ -683,7 +683,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Clone repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
       - name: Start MongoDB
@@ -701,7 +701,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Clone repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
       - name: Generate SBOM for this repository
@@ -720,7 +720,7 @@ jobs:
       - name: Generate SBOM for a public image
         uses: ./actions/syft/generate-sbom
         with:
-          target-image: busybox:1.37
+          target-image: busybox:1.38
           output-format: cyclonedx-json
           output-file: sbom-image-test.cdx.json
           upload-artifact: "false"
@@ -737,7 +737,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Clone repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
       - name: Scan a real image with Trivy
@@ -844,7 +844,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Clone repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
       - name: Install .NET & lint
@@ -884,7 +884,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Clone repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
       # The empty tree of git stands for a base holding nothing, which needs no history in the clone.
@@ -954,7 +954,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Clone repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
       - name: Publish a version the registry already has
@@ -996,7 +996,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Clone repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
       - name: Install the dependencies
@@ -1057,7 +1057,7 @@ jobs:
         FIXTURE_VALUE=extra
       mongodb-enabled: true
       task-enabled: true
-      terraform-version: 1.17.0
+      terraform-version: 1.17.1
       test-script: test:coverage
       working-directory: test/fixtures/node
 
@@ -1094,7 +1094,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Clone repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
       # As the Node.js quality workflow does with its workflow parts.
