@@ -53,13 +53,13 @@ jobs:
     steps:
       # The whole history and every branch, as chart-releaser adds a worktree of the Pages branch from the remote one.
       - name: Clone repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           fetch-depth: 0
           # chart-releaser pushes with a URL carrying its own token.
           persist-credentials: false
       - name: Checkout workflow parts
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           repository: devpro/github-workflow-parts
           # The caller being this repository, the actions under test are those of the commit under test.
@@ -133,7 +133,7 @@ jobs:
 
       # The Pages branch is read again, as the index pushed above is not in the clone.
       - name: Checkout the Pages branch
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           ref: ${{ inputs.pages-branch }}
           path: pages-site
@@ -146,7 +146,7 @@ jobs:
         working-directory: pages-site
         run: helm-repo-html --input index.yaml --template index.tpl --output index.html
       - name: Upload the site
-        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9  # v5.0.0
         with:
           path: pages-site
 
@@ -163,4 +163,4 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346  # v5.0.1

@@ -9,15 +9,15 @@ inputs:
   scanner-version:
     description: Version of the Sonar scanner CLI (check latest from https://github.com/SonarSource/sonar-scanner-cli/releases)
     required: false
-    default: "8.2.0.6438"
+    default: "8.3.1.16491"
   scanner-sha256:
     description: SHA256 of the scanner archive for x64, given with any other scanner-version
     required: false
-    default: "83257bf97a475d626b8ba2b214aeeb37334ca84db1b3e3be5105783e4facb053"
+    default: "0f304e4c5982f0cfbd06762306d6e60e6ed9c8e3853629ae3b8ec2f4dc9bdc04"  # 8.3.1.16491
   scanner-sha256-arm64:
     description: SHA256 of the scanner archive for arm64, given with any other scanner-version
     required: false
-    default: "3add94b481f1d541897b8d667f4c0e86bc7855bd3eaeb1a7c9ee5f162b909e6e"
+    default: "aca51f414a581b8f088207e089f281b1b2985fb202160e8ca2e135a305639d26"  # 8.3.1.16491
   coverage-paths:
     description: lcov reports of the coverage, relative to the working directory, separated by commas, coverage/lcov.info when empty and the project has no sonar-project.properties
     required: false
@@ -76,7 +76,7 @@ runs:
         echo "${RUNNER_TEMP}/sonar-scanner/bin" >> "$GITHUB_PATH"
     # The analyzers Sonar downloads land in its user home.
     - name: Cache Sonar packages
-      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
       with:
         path: ~/.sonar/cache
         key: ${{ runner.os }}-sonar

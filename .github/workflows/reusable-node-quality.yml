@@ -168,12 +168,12 @@ jobs:
             echo "$ADDITIONAL_VARS" >> "$GITHUB_ENV"
           fi
       - name: Clone repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
       - name: Checkout workflow parts
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           repository: devpro/github-workflow-parts
           # The caller being this repository, the actions under test are those of the commit under test.
@@ -188,7 +188,7 @@ jobs:
           mkdir -p "$(dirname "$exclude")"
           echo "/workflow-parts/" >> "$exclude"
       - name: Setup Node.js
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7.1.0
         with:
           node-version: ${{ inputs.node-version }}
           # The npm cache is keyed on the lock file, which a package without dependencies does not have.
@@ -209,7 +209,7 @@ jobs:
           echo "store-path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
       - name: Cache pnpm store
         if: inputs.pnpm-version != ''
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: ${{ steps.pnpm.outputs.store-path }}
           key: pnpm-${{ runner.os }}-${{ hashFiles(format('{0}/pnpm-lock.yaml', inputs.working-directory)) }}
@@ -312,7 +312,7 @@ jobs:
           target-path: ${{ inputs.working-directory }}
       - name: Archive test results
         if: always()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
           name: node-test-results
           # The usual folders of the coverage and of Playwright, those of a workspace included, and report for anything else, a custom test's server log for instance.

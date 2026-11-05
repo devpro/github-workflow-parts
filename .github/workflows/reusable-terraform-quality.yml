@@ -39,11 +39,11 @@ jobs:
         working-directory: ${{ inputs.working-directory }}
     steps:
       - name: Clone repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
       - name: Checkout workflow parts
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           repository: devpro/github-workflow-parts
           # The caller being this repository, the actions under test are those of the commit under test.
@@ -51,7 +51,7 @@ jobs:
           path: workflow-parts
           persist-credentials: false
       - name: Cache Terraform plugins
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: |
             ~/.terraform.d/plugin-cache
@@ -74,13 +74,13 @@ jobs:
         continue-on-error: true
       # needs GitHub code security > code scanning, not available on private repos
       # - name: Upload SARIF file
-      #   uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+      #   uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066  # v4.39.3
       #   if: success() || failure()
       #   with:
       #     sarif_file: results.sarif
       # TFLint is a pluggable terraform linter (ref. https://github.com/terraform-linters/tflint)
       - name: Cache TFLint plugins
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: ~/.tflint.d/plugins
           key: tflint-${{ hashFiles('**/.tflint.hcl') }}
@@ -105,7 +105,7 @@ jobs:
           output-file: trivy-results.sarif
           severity: HIGH,CRITICAL
       - name: Upload SARIF as artifact
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         if: always()
         with:
           name: security-results

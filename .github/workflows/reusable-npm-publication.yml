@@ -78,11 +78,11 @@ jobs:
       version: ${{ steps.publish.outputs.version }}
     steps:
       - name: Clone repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
       - name: Checkout workflow parts
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           repository: devpro/github-workflow-parts
           # The caller being this repository, the actions under test are those of the commit under test.
@@ -90,7 +90,7 @@ jobs:
           path: workflow-parts
           persist-credentials: false
       - name: Setup Node.js
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7.1.0
         with:
           node-version: ${{ inputs.node-version }}
           # Writes the .npmrc that npm publish and npm view authenticate with.
