@@ -791,13 +791,23 @@ jobs:
           scan-type: config
           target: test/fixtures/terraform
           ignore-file: test/fixtures/trivy/missing.yaml
-      - name: Verify SARIF report was generated and the findings failed the scans
+      # The metadata of an installed Python package, a version with known vulnerabilities, stands for the binaries and packages of a directory.
+      - name: Scan the installed packages of a directory with Trivy
+        uses: ./actions/trivy/scan
+        with:
+          scan-type: rootfs
+          target: test/fixtures/trivy/rootfs
+          format: json
+          output-file: trivy-rootfs.json
+          severity: HIGH,CRITICAL
+      - name: Verify the reports were generated and the findings failed the scans
         env:
           EXPIRED_OUTCOME: ${{ steps.trivy-expired.outcome }}
           FINDING_OUTCOME: ${{ steps.trivy-finding.outcome }}
           MISSING_IGNORE_FILE_OUTCOME: ${{ steps.trivy-missing-ignore-file.outcome }}
         run: |
           jq -e '.version == "2.1.0"' trivy-test.sarif
+          jq -e '[.Results[] | select(.Type == "python-pkg") | .Vulnerabilities[].VulnerabilityID] | any(. == "CVE-2019-11324")' trivy-rootfs.json
           [ "$FINDING_OUTCOME" = failure ]
           [ "$EXPIRED_OUTCOME" = failure ]
           [ "$MISSING_IGNORE_FILE_OUTCOME" = failure ]
