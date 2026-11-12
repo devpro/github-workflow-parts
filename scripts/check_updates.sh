@@ -57,6 +57,7 @@ latest() {
     nuget) curl -fsSL "https://api.nuget.org/v3-flatcontainer/$1/index.json" | jq -r '[.versions[] | select(test("-") | not)] | last' ;;
     pypi) curl -fsSL "https://pypi.org/pypi/$1/json" | jq -r .info.version ;;
     kubectl) curl -fsSL https://dl.k8s.io/release/stable.txt ;;
+    terraform) curl -fsSL "https://registry.terraform.io/v1/providers/$1/versions" | jq -r '[.versions[].version | select(test("^[0-9]+\\.[0-9]+\\.[0-9]+$"))] | sort_by(split(".") | map(tonumber)) | last' ;;
     mongodb) curl -fsSL https://downloads.mongodb.org/full.json | jq -r '[.versions[] | select(.production_release) | .version] | first' ;;
   esac
 }
@@ -93,6 +94,13 @@ pins() {
     | awk -F: '{ gsub(/ /, "", $3); print $3, $4 ? $4 : "", $1 }' | sed 's/  */ /g'
   sed -nE 's/^ACTIONLINT_VERSION=(.*)/actionlint-version \1 test\/run_static_checks.sh/p' test/run_static_checks.sh
   sed -nE 's/^([A-Za-z0-9_.-]+)==([^ ]+).*/pypi:\1 \2 test\/requirements.txt/p' test/requirements.txt
+  # Providers locked by the Terraform fixtures, since the provider scan warns about the vulnerabilities of an old one.
+  git ls-files '*.terraform.lock.hcl' | while read -r lock; do
+    awk -v f="$lock" '
+      /^provider "/ { split($2, parts, "/"); provider = parts[2] "/" parts[3]; gsub(/"/, "", provider) }
+      provider && /^  version *=/ { gsub(/"/, "", $3); print "terraform:" provider, $3, f; provider = "" }
+    ' "$lock"
+  done
 }
 
 printf '%-28s %-16s %-16s %s\n' NAME CURRENT LATEST FILE
@@ -104,6 +112,8 @@ while read -r name current file; do
   seen[$key]=1
   if [[ "$name" == pypi:* ]]; then
     source="pypi ${name#pypi:}"
+  elif [[ "$name" == terraform:* ]]; then
+    source="terraform ${name#terraform:}"
   else
     source="${SOURCES[$name]:-}"
   fi

@@ -18,5 +18,5 @@ A part no CI job can exercise is listed in `UNTESTED_PARTS` of that file, with t
 
 ## Check for updates
 
-`scripts/check_updates.sh` lists the pinned GitHub Actions, tools and Python packages that have a newer stable release upstream.
+`scripts/check_updates.sh` lists the pinned GitHub Actions, tools, Python packages and locked Terraform providers that have a newer stable release upstream.
 A new version input needs its source in `SOURCES` of that script, which reports it as unknown otherwise.

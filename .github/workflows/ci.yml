@@ -812,6 +812,8 @@ jobs:
           [ "$EXPIRED_OUTCOME" = failure ]
           [ "$MISSING_IGNORE_FILE_OUTCOME" = failure ]
 
+  # The fixture locks the latest release of hashicorp/local, so a "Vulnerable provider" warning on it comes from the Go version and modules HashiCorp built it with.
+  # It is expected, shows the provider scan works, and goes away with a new release of the provider once the lock files are updated with terraform init -upgrade.
   test-terraform-quality:
     name: "Test / Terraform quality reusable workflow"
     uses: ./.github/workflows/reusable-terraform-quality.yml
