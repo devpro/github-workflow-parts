@@ -228,7 +228,7 @@ jobs:
         uses: ./workflow-parts/actions/tflint/setup
         with:
           # ref. https://github.com/terraform-linters/tflint/releases
-          tflint-version: v0.65.0
+          tflint-version: v0.66.0
       # Each configuration is linted from inside it, with the nearest .tflint.hcl up to the working directory,
       # so one file at the root serves every configuration and a directory can still have its own.
       - name: Run TFLint

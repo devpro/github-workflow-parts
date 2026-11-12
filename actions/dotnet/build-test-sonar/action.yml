@@ -45,7 +45,7 @@ inputs:
   sonarscanner-version:
     description: Version of the Sonar scanner for .NET (check latest from https://www.nuget.org/packages/dotnet-sonarscanner)
     required: false
-    default: "12.0.0"
+    default: "12.1.0"
   sonar-token:
     description: Sonar token for login
     required: false

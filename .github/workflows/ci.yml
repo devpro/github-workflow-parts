@@ -1067,7 +1067,7 @@ jobs:
         FIXTURE_VALUE=extra
       mongodb-enabled: true
       task-enabled: true
-      terraform-version: 1.17.1
+      terraform-version: 1.17.2
       test-script: test:coverage
       working-directory: test/fixtures/node
 
