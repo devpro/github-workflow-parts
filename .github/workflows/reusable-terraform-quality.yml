@@ -14,7 +14,7 @@ on:
         required: false
         default: 30
       working-directory:
-        description: "Working directory"
+        description: "Folder searched for Terraform configurations, where a directory under a modules folder is a module and any other one a root configuration"
         type: string
         required: false
         default: "."
@@ -50,24 +50,85 @@ jobs:
           ref: ${{ github.repository == 'devpro/github-workflow-parts' && github.sha || inputs.workflow-parts-version }}
           path: workflow-parts
           persist-credentials: false
+      # Tracked files only, which leaves out the checkout of the workflow parts, the .terraform folders and what the repository ignores.
+      # A directory under a modules folder is a module, any other one a root configuration: a project, an example or a sample.
+      - name: Find Terraform configurations
+        run: |
+          list="${RUNNER_TEMP}/terraform-configurations.tsv"
+          git ls-files -z -- '*.tf' | xargs -0 -r -n 1 dirname | sort -u | while IFS= read -r dir; do
+            if [[ "/${dir}/" == */modules/* ]]; then
+              printf 'module\t%s\n' "$dir"
+            else
+              printf 'project\t%s\n' "$dir"
+            fi
+          done > "$list"
+          if [ ! -s "$list" ]; then
+            echo "::error::No tracked Terraform file under ${INPUT_WORKING_DIRECTORY}"
+            exit 1
+          fi
+          column -t "$list"
+        env:
+          INPUT_WORKING_DIRECTORY: ${{ inputs.working-directory }}
       - name: Cache Terraform plugins
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
-          path: |
-            ~/.terraform.d/plugin-cache
-          key: terraform-${{ hashFiles('**/.terraform.lock.hcl') }}
+          path: ~/.terraform.d/plugin-cache
+          key: terraform-${{ hashFiles('**/.terraform.lock.hcl', '**/*.tf') }}
+          restore-keys: terraform-
       - name: Install terraform
         uses: ./workflow-parts/actions/terraform/setup
+      # Each check runs whatever the one before it found, so a single run reports them all.
       - name: Check Terraform format
-        run: terraform fmt -recursive -check
-      - name: Terraform Init
-        run: terraform init -backend=false
-      - name: Terraform Validate
-        run: terraform validate
+        if: success() || failure()
+        run: |
+          failed=()
+          while IFS=$'\t' read -r _ dir; do
+            terraform fmt -check -diff "$dir" || failed+=("$dir")
+          done < "${RUNNER_TEMP}/terraform-configurations.tsv"
+          if [ ${#failed[@]} -gt 0 ]; then
+            printf '::error::terraform fmt found unformatted files in %s\n' "${failed[@]}"
+            exit 1
+          fi
+      # A root configuration is applied with its dependency lock file, so the lock file is committed and must match its constraints.
+      # A module is called by others, whose lock file wins, so a lock file of its own is never used.
+      - name: Validate Terraform configurations
+        if: success() || failure()
+        run: |
+          # Every configuration shares one download of each provider, kept between runs by the cache step.
+          export TF_PLUGIN_CACHE_DIR="${HOME}/.terraform.d/plugin-cache"
+          mkdir -p "$TF_PLUGIN_CACHE_DIR"
+          failed=()
+          while IFS=$'\t' read -r kind dir; do
+            echo "::group::${kind} ${dir}"
+            init_args=(-backend=false -input=false)
+            lock_file_tracked=false
+            if git ls-files --error-unmatch -- "${dir}/.terraform.lock.hcl" > /dev/null 2>&1; then
+              lock_file_tracked=true
+            fi
+            if [ "$kind" = project ]; then
+              if [ "$lock_file_tracked" = true ]; then
+                init_args+=(-lockfile=readonly)
+              else
+                echo "::warning::Root configuration ${dir} has no committed .terraform.lock.hcl"
+              fi
+            elif [ "$lock_file_tracked" = true ]; then
+              echo "::warning::Module ${dir} commits a .terraform.lock.hcl its callers never use"
+            fi
+            if ! { terraform -chdir="$dir" init "${init_args[@]}" && terraform -chdir="$dir" validate; }; then
+              failed+=("$dir")
+            fi
+            echo "::endgroup::"
+          done < "${RUNNER_TEMP}/terraform-configurations.tsv"
+          if [ ${#failed[@]} -gt 0 ]; then
+            printf '::error::terraform validate failed in %s\n' "${failed[@]}"
+            exit 1
+          fi
       # Checkov is a static code analysis tool for infrastructure as code (IaC) and also a software composition analysis (SCA) tool for images and open source packages
       - name: Run Checkov
+        if: success() || failure()
         run: |
           pipx run --spec checkov==3.3.30 checkov -d . \
+            --skip-path workflow-parts \
             --soft-fail \
             --output cli --output sarif \
             --output-file-path console,results.sarif
@@ -89,18 +150,33 @@ jobs:
         with:
           # ref. https://github.com/terraform-linters/tflint/releases
           tflint-version: v0.65.0
-      - name: Initialize TFLint
-        run: tflint --init --recursive
+      # Each configuration is linted from inside it, with its own .tflint.hcl.
+      - name: Run TFLint
+        if: success() || failure()
+        run: |
+          failed=()
+          while IFS=$'\t' read -r _ dir; do
+            echo "::group::${dir}"
+            if ! { tflint --chdir="$dir" --init && tflint --chdir="$dir" --format compact; }; then
+              failed+=("$dir")
+            fi
+            echo "::endgroup::"
+          done < "${RUNNER_TEMP}/terraform-configurations.tsv"
+          if [ ${#failed[@]} -gt 0 ]; then
+            printf '::error::TFLint failed in %s\n' "${failed[@]}"
+            exit 1
+          fi
         env:
           # ref. https://github.com/terraform-linters/tflint/blob/master/docs/user-guide/plugins.md#avoiding-rate-limiting
           GITHUB_TOKEN: ${{ github.token }}
-      - name: Run TFLint
-        run: tflint --recursive --format compact
+      # An action step ignores the default working directory, hence the explicit target.
       - name: Run Trivy IaC scan
+        if: success() || failure()
         uses: ./workflow-parts/actions/trivy/scan
         with:
           scan-type: config
-          target: .
+          target: ${{ inputs.working-directory }}
+          skip-dirs: workflow-parts
           format: sarif
           output-file: trivy-results.sarif
           severity: HIGH,CRITICAL
@@ -110,7 +186,7 @@ jobs:
         with:
           name: security-results
           path: |
-            results.sarif
+            ${{ inputs.working-directory }}/results.sarif
             trivy-results.sarif
           retention-days: 14
     env:
