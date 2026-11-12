@@ -23,6 +23,11 @@ on:
         type: string
         required: false
         default: "ubuntu-latest"
+      severity:
+        description: "Comma-separated severities the Trivy scans of the code and of the providers report"
+        type: string
+        required: false
+        default: "HIGH,CRITICAL"
       workflow-parts-version:
         description: "GitHub workflow parts version (branch/tag/SHA). Should match the ref/tag/SHA the caller pinned for this reusable workflow itself. Ignored when the caller is this repository, whose checkout already holds the actions under test."
         type: string
@@ -66,15 +71,9 @@ jobs:
             echo "::error::No tracked Terraform file under ${INPUT_WORKING_DIRECTORY}"
             exit 1
           fi
-          column -t "$list"
+          cat "$list"
         env:
           INPUT_WORKING_DIRECTORY: ${{ inputs.working-directory }}
-      - name: Cache Terraform plugins
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
-        with:
-          path: ~/.terraform.d/plugin-cache
-          key: terraform-${{ hashFiles('**/.terraform.lock.hcl', '**/*.tf') }}
-          restore-keys: terraform-
       - name: Install terraform
         uses: ./workflow-parts/actions/terraform/setup
       # Each check runs whatever the one before it found, so a single run reports them all.
@@ -94,8 +93,9 @@ jobs:
       - name: Validate Terraform configurations
         if: success() || failure()
         run: |
-          # Every configuration shares one download of each provider, kept between runs by the cache step.
-          export TF_PLUGIN_CACHE_DIR="${HOME}/.terraform.d/plugin-cache"
+          # Every configuration shares one download of each provider.
+          # The folder is not kept between runs, so the provider scan sees exactly the providers of this run.
+          export TF_PLUGIN_CACHE_DIR="${RUNNER_TEMP}/terraform-plugin-cache"
           mkdir -p "$TF_PLUGIN_CACHE_DIR"
           failed=()
           while IFS=$'\t' read -r kind dir; do
@@ -123,6 +123,85 @@ jobs:
             printf '::error::terraform validate failed in %s\n' "${failed[@]}"
             exit 1
           fi
+      # Read from the lock file of every configuration, written by validate where none is committed, so a module pinning an old version shows too.
+      # A newer major version is a warning, as its upgrade changes the code; a newer minor or patch version is a notice.
+      - name: Check provider versions
+        if: success() || failure()
+        run: |
+          providers="${RUNNER_TEMP}/terraform-providers.tsv"
+          while IFS=$'\t' read -r _ dir; do
+            if [ -f "${dir}/.terraform.lock.hcl" ]; then
+              awk -v dir="$dir" -F '"' '/^provider "/ { source = $2 } /^  version *=/ { print source "\t" $2 "\t" dir }' "${dir}/.terraform.lock.hcl"
+            fi
+          done < "${RUNNER_TEMP}/terraform-configurations.tsv" | sort -u > "$providers"
+          declare -A latest
+          while IFS=$'\t' read -r source version dirs; do
+            host="${source%%/*}"
+            address="${source#*/}"
+            if [ "$host" != registry.terraform.io ]; then
+              echo "::notice::${source} ${version} is not checked, as only registry.terraform.io is queried"
+              continue
+            fi
+            if [ -z "${latest[$address]+set}" ]; then
+              # Stable releases only, as the latest version the registry gives may be a prerelease.
+              latest[$address]="$(curl -fsSL --retry 3 "https://registry.terraform.io/v1/providers/${address}/versions" \
+                | jq -r '[.versions[].version | select(test("^[0-9]+\\.[0-9]+\\.[0-9]+$"))] | sort_by(split(".") | map(tonumber)) | last // empty' || true)"
+            fi
+            newest="${latest[$address]}"
+            if [ -z "$newest" ]; then
+              echo "::notice::No stable release of ${address} found on the registry"
+            elif [ "$version" != "$newest" ] && [ "$(printf '%s\n' "$version" "$newest" | sort -V | tail -n 1)" = "$newest" ]; then
+              if [ "${version%%.*}" -lt "${newest%%.*}" ]; then
+                echo "::warning title=Outdated provider::${address} ${version} is a major version behind ${newest}, in ${dirs}"
+              else
+                echo "::notice title=Outdated provider::${address} ${version} is behind ${newest}, in ${dirs}"
+              fi
+            fi
+          done < <(awk -F '\t' '{ key = $1 "\t" $2; dirs[key] = (key in dirs) ? dirs[key] ", " $3 : $3 } END { for (key in dirs) print key "\t" dirs[key] }' "$providers" | sort)
+      # A provider is a Go binary run with the credentials of the deployment, so the vulnerabilities of its Go version and modules count.
+      - name: Scan providers with Trivy
+        if: success() || failure()
+        uses: ./workflow-parts/actions/trivy/scan
+        with:
+          scan-type: rootfs
+          target: ${{ runner.temp }}/terraform-plugin-cache
+          format: json
+          output-file: ${{ runner.temp }}/terraform-providers-trivy.json
+          severity: ${{ inputs.severity }}
+      # Reported as warnings, as fixing them means upgrading a provider, often to a new major version.
+      - name: Report provider vulnerabilities
+        if: success() || failure()
+        run: |
+          report="${RUNNER_TEMP}/terraform-providers-trivy.json"
+          if [ ! -f "$report" ]; then
+            echo "::warning::No provider scan report, see the Trivy step"
+            exit 0
+          fi
+          jq -r '
+            .Results[]? | select((.Vulnerabilities // []) | length > 0)
+            | (.Target | split("/")) as $path
+            | (.Vulnerabilities | map(.Severity)) as $severities
+            | (.Vulnerabilities | map(select(.Severity == "CRITICAL") | .VulnerabilityID) | unique) as $critical
+            | [($path[1:3] | join("/")), $path[3],
+               ($severities | map(select(. == "CRITICAL")) | length), ($severities | map(select(. == "HIGH")) | length), ($severities | length),
+               ($critical + (.Vulnerabilities | map(.VulnerabilityID) | unique - $critical) | .[0:5] | join(", "))]
+            | @tsv' "$report" | sort > "${RUNNER_TEMP}/terraform-providers-vulnerabilities.tsv"
+          if [ ! -s "${RUNNER_TEMP}/terraform-providers-vulnerabilities.tsv" ]; then
+            echo "No ${SEVERITY} vulnerability in the providers"
+            exit 0
+          fi
+          {
+            echo "### Provider vulnerabilities (${SEVERITY})"
+            echo
+            echo "| Provider | Version | Critical | High | Among them |"
+            echo "|---|---|---|---|---|"
+          } >> "$GITHUB_STEP_SUMMARY"
+          while IFS=$'\t' read -r address version critical high total ids; do
+            echo "::warning title=Vulnerable provider::${address} ${version} has ${total} vulnerabilities, ${critical} critical and ${high} high (${ids})"
+            echo "| ${address} | ${version} | ${critical} | ${high} | ${ids} |" >> "$GITHUB_STEP_SUMMARY"
+          done < "${RUNNER_TEMP}/terraform-providers-vulnerabilities.tsv"
+        env:
+          SEVERITY: ${{ inputs.severity }}
       # Checkov is a static code analysis tool for infrastructure as code (IaC) and also a software composition analysis (SCA) tool for images and open source packages
       - name: Run Checkov
         if: success() || failure()
@@ -179,7 +258,7 @@ jobs:
           skip-dirs: workflow-parts
           format: sarif
           output-file: trivy-results.sarif
-          severity: HIGH,CRITICAL
+          severity: ${{ inputs.severity }}
       - name: Upload SARIF as artifact
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         if: always()
@@ -188,6 +267,7 @@ jobs:
           path: |
             ${{ inputs.working-directory }}/results.sarif
             trivy-results.sarif
+            ${{ runner.temp }}/terraform-providers-trivy.json
           retention-days: 14
     env:
       TF_IN_AUTOMATION: true
