@@ -157,7 +157,7 @@ jobs:
                 echo "::notice title=Outdated provider::${address} ${version} is behind ${newest}, in ${dirs}"
               fi
             fi
-          done < <(awk -F '\t' '{ key = $1 "\t" $2; dirs[key] = (key in dirs) ? dirs[key] ", " $3 : $3 } END { for (key in dirs) print key "\t" dirs[key] }' "$providers" | sort)
+          done < <(awk -F '\t' '{ key = $1 "\t" $2; if (key in dirs) dirs[key] = dirs[key] ", " $3; else dirs[key] = $3 } END { for (key in dirs) print key "\t" dirs[key] }' "$providers" | sort)
       # A provider is a Go binary run with the credentials of the deployment, so the vulnerabilities of its Go version and modules count.
       - name: Scan providers with Trivy
         if: success() || failure()
