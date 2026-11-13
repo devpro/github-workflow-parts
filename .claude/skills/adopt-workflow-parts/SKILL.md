@@ -88,7 +88,7 @@ Safety before convenience, and fewer dependencies over more.
 - `istarci run <sha>` retries a run that must run again (daemon restart, change to `~/.istarci/config.yml`), never right after a commit.
 - A command over the 600 second tool limit is moved to the background, against the foreground rule:
   `timeout 590 istarci wait` then call it again while the run is going.
-- `.istarci.yml` of a consumer sets the runner image per job (`ghcr.io/devpro/debian-node-playwright` for browser tests),
+- `.istarci.yml` of a consumer sets the runner image per job (`ghcr.io/devpro/ubuntu-node-playwright` for browser tests),
   the jobs needing Docker,
   and `skipJobs` for jobs that must never run on the developer machine (kind's privileged node, a QEMU registration in the kernel).
 - The global ignores of image scans live in `~/.istarci/config.yml`, each with a reason and an expiry.
