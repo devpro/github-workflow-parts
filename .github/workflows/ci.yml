@@ -555,6 +555,19 @@ jobs:
             fi
           done
 
+  # A Windows image is built on the Windows runner alone, and a CI run pushes nothing.
+  test-windows-container-publication:
+    name: "Test / Container publication reusable workflow, a Windows image without push"
+    uses: ./.github/workflows/reusable-container-publication.yml
+    with:
+      push: false
+      image-definition: test/fixtures/container/windows/Dockerfile
+      image-path: localhost
+      image-name: windows-test
+      image-tag: ${{ github.run_id }}
+      image-platform: ""
+      windows-runner: windows-2025
+
   test-container-build-push-arm64:
     name: "Test / Container build-push action on an arm64 runner"
     runs-on: ubuntu-24.04-arm
@@ -849,6 +862,14 @@ jobs:
       sonar-settings-file: SonarQube.Analysis.xml
     secrets:
       sonar-token: ${{ secrets.SONAR_TOKEN }}
+
+  # The fixture mixes a project of the old format restored from packages.config and an SDK one, as .NET Framework code being migrated does.
+  test-windows-dotnet-framework-quality:
+    name: "Test / .NET Framework quality reusable workflow"
+    uses: ./.github/workflows/reusable-dotnet-framework-quality.yml
+    with:
+      solution: Fixture.Framework.sln
+      working-directory: test/fixtures/dotnet-framework
 
   test-dotnet-build-test:
     name: "Test / .NET build-test action writes results, coverage and reports"
