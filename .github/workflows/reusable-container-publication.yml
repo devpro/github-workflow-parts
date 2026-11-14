@@ -22,6 +22,11 @@ on:
         type: boolean
         required: false
         default: true
+      scan:
+        description: Scan the Windows image with Grype once built, failing on a critical vulnerability, which needs push false since a pushed image is removed from the runner
+        type: boolean
+        required: false
+        default: false
       create-latest:
         description: "Create latest tag?"
         type: boolean
@@ -305,6 +310,12 @@ jobs:
           platforms: windows/amd64
           build-arguments: ${{ inputs.extra-build-arguments }}
           working-directory: ${{ inputs.working-directory }}
+      # Grype rather than Trivy, which finds no package in a Windows image, where Grype reads the version of every .NET assembly and Windows binary.
+      - name: Scan container image with Grype
+        if: ${{ inputs.scan }}
+        uses: ./workflow-parts/actions/grype/scan
+        with:
+          image: ${{ env.IMAGE_REPOSITORY }}:${{ inputs.image-tag }}-windows-amd64
 
   # The platforms built on runners of their own are only put under the tag here, so that the image a tag names is complete.
   publication:

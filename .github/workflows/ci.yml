@@ -561,6 +561,7 @@ jobs:
     uses: ./.github/workflows/reusable-container-publication.yml
     with:
       push: false
+      scan: true
       image-definition: test/fixtures/container/windows/Dockerfile
       image-path: localhost
       image-name: windows-test

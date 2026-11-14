@@ -59,6 +59,7 @@ Containers:
 
 - [Build and push an image for one or more Linux platforms, or for Windows](actions/container/build-push/action.yml)
 - [Sign an image with Cosign](actions/cosign/sign/action.yml)
+- [Scan a Windows image with Grype](actions/grype/scan/action.yml)
 - [Setup QEMU to build images for other platforms](actions/qemu/setup/action.yml)
 - [Scan an image or a directory with Trivy](actions/trivy/scan/action.yml)
 - [Setup Trivy](actions/trivy/setup/action.yml)

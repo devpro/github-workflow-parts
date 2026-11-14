@@ -1,0 +1,82 @@
+name: Scan with Grype
+description: |
+  Installs Grype by downloading the official binary from its GitHub release and verifying its SHA256 checksum,
+  then scans a container image of the local Docker engine for vulnerabilities (replacement for anchore/scan-action,
+  to reduce third-party GitHub Action supply-chain risk).
+  Windows x64 runners only (for example windows-2025), where Grype reads the version of every .NET assembly and Windows binary of an image in which Trivy finds no package.
+
+inputs:
+  grype-version:
+    description: Version of Grype to install (check latest from https://github.com/anchore/grype/releases)
+    required: false
+    default: "0.121.3"
+  image:
+    description: Reference of the image to scan, in the local Docker engine
+    required: true
+  fail-on:
+    description: Lowest severity that fails the scan (negligible, low, medium, high, critical), none when empty
+    required: false
+    default: "critical"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install Grype
+      shell: pwsh
+      env:
+        GRYPE_VERSION: ${{ inputs.grype-version }}
+      run: |
+        $ErrorActionPreference = 'Stop'
+        # A progress bar redrawn in a CI log only adds lines, and slows the download down.
+        $ProgressPreference = 'SilentlyContinue'
+        # Downloaded into a directory of its own, since the repository may hold a file or a directory named like the binary.
+        $directory = New-Item -ItemType Directory -Path (Join-Path $env:RUNNER_TEMP "grype-$([guid]::NewGuid())")
+        $archive = "grype_${env:GRYPE_VERSION}_windows_amd64.zip"
+        $checksums = "grype_${env:GRYPE_VERSION}_checksums.txt"
+        $baseUrl = "https://github.com/anchore/grype/releases/download/v${env:GRYPE_VERSION}"
+
+        Write-Output "Downloading Grype binary and checksums..."
+        Invoke-WebRequest -Uri "$baseUrl/$archive" -OutFile (Join-Path $directory $archive)
+        Invoke-WebRequest -Uri "$baseUrl/$checksums" -OutFile (Join-Path $directory $checksums)
+
+        Write-Output "Verifying checksum..."
+        $line = Get-Content (Join-Path $directory $checksums) | Where-Object { $_ -match " $([regex]::Escape($archive))$" }
+        $expected = if ($line) { ($line -split '\s+')[0] } else { '' }
+        $actual = (Get-FileHash -Path (Join-Path $directory $archive) -Algorithm SHA256).Hash
+        if (-not $expected -or $expected -ne $actual) {
+          Write-Error "Checksum verification failed!"
+          exit 1
+        }
+        Write-Output "Verification successful!"
+
+        Expand-Archive -Path (Join-Path $directory $archive) -DestinationPath $directory
+        # Installed where the job owns the directory, so no administrator right is needed, on a hosted runner or in a container.
+        $bin = Join-Path $env:RUNNER_TEMP 'bin'
+        New-Item -ItemType Directory -Path $bin -Force | Out-Null
+        Move-Item -Path (Join-Path $directory 'grype.exe') -Destination $bin -Force
+        Remove-Item -Path $directory -Recurse -Force
+        Add-Content -Path $env:GITHUB_PATH -Value $bin
+        & (Join-Path $bin 'grype.exe') version
+        exit $LASTEXITCODE
+    - name: Scan container image with Grype
+      shell: pwsh
+      env:
+        IMAGE: ${{ inputs.image }}
+        FAIL_ON: ${{ inputs.fail-on }}
+      run: |
+        # The image is read from an archive, so the scan needs no access of its own to the engine.
+        $archive = Join-Path $env:RUNNER_TEMP "grype-image-$([guid]::NewGuid()).tar"
+        docker save --output $archive $env:IMAGE
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+        # Every finding is printed, and only those at or above the severity given fail the scan.
+        $grypeArgs = @("docker-archive:$archive", '--output', 'table')
+        if ($env:FAIL_ON) {
+          $grypeArgs += @('--fail-on', $env:FAIL_ON)
+        }
+        Write-Output "Running: grype $($grypeArgs -join ' ')"
+        grype @grypeArgs
+        $code = $LASTEXITCODE
+        # A Windows image archive takes gigabytes, which a runner keeping its disk between jobs would pile up.
+        Remove-Item -Path $archive -Force
+        exit $code

@@ -19,6 +19,7 @@ declare -A SOURCES=(
   [fossa-version]="github fossas/fossa-cli"
   [goreleaser-version]="github goreleaser/goreleaser"
   [govulncheck-version]="github golang/vuln"
+  [grype-version]="github anchore/grype"
   [helm-repo-html-version]="github halkeye/helm-repo-html"
   [helm-unittest-version]="github helm-unittest/helm-unittest"
   [helm-version]="github helm/helm"
