@@ -555,6 +555,19 @@ jobs:
             fi
           done
 
+  # A Windows image is built on the Windows runner alone, and a CI run pushes nothing.
+  test-windows-container-publication:
+    name: "Test / Container publication reusable workflow, a Windows image without push"
+    uses: ./.github/workflows/reusable-container-publication.yml
+    with:
+      push: false
+      image-definition: test/fixtures/container/windows/Dockerfile
+      image-path: localhost
+      image-name: windows-test
+      image-tag: ${{ github.run_id }}
+      image-platform: ""
+      windows-runner: windows-2025
+
   test-container-build-push-arm64:
     name: "Test / Container build-push action on an arm64 runner"
     runs-on: ubuntu-24.04-arm
@@ -791,17 +804,29 @@ jobs:
           scan-type: config
           target: test/fixtures/terraform
           ignore-file: test/fixtures/trivy/missing.yaml
-      - name: Verify SARIF report was generated and the findings failed the scans
+      # The metadata of an installed Python package, a version with known vulnerabilities, stands for the binaries and packages of a directory.
+      - name: Scan the installed packages of a directory with Trivy
+        uses: ./actions/trivy/scan
+        with:
+          scan-type: rootfs
+          target: test/fixtures/trivy/rootfs
+          format: json
+          output-file: trivy-rootfs.json
+          severity: HIGH,CRITICAL
+      - name: Verify the reports were generated and the findings failed the scans
         env:
           EXPIRED_OUTCOME: ${{ steps.trivy-expired.outcome }}
           FINDING_OUTCOME: ${{ steps.trivy-finding.outcome }}
           MISSING_IGNORE_FILE_OUTCOME: ${{ steps.trivy-missing-ignore-file.outcome }}
         run: |
           jq -e '.version == "2.1.0"' trivy-test.sarif
+          jq -e '[.Results[] | select(.Type == "python-pkg") | .Vulnerabilities[].VulnerabilityID] | any(. == "CVE-2019-11324")' trivy-rootfs.json
           [ "$FINDING_OUTCOME" = failure ]
           [ "$EXPIRED_OUTCOME" = failure ]
           [ "$MISSING_IGNORE_FILE_OUTCOME" = failure ]
 
+  # The fixture locks the latest release of hashicorp/local, so a "Vulnerable provider" warning on it comes from the Go version and modules HashiCorp built it with.
+  # It is expected, shows the provider scan works, and goes away with a new release of the provider once the lock files are updated with terraform init -upgrade.
   test-terraform-quality:
     name: "Test / Terraform quality reusable workflow"
     uses: ./.github/workflows/reusable-terraform-quality.yml
@@ -837,6 +862,14 @@ jobs:
       sonar-settings-file: SonarQube.Analysis.xml
     secrets:
       sonar-token: ${{ secrets.SONAR_TOKEN }}
+
+  # The fixture mixes a project of the old format restored from packages.config and an SDK one, as .NET Framework code being migrated does.
+  test-windows-dotnet-framework-quality:
+    name: "Test / .NET Framework quality reusable workflow"
+    uses: ./.github/workflows/reusable-dotnet-framework-quality.yml
+    with:
+      solution: Fixture.Framework.sln
+      working-directory: test/fixtures/dotnet-framework
 
   test-dotnet-build-test:
     name: "Test / .NET build-test action writes results, coverage and reports"
@@ -1057,7 +1090,7 @@ jobs:
         FIXTURE_VALUE=extra
       mongodb-enabled: true
       task-enabled: true
-      terraform-version: 1.17.1
+      terraform-version: 1.17.2
       test-script: test:coverage
       working-directory: test/fixtures/node
 

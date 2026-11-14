@@ -7,21 +7,21 @@ description: |
 
 inputs:
   mongodb-version:
-    description: Version of the MongoDB server, an 8.0 one for instance, the latest release (9.0.4) when empty (check latest from https://www.mongodb.com/try/download/community)
+    description: Version of the MongoDB server, an 8.0 one for instance, the latest release (9.0.8) when empty (check latest from https://www.mongodb.com/try/download/community)
     required: false
     default: ""
   mongosh-version:
     description: Version of mongosh (check latest from https://github.com/mongodb-js/mongosh/releases)
     required: false
-    default: "2.14.1"
+    default: "2.14.2"
   mongosh-sha256:
     description: SHA256 of the mongosh archive for x64, given with any other mongosh-version, since its release publishes no checksum file
     required: false
-    default: "8d24940ebe3675959b518fd41ea16b4e2182d6a75c09777db09cfa64e18834a1"  # 2.14.1
+    default: "1523e16da7c6902333b681bf65d83bbef59bff558c46ac5636371d13beb4de53"  # 2.14.2
   mongosh-sha256-arm64:
     description: SHA256 of the mongosh archive for arm64, given with any other mongosh-version
     required: false
-    default: "cd7f1ae986baa400b021a2c0688aa3b64d6afcc3f7ab07833417a049e0cbf98b"  # 2.14.1
+    default: "20f89386f74c14cb63a163eea5491dc14759bcd64229b1c099c2390585a01fd3"  # 2.14.2
   port:
     description: Port the server listens on
     required: false
@@ -38,7 +38,7 @@ runs:
       shell: bash
       env:
         # The one place naming the default version, which the workflows calling this action leave empty.
-        MONGODB_ARCHIVE: mongodb-linux-${{ runner.arch == 'ARM64' && 'aarch64' || 'x86_64' }}-ubuntu2404-${{ inputs.mongodb-version || '9.0.4' }}.tgz
+        MONGODB_ARCHIVE: mongodb-linux-${{ runner.arch == 'ARM64' && 'aarch64' || 'x86_64' }}-ubuntu2404-${{ inputs.mongodb-version || '9.0.8' }}.tgz
         MONGOSH_VERSION: ${{ inputs.mongosh-version }}
         MONGOSH_ARCHIVE: mongosh-${{ inputs.mongosh-version }}-linux-${{ runner.arch == 'ARM64' && 'arm64' || 'x64' }}.tgz
         MONGOSH_SHA256: ${{ runner.arch == 'ARM64' && inputs.mongosh-sha256-arm64 || inputs.mongosh-sha256 }}

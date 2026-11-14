@@ -14,7 +14,7 @@ on:
         required: false
         default: 30
       working-directory:
-        description: "Working directory"
+        description: "Folder searched for Terraform configurations, where a directory under a modules folder is a module and any other one a root configuration"
         type: string
         required: false
         default: "."
@@ -23,6 +23,11 @@ on:
         type: string
         required: false
         default: "ubuntu-latest"
+      severity:
+        description: "Comma-separated severities the Trivy scans of the code and of the providers report"
+        type: string
+        required: false
+        default: "HIGH,CRITICAL"
       workflow-parts-version:
         description: "GitHub workflow parts version (branch/tag/SHA). Should match the ref/tag/SHA the caller pinned for this reusable workflow itself. Ignored when the caller is this repository, whose checkout already holds the actions under test."
         type: string
@@ -50,24 +55,159 @@ jobs:
           ref: ${{ github.repository == 'devpro/github-workflow-parts' && github.sha || inputs.workflow-parts-version }}
           path: workflow-parts
           persist-credentials: false
-      - name: Cache Terraform plugins
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
-        with:
-          path: |
-            ~/.terraform.d/plugin-cache
-          key: terraform-${{ hashFiles('**/.terraform.lock.hcl') }}
+      # Tracked files only, which leaves out the checkout of the workflow parts, the .terraform folders and what the repository ignores.
+      # A directory under a modules folder is a module, any other one a root configuration: a project, an example or a sample.
+      - name: Find Terraform configurations
+        run: |
+          list="${RUNNER_TEMP}/terraform-configurations.tsv"
+          git ls-files -z -- '*.tf' | xargs -0 -r -n 1 dirname | sort -u | while IFS= read -r dir; do
+            if [[ "/${dir}/" == */modules/* ]]; then
+              printf 'module\t%s\n' "$dir"
+            else
+              printf 'project\t%s\n' "$dir"
+            fi
+          done > "$list"
+          if [ ! -s "$list" ]; then
+            echo "::error::No tracked Terraform file under ${INPUT_WORKING_DIRECTORY}"
+            exit 1
+          fi
+          cat "$list"
+        env:
+          INPUT_WORKING_DIRECTORY: ${{ inputs.working-directory }}
       - name: Install terraform
         uses: ./workflow-parts/actions/terraform/setup
+      # Each check runs whatever the one before it found, so a single run reports them all.
       - name: Check Terraform format
-        run: terraform fmt -recursive -check
-      - name: Terraform Init
-        run: terraform init -backend=false
-      - name: Terraform Validate
-        run: terraform validate
+        if: success() || failure()
+        run: |
+          failed=()
+          while IFS=$'\t' read -r _ dir; do
+            terraform fmt -check -diff "$dir" || failed+=("$dir")
+          done < "${RUNNER_TEMP}/terraform-configurations.tsv"
+          if [ ${#failed[@]} -gt 0 ]; then
+            printf '::error::terraform fmt found unformatted files in %s\n' "${failed[@]}"
+            exit 1
+          fi
+      # A root configuration is applied with its dependency lock file, so the lock file is committed and must match its constraints.
+      # A module is called by others, whose lock file wins, so a lock file of its own is never used.
+      - name: Validate Terraform configurations
+        if: success() || failure()
+        run: |
+          # Every configuration shares one download of each provider.
+          # The folder is not kept between runs, so the provider scan sees exactly the providers of this run.
+          export TF_PLUGIN_CACHE_DIR="${RUNNER_TEMP}/terraform-plugin-cache"
+          mkdir -p "$TF_PLUGIN_CACHE_DIR"
+          failed=()
+          while IFS=$'\t' read -r kind dir; do
+            echo "::group::${kind} ${dir}"
+            init_args=(-backend=false -input=false)
+            lock_file_tracked=false
+            if git ls-files --error-unmatch -- "${dir}/.terraform.lock.hcl" > /dev/null 2>&1; then
+              lock_file_tracked=true
+            fi
+            if [ "$kind" = project ]; then
+              if [ "$lock_file_tracked" = true ]; then
+                init_args+=(-lockfile=readonly)
+              else
+                echo "::warning::Root configuration ${dir} has no committed .terraform.lock.hcl"
+              fi
+            elif [ "$lock_file_tracked" = true ]; then
+              echo "::warning::Module ${dir} commits a .terraform.lock.hcl its callers never use"
+            fi
+            if ! { terraform -chdir="$dir" init "${init_args[@]}" && terraform -chdir="$dir" validate; }; then
+              failed+=("$dir")
+            fi
+            echo "::endgroup::"
+          done < "${RUNNER_TEMP}/terraform-configurations.tsv"
+          if [ ${#failed[@]} -gt 0 ]; then
+            printf '::error::terraform validate failed in %s\n' "${failed[@]}"
+            exit 1
+          fi
+      # Read from the lock file of every configuration, written by validate where none is committed, so a module pinning an old version shows too.
+      # A newer major version is a warning, as its upgrade changes the code; a newer minor or patch version is a notice.
+      - name: Check provider versions
+        if: success() || failure()
+        run: |
+          providers="${RUNNER_TEMP}/terraform-providers.tsv"
+          while IFS=$'\t' read -r _ dir; do
+            if [ -f "${dir}/.terraform.lock.hcl" ]; then
+              awk -v dir="$dir" -F '"' '/^provider "/ { source = $2 } /^  version *=/ { print source "\t" $2 "\t" dir }' "${dir}/.terraform.lock.hcl"
+            fi
+          done < "${RUNNER_TEMP}/terraform-configurations.tsv" | sort -u > "$providers"
+          declare -A latest
+          while IFS=$'\t' read -r source version dirs; do
+            host="${source%%/*}"
+            address="${source#*/}"
+            if [ "$host" != registry.terraform.io ]; then
+              echo "::notice::${source} ${version} is not checked, as only registry.terraform.io is queried"
+              continue
+            fi
+            if [ -z "${latest[$address]+set}" ]; then
+              # Stable releases only, as the latest version the registry gives may be a prerelease.
+              latest[$address]="$(curl -fsSL --retry 3 "https://registry.terraform.io/v1/providers/${address}/versions" \
+                | jq -r '[.versions[].version | select(test("^[0-9]+\\.[0-9]+\\.[0-9]+$"))] | sort_by(split(".") | map(tonumber)) | last // empty' || true)"
+            fi
+            newest="${latest[$address]}"
+            if [ -z "$newest" ]; then
+              echo "::notice::No stable release of ${address} found on the registry"
+            elif [ "$version" != "$newest" ] && [ "$(printf '%s\n' "$version" "$newest" | sort -V | tail -n 1)" = "$newest" ]; then
+              if [ "${version%%.*}" -lt "${newest%%.*}" ]; then
+                echo "::warning title=Outdated provider::${address} ${version} is a major version behind ${newest}, in ${dirs}"
+              else
+                echo "::notice title=Outdated provider::${address} ${version} is behind ${newest}, in ${dirs}"
+              fi
+            fi
+          done < <(awk -F '\t' '{ key = $1 "\t" $2; if (key in dirs) dirs[key] = dirs[key] ", " $3; else dirs[key] = $3 } END { for (key in dirs) print key "\t" dirs[key] }' "$providers" | sort)
+      # A provider is a Go binary run with the credentials of the deployment, so the vulnerabilities of its Go version and modules count.
+      - name: Scan providers with Trivy
+        if: success() || failure()
+        uses: ./workflow-parts/actions/trivy/scan
+        with:
+          scan-type: rootfs
+          target: ${{ runner.temp }}/terraform-plugin-cache
+          format: json
+          output-file: ${{ runner.temp }}/terraform-providers-trivy.json
+          severity: ${{ inputs.severity }}
+      # Reported as warnings, as fixing them means upgrading a provider, often to a new major version.
+      - name: Report provider vulnerabilities
+        if: success() || failure()
+        run: |
+          report="${RUNNER_TEMP}/terraform-providers-trivy.json"
+          if [ ! -f "$report" ]; then
+            echo "::warning::No provider scan report, see the Trivy step"
+            exit 0
+          fi
+          jq -r '
+            .Results[]? | select((.Vulnerabilities // []) | length > 0)
+            | (.Target | split("/")) as $path
+            | (.Vulnerabilities | map(.Severity)) as $severities
+            | (.Vulnerabilities | map(select(.Severity == "CRITICAL") | .VulnerabilityID) | unique) as $critical
+            | [($path[1:3] | join("/")), $path[3],
+               ($severities | map(select(. == "CRITICAL")) | length), ($severities | map(select(. == "HIGH")) | length), ($severities | length),
+               ($critical + (.Vulnerabilities | map(.VulnerabilityID) | unique - $critical) | .[0:5] | join(", "))]
+            | @tsv' "$report" | sort > "${RUNNER_TEMP}/terraform-providers-vulnerabilities.tsv"
+          if [ ! -s "${RUNNER_TEMP}/terraform-providers-vulnerabilities.tsv" ]; then
+            echo "No ${SEVERITY} vulnerability in the providers"
+            exit 0
+          fi
+          {
+            echo "### Provider vulnerabilities (${SEVERITY})"
+            echo
+            echo "| Provider | Version | Critical | High | Among them |"
+            echo "|---|---|---|---|---|"
+          } >> "$GITHUB_STEP_SUMMARY"
+          while IFS=$'\t' read -r address version critical high total ids; do
+            echo "::warning title=Vulnerable provider::${address} ${version} has ${total} vulnerabilities, ${critical} critical and ${high} high (${ids})"
+            echo "| ${address} | ${version} | ${critical} | ${high} | ${ids} |" >> "$GITHUB_STEP_SUMMARY"
+          done < "${RUNNER_TEMP}/terraform-providers-vulnerabilities.tsv"
+        env:
+          SEVERITY: ${{ inputs.severity }}
       # Checkov is a static code analysis tool for infrastructure as code (IaC) and also a software composition analysis (SCA) tool for images and open source packages
       - name: Run Checkov
+        if: success() || failure()
         run: |
           pipx run --spec checkov==3.3.30 checkov -d . \
+            --skip-path workflow-parts \
             --soft-fail \
             --output cli --output sarif \
             --output-file-path console,results.sarif
@@ -88,30 +228,107 @@ jobs:
         uses: ./workflow-parts/actions/tflint/setup
         with:
           # ref. https://github.com/terraform-linters/tflint/releases
-          tflint-version: v0.65.0
-      - name: Initialize TFLint
-        run: tflint --init --recursive
+          tflint-version: v0.66.0
+      # Each configuration is linted from inside it, with the nearest .tflint.hcl up to the working directory,
+      # so one file at the root serves every configuration and a directory can still have its own.
+      - name: Run TFLint
+        if: success() || failure()
+        run: |
+          used="${RUNNER_TEMP}/tflint-configurations.txt"
+          : > "$used"
+          failed=()
+          while IFS=$'\t' read -r _ dir; do
+            echo "::group::${dir}"
+            config_args=()
+            search="$dir"
+            while true; do
+              if [ -f "${search}/.tflint.hcl" ]; then
+                echo "Configuration: ${search}/.tflint.hcl"
+                config_args=(--config "${PWD}/${search}/.tflint.hcl")
+                echo "${search}/.tflint.hcl" >> "$used"
+                break
+              fi
+              if [ "$search" = . ]; then
+                echo "Configuration: TFLint defaults"
+                break
+              fi
+              search="$(dirname "$search")"
+            done
+            if ! { tflint --chdir="$dir" "${config_args[@]}" --init && tflint --chdir="$dir" "${config_args[@]}" --format compact; }; then
+              failed+=("$dir")
+            fi
+            echo "::endgroup::"
+          done < "${RUNNER_TEMP}/terraform-configurations.tsv"
+          if [ ${#failed[@]} -gt 0 ]; then
+            printf '::error::TFLint failed in %s\n' "${failed[@]}"
+            exit 1
+          fi
         env:
           # ref. https://github.com/terraform-linters/tflint/blob/master/docs/user-guide/plugins.md#avoiding-rate-limiting
           GITHUB_TOKEN: ${{ github.token }}
-      - name: Run TFLint
-        run: tflint --recursive --format compact
+      # A plugin is pinned to an exact version, which TFLint requires, so nothing tells when it falls behind.
+      # A newer major version, or a newer minor one before 1.0, is a warning, as it may bring rules that raise new findings.
+      - name: Check TFLint plugin versions
+        if: success() || failure()
+        run: |
+          used="${RUNNER_TEMP}/tflint-configurations.txt"
+          if [ ! -s "$used" ]; then
+            exit 0
+          fi
+          sort -u "$used" | while IFS= read -r config; do
+            awk -F '"' '
+              /^plugin "/ { name = $2; source = ""; version = "" }
+              /^  source *=/ { source = $2 }
+              /^  version *=/ { version = $2 }
+              /^}/ { if (name != "" && source != "" && version != "") print name "\t" source "\t" version; name = "" }
+            ' "$config" | while IFS=$'\t' read -r name source version; do
+              repository="${source#github.com/}"
+              auth=()
+              if [ -n "$GITHUB_TOKEN" ]; then
+                auth=(-H "Authorization: Bearer ${GITHUB_TOKEN}")
+              fi
+              # The latest release leaves out prereleases and drafts.
+              newest="$(curl -fsSL --retry 3 "${auth[@]}" "https://api.github.com/repos/${repository}/releases/latest" | jq -r '.tag_name // empty' || true)"
+              newest="${newest#v}"
+              if [ -z "$newest" ]; then
+                echo "::notice::No release of ${source} found on GitHub"
+                continue
+              fi
+              if [ "$version" = "$newest" ] || [ "$(printf '%s\n' "$version" "$newest" | sort -V | tail -n 1)" != "$newest" ]; then
+                echo "TFLint plugin ${name} ${version} is the latest release, in ${config}"
+                continue
+              fi
+              IFS=. read -r major minor _ <<< "$version"
+              IFS=. read -r newest_major newest_minor _ <<< "$newest"
+              if [ "$major" != "$newest_major" ] || { [ "$major" = 0 ] && [ "$minor" != "$newest_minor" ]; }; then
+                echo "::warning title=Outdated TFLint plugin::${name} ${version} is a breaking release behind ${newest}, in ${config}"
+              else
+                echo "::notice title=Outdated TFLint plugin::${name} ${version} is behind ${newest}, in ${config}"
+              fi
+            done
+          done
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+      # An action step ignores the default working directory, hence the explicit target.
       - name: Run Trivy IaC scan
+        if: success() || failure()
         uses: ./workflow-parts/actions/trivy/scan
         with:
           scan-type: config
-          target: .
+          target: ${{ inputs.working-directory }}
+          skip-dirs: workflow-parts
           format: sarif
           output-file: trivy-results.sarif
-          severity: HIGH,CRITICAL
+          severity: ${{ inputs.severity }}
       - name: Upload SARIF as artifact
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         if: always()
         with:
           name: security-results
           path: |
-            results.sarif
+            ${{ inputs.working-directory }}/results.sarif
             trivy-results.sarif
+            ${{ runner.temp }}/terraform-providers-trivy.json
           retention-days: 14
     env:
       TF_IN_AUTOMATION: true

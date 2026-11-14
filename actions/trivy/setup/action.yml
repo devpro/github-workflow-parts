@@ -8,7 +8,7 @@ inputs:
   trivy-version:
     description: Version of Trivy to install (check latest from https://github.com/aquasecurity/trivy/releases)
     required: false
-    default: "0.76.1"
+    default: "0.76.2"
 
 runs:
   using: "composite"

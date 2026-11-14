@@ -1,12 +1,12 @@
 runner:
   images:
     "test-dotnet-*": ghcr.io/devpro/ubuntu-dotnet:latest
-    test-npm-publish: ghcr.io/devpro/debian-node:latest
-    test-playwright-install: ghcr.io/devpro/debian-node-playwright:latest
-    test-node-quality-npm: ghcr.io/devpro/debian-node-playwright:latest
-    test-node-quality-pnpm: ghcr.io/devpro/debian-node:latest
-    test-node-quality-sonar: ghcr.io/devpro/debian-node-playwright:latest
-    test-npm-publication: ghcr.io/devpro/debian-node:latest
+    test-npm-publish: ghcr.io/devpro/ubuntu-node:latest
+    test-playwright-install: ghcr.io/devpro/ubuntu-node-playwright:latest
+    test-node-quality-npm: ghcr.io/devpro/ubuntu-node-playwright:latest
+    test-node-quality-pnpm: ghcr.io/devpro/ubuntu-node:latest
+    test-node-quality-sonar: ghcr.io/devpro/ubuntu-node-playwright:latest
+    test-npm-publication: ghcr.io/devpro/ubuntu-node:latest
     test-go-lint-govulncheck-scan: registry.suse.com/bci/golang:1.27
   docker: ["test-container-scan-on-base*", "test-cosign-sign*", "test-container-build-push*"]
   sonarqube: true

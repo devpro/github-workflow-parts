@@ -21,6 +21,7 @@ Containers:
 .NET:
 
 - [Ensure the quality of the code](.github/workflows/reusable-dotnet-quality.yml)
+- [Ensure the quality of .NET Framework code on Windows](.github/workflows/reusable-dotnet-framework-quality.yml)
 
 Git:
 
@@ -56,7 +57,7 @@ Terraform:
 
 Containers:
 
-- [Build and push an image for one or more platforms](actions/container/build-push/action.yml)
+- [Build and push an image for one or more Linux platforms, or for Windows](actions/container/build-push/action.yml)
 - [Sign an image with Cosign](actions/cosign/sign/action.yml)
 - [Setup QEMU to build images for other platforms](actions/qemu/setup/action.yml)
 - [Scan an image or a directory with Trivy](actions/trivy/scan/action.yml)
@@ -66,6 +67,7 @@ Containers:
 
 - [Build, test the code and analyze it with Sonar](actions/dotnet/build-test-sonar/action.yml)
 - [Build and test the code](actions/dotnet/build-test/action.yml)
+- [Build and test .NET Framework code on Windows](actions/dotnet-framework/build-test/action.yml)
 - [Install the SDK, lint the code and restore NuGet packages](actions/dotnet/install-lint-restore/action.yml)
 - [Package the projects and push them to a NuGet registry](actions/dotnet/pack-push/action.yml)
 

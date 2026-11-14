@@ -1,6 +1,7 @@
 name: Reusable - Container publication
 # description: |
 #   Builds a new container image with Docker and pushes it to a registry
+#   With push false, the images are only built, so a CI pipeline checks the packaging with the same code, and no credentials
 #   Make sure to add (needed by cosign):
 #   ```
 #   permissions:
@@ -16,6 +17,11 @@ on:
         type: string
         required: false
         default: "docker.io"
+      push:
+        description: Push the images and put them under the tag, which is otherwise left to a later run, the registry credentials being then not read
+        type: boolean
+        required: false
+        default: true
       create-latest:
         description: "Create latest tag?"
         type: boolean
@@ -43,12 +49,17 @@ on:
         type: string
         required: true
       image-platform:
-        description: Platforms to build, emulated with QEMU on operating-system, unless arm64-runner is set
+        description: Linux platforms to build, emulated with QEMU on operating-system, unless arm64-runner is set, none when empty
         type: string
         required: false
         default: "linux/amd64,linux/arm64"
       arm64-runner:
         description: Runner label building linux/arm64 natively (for example "ubuntu-24.04-arm"), beside linux/amd64 on operating-system, rather than emulating every platform with QEMU on operating-system, image-platform being then not read
+        type: string
+        required: false
+        default: ""
+      windows-runner:
+        description: Windows runner label building windows/amd64 (for example "windows-2025"), for the Windows version of that runner, put under the tag beside the Linux platforms, none when empty
         type: string
         required: false
         default: ""
@@ -79,11 +90,11 @@ on:
         default: "."
     secrets:
       container-registry-username:
-        description: Container registry username
-        required: true
+        description: Container registry username, needed to push
+        required: false
       container-registry-password:
-        description: Container registry password
-        required: true
+        description: Container registry password, needed to push
+        required: false
       secret-vars:
         description: "Additional environment variables"
         required: false
@@ -91,9 +102,11 @@ on:
 jobs:
   build-emulated:
     name: ${{ inputs.job-name }} build (emulated)
-    if: ${{ inputs.arm64-runner == '' }}
+    if: ${{ inputs.arm64-runner == '' && inputs.image-platform != '' }}
     runs-on: ${{ inputs.operating-system }}
     timeout-minutes: ${{ inputs.timeout-minutes }}
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
     steps:
       - name: Set secret variables
         shell: bash
@@ -121,6 +134,7 @@ jobs:
           path: workflow-parts
           persist-credentials: false
       - name: Login to container registry
+        if: ${{ inputs.push }}
         env:
           REGISTRY: ${{ inputs.container-registry }}
           REGISTRY_USERNAME: ${{ secrets.container-registry-username }}
@@ -132,13 +146,15 @@ jobs:
         uses: ./workflow-parts/actions/qemu/setup
         with:
           platforms: ${{ inputs.image-platform }}
-      # The action puts the platforms together under the tag once each is pushed.
+      # The action puts the platforms together under the tag once each is pushed, and the Windows image joins them later under another one.
       - name: Build and push container image
+        id: build
         uses: ./workflow-parts/actions/container/build-push
         with:
+          push: ${{ inputs.push }}
           image-definition: ${{ inputs.image-definition }}
           image-repository: ${{ env.IMAGE_REPOSITORY }}
-          image-tag: ${{ inputs.image-tag }}
+          image-tag: ${{ inputs.windows-runner != '' && format('{0}-linux', inputs.image-tag) || inputs.image-tag }}
           platforms: ${{ inputs.image-platform }}
           build-arguments: ${{ inputs.extra-build-arguments }}
           working-directory: ${{ inputs.working-directory }}
@@ -177,6 +193,7 @@ jobs:
           path: workflow-parts
           persist-credentials: false
       - name: Login to container registry
+        if: ${{ inputs.push }}
         env:
           REGISTRY: ${{ inputs.container-registry }}
           REGISTRY_USERNAME: ${{ secrets.container-registry-username }}
@@ -186,6 +203,7 @@ jobs:
         id: build
         uses: ./workflow-parts/actions/container/build-push
         with:
+          push: ${{ inputs.push }}
           image-definition: ${{ inputs.image-definition }}
           image-repository: ${{ env.IMAGE_REPOSITORY }}
           image-tag: ${{ inputs.image-tag }}-linux-amd64
@@ -227,6 +245,7 @@ jobs:
           path: workflow-parts
           persist-credentials: false
       - name: Login to container registry
+        if: ${{ inputs.push }}
         env:
           REGISTRY: ${{ inputs.container-registry }}
           REGISTRY_USERNAME: ${{ secrets.container-registry-username }}
@@ -236,6 +255,7 @@ jobs:
         id: build
         uses: ./workflow-parts/actions/container/build-push
         with:
+          push: ${{ inputs.push }}
           image-definition: ${{ inputs.image-definition }}
           image-repository: ${{ env.IMAGE_REPOSITORY }}
           image-tag: ${{ inputs.image-tag }}-linux-arm64
@@ -243,12 +263,55 @@ jobs:
           build-arguments: ${{ inputs.extra-build-arguments }}
           working-directory: ${{ inputs.working-directory }}
 
+  # The Windows engine builds only its own platform, on the Windows version of its runner.
+  build-windows:
+    name: ${{ inputs.job-name }} build (windows/amd64)
+    if: ${{ inputs.windows-runner != '' }}
+    runs-on: ${{ inputs.windows-runner }}
+    timeout-minutes: ${{ inputs.timeout-minutes }}
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Checkout workflow parts
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          repository: devpro/github-workflow-parts
+          # The caller being this repository, the actions under test are those of the commit under test.
+          ref: ${{ github.repository == 'devpro/github-workflow-parts' && github.sha || inputs.workflow-parts-version }}
+          path: workflow-parts
+          persist-credentials: false
+      - name: Login to container registry
+        if: ${{ inputs.push }}
+        shell: pwsh
+        env:
+          REGISTRY: ${{ inputs.container-registry }}
+          REGISTRY_USERNAME: ${{ secrets.container-registry-username }}
+          REGISTRY_PASSWORD: ${{ secrets.container-registry-password }}
+        run: |
+          $env:REGISTRY_PASSWORD | docker login $env:REGISTRY --username $env:REGISTRY_USERNAME --password-stdin
+          exit $LASTEXITCODE
+      - name: Build and push container image under the tag of its platform
+        id: build
+        uses: ./workflow-parts/actions/container/build-push
+        with:
+          push: ${{ inputs.push }}
+          image-definition: ${{ inputs.image-definition }}
+          image-repository: ${{ env.IMAGE_REPOSITORY }}
+          image-tag: ${{ inputs.image-tag }}-windows-amd64
+          platforms: windows/amd64
+          build-arguments: ${{ inputs.extra-build-arguments }}
+          working-directory: ${{ inputs.working-directory }}
+
   # The platforms built on runners of their own are only put under the tag here, so that the image a tag names is complete.
   publication:
     name: ${{ inputs.job-name }}
-    needs: [build-emulated, build-amd64, build-arm64]
+    needs: [build-emulated, build-amd64, build-arm64, build-windows]
     # One build path is skipped by design, which an implicit success() would take for a failure.
-    if: ${{ !cancelled() && !contains(needs.*.result, 'failure') }}
+    if: ${{ inputs.push && !cancelled() && !contains(needs.*.result, 'failure') }}
     runs-on: ${{ inputs.operating-system }}
     timeout-minutes: ${{ inputs.timeout-minutes }}
     steps:
@@ -261,15 +324,19 @@ jobs:
           path: workflow-parts
           persist-credentials: false
       - name: Login to container registry
+        if: ${{ inputs.push }}
         env:
           REGISTRY: ${{ inputs.container-registry }}
           REGISTRY_USERNAME: ${{ secrets.container-registry-username }}
           REGISTRY_PASSWORD: ${{ secrets.container-registry-password }}
         run: echo "$REGISTRY_PASSWORD" | docker login "$REGISTRY" --username "$REGISTRY_USERNAME" --password-stdin
       - name: Tag the image of every platform
-        if: ${{ inputs.arm64-runner != '' }}
+        if: ${{ inputs.arm64-runner != '' || inputs.windows-runner != '' }}
         env:
-          DIGESTS: ${{ needs.build-amd64.outputs.digest }} ${{ needs.build-arm64.outputs.digest }}
+          # A build skipped by design gives no digest, so only the builds that ran are put together.
+          DIGESTS: >-
+            ${{ needs.build-amd64.outputs.digest }} ${{ needs.build-arm64.outputs.digest }}
+            ${{ inputs.windows-runner != '' && needs.build-emulated.outputs.digest || '' }} ${{ needs.build-windows.outputs.digest }}
         run: |
           sources=()
           for digest in $DIGESTS; do

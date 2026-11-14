@@ -1,0 +1,77 @@
+name: Reusable - .NET Framework quality
+
+on:
+  workflow_call:
+    inputs:
+      solution:
+        description: Solution or project file, relative to the working directory
+        type: string
+        required: true
+      configuration:
+        description: Build configuration
+        type: string
+        required: false
+        default: Release
+      test-assembly-filter:
+        description: File name pattern of the test assemblies, searched in the bin folders of the configuration, no test being run when empty
+        type: string
+        required: false
+        default: "*.Tests.dll"
+      job-name:
+        description: Job name
+        type: string
+        required: false
+        default: Quality
+      timeout-minutes:
+        description: Minutes the job may run before it is cancelled
+        type: number
+        required: false
+        default: 30
+      operating-system:
+        description: Windows runner with Visual Studio
+        type: string
+        required: false
+        default: windows-2025
+      workflow-parts-version:
+        description: GitHub workflow parts version (branch/tag/SHA). Should match the ref/tag/SHA the caller pinned for this reusable workflow itself. Ignored when the caller is this repository, whose checkout already holds the actions under test.
+        type: string
+        required: false
+        default: main
+      working-directory:
+        description: Working directory
+        type: string
+        required: false
+        default: "."
+
+jobs:
+  dotnet-framework-quality:
+    name: ${{ inputs.job-name }}
+    runs-on: ${{ inputs.operating-system }}
+    timeout-minutes: ${{ inputs.timeout-minutes }}
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Checkout workflow parts
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          repository: devpro/github-workflow-parts
+          # The caller being this repository, the actions under test are those of the commit under test.
+          ref: ${{ github.repository == 'devpro/github-workflow-parts' && github.sha || inputs.workflow-parts-version }}
+          path: workflow-parts
+          persist-credentials: false
+      - name: Build & test
+        uses: ./workflow-parts/actions/dotnet-framework/build-test
+        with:
+          solution: ${{ inputs.solution }}
+          configuration: ${{ inputs.configuration }}
+          test-assembly-filter: ${{ inputs.test-assembly-filter }}
+          working-directory: ${{ inputs.working-directory }}
+      - name: Archive test results
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: dotnet-framework-test-results
+          path: ${{ inputs.working-directory }}/report/
+          if-no-files-found: ignore

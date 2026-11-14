@@ -15,3 +15,8 @@ IstarCI runs them on an arm64 machine, emulated on an amd64 one with a `qemu-aar
 
 `test/run_static_checks.sh` runs actionlint, shellcheck on the scripts of the composite actions, and the conventions of `test/check_workflow_parts.py`.
 A part no CI job can exercise is listed in `UNTESTED_PARTS` of that file, with the reason.
+
+## Check for updates
+
+`scripts/check_updates.sh` lists the pinned GitHub Actions, tools, Python packages and locked Terraform providers that have a newer stable release upstream.
+A new version input needs its source in `SOURCES` of that script, which reports it as unknown otherwise.
