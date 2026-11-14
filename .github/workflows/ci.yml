@@ -746,6 +746,28 @@ jobs:
           jq -e '.bomFormat == "CycloneDX" and (.components | length > 0)' sbom-image-test.cdx.json
           jq -e '[.packages[].name] | index("playwright-fixture") and (index("node-fixture") | not)' sbom-exclude-test.spdx.json
 
+  test-syft-generate-sbom-windows:
+    name: "Test / Syft generate-sbom action on Windows"
+    runs-on: windows-2025
+    timeout-minutes: 20
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Generate SBOM for a directory, one folder left out
+        uses: ./actions/syft/generate-sbom
+        with:
+          exclude-paths: node
+          target-path: test/fixtures
+          output-file: sbom-exclude-test.spdx.json
+          upload-artifact: "false"
+      - name: Verify SBOM was generated
+        shell: bash
+        run: |
+          syft version
+          jq -e '[.packages[].name] | index("playwright-fixture") and (index("node-fixture") | not)' sbom-exclude-test.spdx.json
+
   test-trivy-scan:
     name: "Test / Trivy scan action"
     runs-on: ubuntu-latest
