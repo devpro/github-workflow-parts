@@ -27,6 +27,11 @@ on:
         type: boolean
         required: false
         default: false
+      scan-path:
+        description: Folder of the Windows image the scan reads alone (for example C:\app), in seconds, the whole image when empty, which takes minutes for the gigabytes of its base layers
+        type: string
+        required: false
+        default: ""
       create-latest:
         description: "Create latest tag?"
         type: boolean
@@ -316,6 +321,7 @@ jobs:
         uses: ./workflow-parts/actions/grype/scan
         with:
           image: ${{ env.IMAGE_REPOSITORY }}:${{ inputs.image-tag }}-windows-amd64
+          image-path: ${{ inputs.scan-path }}
 
   # The platforms built on runners of their own are only put under the tag here, so that the image a tag names is complete.
   publication:

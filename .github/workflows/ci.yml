@@ -562,6 +562,7 @@ jobs:
     with:
       push: false
       scan: true
+      scan-path: C:\Windows\System32\drivers\etc
       image-definition: test/fixtures/container/windows/Dockerfile
       image-path: localhost
       image-name: windows-test

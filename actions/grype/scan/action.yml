@@ -13,6 +13,10 @@ inputs:
   image:
     description: Reference of the image to scan, in the local Docker engine
     required: true
+  image-path:
+    description: Folder of the image to scan alone (for example C:\app), the whole image when empty
+    required: false
+    default: ""
   fail-on:
     description: Lowest severity that fails the scan (negligible, low, medium, high, critical), none when empty
     required: false
@@ -62,15 +66,32 @@ runs:
       shell: pwsh
       env:
         IMAGE: ${{ inputs.image }}
+        IMAGE_PATH: ${{ inputs.image-path }}
         FAIL_ON: ${{ inputs.fail-on }}
       run: |
-        # The image is read from an archive, so the scan needs no access of its own to the engine.
-        $archive = Join-Path $env:RUNNER_TEMP "grype-image-$([guid]::NewGuid()).tar"
-        docker save --output $archive $env:IMAGE
-        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        $copy = Join-Path $env:RUNNER_TEMP "grype-$([guid]::NewGuid())"
+        $nameArgs = @()
+        if ($env:IMAGE_PATH) {
+          # A folder is copied out of a container never started, in seconds, where saving a Windows image takes minutes for its gigabytes of base layers.
+          $container = docker create $env:IMAGE
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          docker cp "${container}:$env:IMAGE_PATH" $copy
+          $code = $LASTEXITCODE
+          docker rm $container | Out-Null
+          if ($code -ne 0) { exit $code }
+          $target = "dir:$copy"
+          # A folder has no name of its own, so the findings are named after the image.
+          $nameArgs = @('--name', $env:IMAGE)
+        } else {
+          # The image is read from an archive, so the scan needs no access of its own to the engine.
+          $copy = "$copy.tar"
+          docker save --output $copy $env:IMAGE
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $target = "docker-archive:$copy"
+        }
 
         # Every finding is printed, and only those at or above the severity given fail the scan.
-        $grypeArgs = @("docker-archive:$archive", '--output', 'table')
+        $grypeArgs = @($target, '--output', 'table') + $nameArgs
         if ($env:FAIL_ON) {
           $grypeArgs += @('--fail-on', $env:FAIL_ON)
         }
@@ -78,5 +99,6 @@ runs:
         grype @grypeArgs
         $code = $LASTEXITCODE
         # A Windows image archive takes gigabytes, which a runner keeping its disk between jobs would pile up.
-        Remove-Item -Path $archive -Force
+        # The copy goes too, so the scan of another image never reads it.
+        Remove-Item -Path $copy -Recurse -Force
         exit $code
