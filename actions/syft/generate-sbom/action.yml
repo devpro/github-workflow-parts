@@ -66,7 +66,8 @@ runs:
             unzip -q "${SYFT_ARCHIVE}" syft.exe
             mv syft.exe "${RUNNER_TEMP}/bin/syft.exe"
             # The drive colon of a Windows path would split the PATH of bash.
-            export PATH="$(cygpath -u "${RUNNER_TEMP}/bin"):$PATH"
+            PATH="$(cygpath -u "${RUNNER_TEMP}/bin"):$PATH"
+            export PATH
           else
             tar -xzf "${SYFT_ARCHIVE}" syft
             chmod +x syft
