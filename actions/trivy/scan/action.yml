@@ -9,13 +9,13 @@ inputs:
   trivy-version:
     description: Version of Trivy to install (check latest from https://github.com/aquasecurity/trivy/releases)
     required: false
-    default: "0.76.1"
+    default: "0.76.2"
   scan-type:
-    description: What to scan, "image" (container image reference) or "config" (misconfiguration/IaC scan of a directory)
+    description: What to scan, "image" (container image reference), "rootfs" (vulnerabilities of the binaries and packages of a directory) or "config" (misconfiguration/IaC scan of a directory)
     required: false
     default: "image"
   target:
-    description: Container image reference (scan-type "image") or directory path (scan-type "config") to scan
+    description: Container image reference (scan-type "image") or directory path (scan-type "rootfs" or "config") to scan
     required: true
   format:
     description: Trivy report format (table, json, sarif, cyclonedx, spdx-json...)
@@ -34,13 +34,17 @@ inputs:
     required: false
     default: "0"
   ignore-unfixed:
-    description: Only report vulnerabilities with a fix available (scan-type "image" only)
+    description: Only report vulnerabilities with a fix available (scan-type "image" or "rootfs" only)
     required: false
     default: "false"
   pkg-types:
-    description: Comma-separated package types to scan, os and/or library (scan-type "image" only)
+    description: Comma-separated package types to scan, os and/or library (scan-type "image" or "rootfs" only)
     required: false
     default: "os,library"
+  skip-dirs:
+    description: Comma-separated directories or glob patterns left out, relative to the target, none when empty
+    required: false
+    default: ""
   ignore-file:
     description: Trivy ignore file (.trivyignore.yaml) naming the findings left out, each with the reason and the day it counts again (expired_at), none when empty
     required: false
@@ -92,6 +96,7 @@ runs:
         IGNORE_UNFIXED: ${{ inputs.ignore-unfixed }}
         PKG_TYPES: ${{ inputs.pkg-types }}
         IGNORE_FILE: ${{ inputs.ignore-file }}
+        SKIP_DIRS: ${{ inputs.skip-dirs }}
       run: |
         args=("$SCAN_TYPE" --format "$FORMAT" --severity "$SEVERITY" --exit-code "$EXIT_CODE")
 
@@ -104,12 +109,21 @@ runs:
           args+=(--ignorefile "$IGNORE_FILE")
         fi
 
+        if [ -n "$SKIP_DIRS" ]; then
+          args+=(--skip-dirs "$SKIP_DIRS")
+        fi
+
         if [ -n "$OUTPUT_FILE" ]; then
           args+=(--output "$OUTPUT_FILE")
         fi
 
-        # no-progress, ignore-unfixed and pkg-types only exist for vulnerability (image) scans
-        if [ "$SCAN_TYPE" = "image" ]; then
+        # A directory is scanned for vulnerabilities only, as secrets are matched in the bytes of every binary it holds.
+        if [ "$SCAN_TYPE" = "rootfs" ]; then
+          args+=(--scanners vuln)
+        fi
+
+        # no-progress, ignore-unfixed and pkg-types only exist for vulnerability scans
+        if [ "$SCAN_TYPE" = "image" ] || [ "$SCAN_TYPE" = "rootfs" ]; then
           # A CI log is not a terminal, and every redraw of the database download bar becomes log text.
           args+=(--no-progress)
           if [ "$IGNORE_UNFIXED" = "true" ]; then

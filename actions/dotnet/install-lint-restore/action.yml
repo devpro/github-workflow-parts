@@ -9,7 +9,7 @@ inputs:
   reportgenerator-version:
     description: Version of ReportGenerator (check latest from https://www.nuget.org/packages/dotnet-reportgenerator-globaltool)
     required: false
-    default: "5.5.12"
+    default: "5.6.0"
   working-directory:
     description: Directory of the .NET code, relative to the workspace, which a composite action does not take from the defaults of the calling job
     required: false

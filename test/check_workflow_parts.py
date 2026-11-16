@@ -22,7 +22,6 @@ SELF_REPOSITORY = "devpro/github-workflow-parts"
 UNTESTED_PARTS = {
     "actions/fossa/analyze": "needs a FOSSA API key",
     "actions/mongodb-atlas/add-runner-ip": "needs MongoDB Atlas credentials",
-    ".github/workflows/reusable-container-publication.yml": "needs registry credentials and an OIDC token to sign",
     ".github/workflows/reusable-helm-publication.yml": "creates GitHub releases and pushes to the Pages branch of the repository",
     ".github/workflows/reusable-terraform-deployment.yml": "needs MongoDB Atlas credentials and a Terraform backend",
 }
@@ -156,8 +155,9 @@ def check_action(directory):
     for index, step in enumerate(runs.get("steps", []), 1):
         if not step.get("name"):
             fail(name, f"step {index} has no name")
-        if "run" in step and step.get("shell") != "bash":
-            fail(name, f"step '{step.get('name', index)}' runs a script without 'shell: bash', which a composite action requires and the actions assume")
+        # A Windows runner has no bash of its own, so an action made for one runs PowerShell.
+        if "run" in step and step.get("shell") not in ("bash", "pwsh"):
+            fail(name, f"step '{step.get('name', index)}' runs a script without 'shell: bash' or 'shell: pwsh', which a composite action requires")
 
 
 def check_reusable_workflow(path):
@@ -217,7 +217,7 @@ def shellcheck_actions():
         for action in action_paths():
             document = load(action / "action.yml")
             for index, step in enumerate(document["runs"].get("steps", []), 1):
-                if "run" not in step:
+                if "run" not in step or step.get("shell") != "bash":
                     continue
                 script = pathlib.Path(directory) / f"{action.relative_to(ROOT).as_posix().replace('/', '_')}_{index}.sh"
                 # An expression becomes a word shellcheck reads as a plain value, as the runner writes it before bash runs.

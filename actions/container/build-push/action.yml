@@ -3,7 +3,9 @@ description: |
   Builds a container image with the BuildKit of the Docker daemon for one or more platforms and pushes it under a tag,
   each platform of several being pushed under a tag of its own first, then put together under the tag.
   The registry login is left to the job, which holds the credentials.
-  Linux runners only (for example ubuntu-latest or ubuntu-24.04-arm).
+  With push false, the image is only built and left in the daemon, so a pipeline checks the packaging without publishing it.
+  Linux runners (for example ubuntu-latest or ubuntu-24.04-arm) build Linux platforms,
+  a Windows runner (for example windows-2025) builds windows/amd64 alone, for the Windows version of the runner.
 
 inputs:
   image-definition:
@@ -16,13 +18,17 @@ inputs:
     description: Tag to push, the tag of each platform of several being this one followed by the platform (1.0.1-linux-arm64 for instance)
     required: true
   platforms:
-    description: Comma-separated platforms to build (a platform other than the runner's own needs the Setup QEMU action first)
+    description: Comma-separated platforms to build (a platform other than the runner's own needs the Setup QEMU action first), or windows/amd64 alone on a Windows runner
     required: false
     default: "linux/amd64"
   build-arguments:
     description: Build arguments, one KEY=value per line
     required: false
     default: ""
+  push:
+    description: Push the image, which is otherwise built only and left in the daemon, with no digest
+    required: false
+    default: "true"
   working-directory:
     description: Directory the build runs from, relative to the workspace, which a composite action does not take from the defaults of the calling job
     required: false
@@ -30,8 +36,8 @@ inputs:
 
 outputs:
   digest:
-    description: Digest of the pushed image, a manifest list when several platforms were built
-    value: ${{ steps.build.outputs.digest }}
+    description: Digest of the pushed image, a manifest list when several platforms were built, empty when not pushed
+    value: ${{ steps.build.outputs.digest || steps.build-windows.outputs.digest }}
 
 runs:
   using: "composite"
@@ -41,6 +47,7 @@ runs:
     # It pushes no image by digest alone and builds one platform at a time on the classic image store, so each platform gets a tag.
     - name: Build and push container image
       id: build
+      if: ${{ inputs.platforms != 'windows/amd64' }}
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       env:
@@ -49,6 +56,7 @@ runs:
         IMAGE_TAG: ${{ inputs.image-tag }}
         PLATFORMS: ${{ inputs.platforms }}
         BUILD_ARGUMENTS: ${{ inputs.build-arguments }}
+        PUSH: ${{ inputs.push }}
       run: |
         build_args=()
         while IFS= read -r argument; do
@@ -58,6 +66,11 @@ runs:
         # Builds and pushes one platform under a tag, and prints the digest of what was pushed.
         build_push() {
           local platform="$1" ref="$2" metadata digest
+          if [[ "$PUSH" != true ]]; then
+            docker buildx build --builder default --file "$IMAGE_DEFINITION" --platform "$platform" \
+              --tag "$ref" "${build_args[@]}" . >&2
+            return 0
+          fi
           metadata="$(mktemp)"
           docker buildx build --builder default --file "$IMAGE_DEFINITION" --platform "$platform" \
             --tag "$ref" --push --metadata-file "$metadata" "${build_args[@]}" . >&2
@@ -72,6 +85,15 @@ runs:
         }
 
         IFS=',' read -ra platform_list <<< "$PLATFORMS"
+        if [[ "$PUSH" != true ]]; then
+          for platform in "${platform_list[@]}"; do
+            ref="${IMAGE_REPOSITORY}:${IMAGE_TAG}"
+            [ "${#platform_list[@]}" -gt 1 ] && ref="${ref}-${platform//\//-}"
+            build_push "$platform" "$ref"
+            echo "Built ${ref}, not pushed"
+          done
+          exit 0
+        fi
         if [ "${#platform_list[@]}" -eq 1 ]; then
           digest="$(build_push "${platform_list[0]}" "${IMAGE_REPOSITORY}:${IMAGE_TAG}")"
         else
@@ -86,3 +108,43 @@ runs:
         fi
         echo "Pushed ${IMAGE_REPOSITORY}:${IMAGE_TAG}@${digest}"
         echo "digest=$digest" >> "$GITHUB_OUTPUT"
+    # The Windows engine has no BuildKit, so the classic builder builds the image, for the platform of the engine only.
+    - name: Build and push Windows container image
+      id: build-windows
+      if: ${{ inputs.platforms == 'windows/amd64' }}
+      shell: pwsh
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        DOCKER_BUILDKIT: "0"
+        IMAGE_DEFINITION: ${{ inputs.image-definition }}
+        IMAGE_REPOSITORY: ${{ inputs.image-repository }}
+        IMAGE_TAG: ${{ inputs.image-tag }}
+        BUILD_ARGUMENTS: ${{ inputs.build-arguments }}
+        PUSH: ${{ inputs.push }}
+      run: |
+        $ref = "${env:IMAGE_REPOSITORY}:${env:IMAGE_TAG}"
+        $buildArgs = @('build', '--file', $env:IMAGE_DEFINITION, '--tag', $ref)
+        foreach ($argument in ($env:BUILD_ARGUMENTS -split "`r?`n")) {
+          if ($argument) { $buildArgs += @('--build-arg', $argument) }
+        }
+        & docker @buildArgs .
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        if ($env:PUSH -ne 'true') {
+          Write-Output "Built $ref, not pushed"
+          exit 0
+        }
+        docker push $ref
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        # Docker Hub names its repositories without the registry, and an image built here holds only the digest of its push.
+        $repoDigest = docker image inspect $ref --format '{{range .RepoDigests}}{{println .}}{{end}}' |
+          Where-Object { $_ } | Select-Object -First 1
+        # The daemon keeps the image it built, which the registry now holds.
+        docker image rm $ref *> $null
+        $digest = ($repoDigest -split '@')[-1]
+        if ($digest -notlike 'sha256:*') {
+          Write-Error "The push reported no digest for $ref"
+          exit 1
+        }
+        Write-Output "Pushed ${ref}@${digest}"
+        "digest=$digest" >> $env:GITHUB_OUTPUT
+        exit 0

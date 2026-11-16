@@ -1,0 +1,76 @@
+name: Build and test .NET Framework code
+description: |
+  Restores, builds and tests a .NET Framework solution with the MSBuild and the VSTest of Visual Studio, found with vswhere.
+  Packages listed in packages.config files are restored by MSBuild, so neither nuget.exe nor a setup action is needed.
+  The test results are written in the report folder of the working directory.
+  Windows runners only (for example windows-2025).
+
+inputs:
+  solution:
+    description: Solution or project file, relative to the working directory
+    required: true
+  configuration:
+    description: Build configuration
+    required: false
+    default: Release
+  test-assembly-filter:
+    description: File name pattern of the test assemblies, searched in the bin folders of the configuration, no test being run when empty
+    required: false
+    default: "*.Tests.dll"
+  working-directory:
+    description: Directory of the code, relative to the workspace, which a composite action does not take from the defaults of the calling job
+    required: false
+    default: "."
+
+runs:
+  using: "composite"
+  steps:
+    # Visual Studio is installed on the runner but not on the PATH, and vswhere is the way Microsoft documents to find it.
+    - name: Find MSBuild and VSTest
+      shell: pwsh
+      run: |
+        $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+        $msbuild = & $vswhere -latest -products * -requires Microsoft.Component.MSBuild -find 'MSBuild\**\Bin\MSBuild.exe' | Select-Object -First 1
+        $vstest = & $vswhere -latest -products * -find '**\TestWindow\vstest.console.exe' | Select-Object -First 1
+        if (-not $msbuild) {
+          Write-Error 'No MSBuild found by vswhere'
+          exit 1
+        }
+        Write-Output "MSBuild: $msbuild"
+        Write-Output "VSTest: $vstest"
+        "MSBUILD_PATH=$msbuild" >> $env:GITHUB_ENV
+        "VSTEST_PATH=$vstest" >> $env:GITHUB_ENV
+    # RestorePackagesConfig lets the restore target read packages.config files, which it otherwise leaves to nuget.exe.
+    - name: Restore and build
+      shell: pwsh
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        SOLUTION: ${{ inputs.solution }}
+        CONFIGURATION: ${{ inputs.configuration }}
+      run: |
+        & $env:MSBUILD_PATH $env:SOLUTION -restore -p:RestorePackagesConfig=true "-p:Configuration=$env:CONFIGURATION" -maxCpuCount -nologo
+        exit $LASTEXITCODE
+    - name: Test
+      if: ${{ inputs.test-assembly-filter != '' }}
+      shell: pwsh
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        CONFIGURATION: ${{ inputs.configuration }}
+        TEST_ASSEMBLY_FILTER: ${{ inputs.test-assembly-filter }}
+      run: |
+        # Only the assembly a project builds in its own bin folder is kept, as copies in obj or beside a referencing project would run the same tests twice.
+        $output = "^(?<project>.+)\\bin\\$([regex]::Escape($env:CONFIGURATION))(\\[^\\]+)?$"
+        $assemblies = @(Get-ChildItem -Path . -Recurse -File -Filter $env:TEST_ASSEMBLY_FILTER |
+          Where-Object { $_.Directory.FullName -match $output -and (Test-Path (Join-Path $Matches.project "$($_.BaseName).csproj")) } |
+          ForEach-Object { $_.FullName })
+        if ($assemblies.Count -eq 0) {
+          Write-Error "No test assembly matching $env:TEST_ASSEMBLY_FILTER in a bin\$env:CONFIGURATION folder"
+          exit 1
+        }
+        if (-not $env:VSTEST_PATH) {
+          Write-Error 'No VSTest found by vswhere'
+          exit 1
+        }
+        $results = Join-Path (Get-Location) 'report\TestResults'
+        & $env:VSTEST_PATH @assemblies /Logger:trx "/ResultsDirectory:$results"
+        exit $LASTEXITCODE

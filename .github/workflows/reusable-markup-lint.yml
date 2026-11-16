@@ -38,7 +38,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Lint Markdown files
-        run: npx --yes markdownlint-cli2@0.24.0 "**/*.md"
+        run: npx --yes markdownlint-cli2@0.24.1 "**/*.md"
       - name: Lint YAML files
         run: pipx run --spec yamllint==1.38.0 yamllint .
       - name: Lint shell scripts
