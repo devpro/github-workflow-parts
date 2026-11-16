@@ -33,6 +33,7 @@ declare -A SOURCES=(
   [opengrep-version]="github opengrep/opengrep"
   [reportgenerator-version]="nuget dotnet-reportgenerator-globaltool"
   [scanner-version]="github SonarSource/sonar-scanner-cli"
+  [shellcheck-version]="github koalaman/shellcheck"
   [sonarscanner-version]="nuget dotnet-sonarscanner"
   [syft-version]="github anchore/syft"
   [task-version]="github go-task/task"
@@ -56,6 +57,7 @@ latest() {
   case "$kind" in
     github) latest_github "$@" ;;
     nuget) curl -fsSL "https://api.nuget.org/v3-flatcontainer/$1/index.json" | jq -r '[.versions[] | select(test("-") | not)] | last' ;;
+    npm) curl -fsSL "https://registry.npmjs.org/$1/latest" | jq -r .version ;;
     pypi) curl -fsSL "https://pypi.org/pypi/$1/json" | jq -r .info.version ;;
     kubectl) curl -fsSL https://dl.k8s.io/release/stable.txt ;;
     terraform) curl -fsSL "https://registry.terraform.io/v1/providers/$1/versions" | jq -r '[.versions[].version | select(test("^[0-9]+\\.[0-9]+\\.[0-9]+$"))] | sort_by(split(".") | map(tonumber)) | last' ;;
@@ -93,6 +95,13 @@ pins() {
   # Literal versions in the reusable workflows, ci.yml being left out since its older versions test the inputs.
   grep -HnoE '^\s+[a-z0-9-]+-version: v?[0-9][0-9.]*$' .github/workflows/reusable-*.yml \
     | awk -F: '{ gsub(/ /, "", $3); print $3, $4 ? $4 : "", $1 }' | sed 's/  */ /g'
+  # Tools that the reusable workflows run inline, pinned by pipx, npx or a variable.
+  grep -HoE 'pipx run --spec [A-Za-z0-9_.-]+==[^ ]+' .github/workflows/reusable-*.yml \
+    | sed -E 's/^([^:]+):pipx run --spec ([^=]+)==(.*)/pypi:\2 \3 \1/'
+  grep -HoE 'npx --yes [@A-Za-z0-9_./-]+@[0-9][^ ]*' .github/workflows/reusable-*.yml \
+    | sed -E 's/^([^:]+):npx --yes (.+)@([^@]+)$/npm:\2 \3 \1/'
+  grep -HoE 'shellcheck_version="[^"]+"' .github/workflows/reusable-*.yml \
+    | sed -E 's/^([^:]+):shellcheck_version="([^"]+)"/shellcheck-version \2 \1/'
   sed -nE 's/^ACTIONLINT_VERSION=(.*)/actionlint-version \1 test\/run_static_checks.sh/p' test/run_static_checks.sh
   sed -nE 's/^([A-Za-z0-9_.-]+)==([^ ]+).*/pypi:\1 \2 test\/requirements.txt/p' test/requirements.txt
   # Providers locked by the Terraform fixtures, since the provider scan warns about the vulnerabilities of an old one.
@@ -113,6 +122,8 @@ while read -r name current file; do
   seen[$key]=1
   if [[ "$name" == pypi:* ]]; then
     source="pypi ${name#pypi:}"
+  elif [[ "$name" == npm:* ]]; then
+    source="npm ${name#npm:}"
   elif [[ "$name" == terraform:* ]]; then
     source="terraform ${name#terraform:}"
   else
