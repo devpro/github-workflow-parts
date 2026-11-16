@@ -206,7 +206,7 @@ jobs:
       - name: Run Checkov
         if: success() || failure()
         run: |
-          pipx run --spec checkov==3.3.30 checkov -d . \
+          pipx run --spec checkov==3.4.5 checkov -d . \
             --skip-path workflow-parts \
             --soft-fail \
             --output cli --output sarif \
