@@ -43,6 +43,11 @@ on:
         type: string
         required: false
         default: ""
+      mongodb-replica-set:
+        description: Name of the single-node replica set mongodb-enabled starts, for an application writing in transactions, standalone when empty
+        type: string
+        required: false
+        default: ""
       job-name:
         description: Job name
         type: string
@@ -180,6 +185,7 @@ jobs:
         uses: ./workflow-parts/actions/mongodb/start
         with:
           mongodb-version: ${{ inputs.mongodb-version }}
+          replica-set: ${{ inputs.mongodb-replica-set }}
       - name: Run optional custom commands
         if: ${{ inputs.custom-commands != '' }}
         env:
