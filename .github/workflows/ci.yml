@@ -872,7 +872,6 @@ jobs:
         [ "$(dotnet --version | cut -d . -f 1)" -ge 10 ]
         mongosh --quiet --eval 'db.hello().isWritablePrimary' "mongodb://127.0.0.1:27017/?replicaSet=rs0" | grep -qx true
       mongodb-enabled: true
-      mongodb-replica-set: rs0
       # The fixture holds a test that fails, which only the filter keeps the job from running, its quotes being read as shell quotes rather than passed on.
       dotnet-test-args: --report-xunit-trx --coverage --coverage-output-format cobertura --filter-not-namespace 'Fixture.Tests.LeftOut*'
 
