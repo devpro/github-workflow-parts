@@ -225,6 +225,7 @@ jobs:
           path: ~/.tflint.d/plugins
           key: tflint-${{ hashFiles('**/.tflint.hcl') }}
       - name: Setup TFLint
+        if: success() || failure()
         uses: ./workflow-parts/actions/tflint/setup
         with:
           # ref. https://github.com/terraform-linters/tflint/releases
