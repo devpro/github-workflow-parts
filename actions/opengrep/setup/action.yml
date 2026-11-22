@@ -8,15 +8,15 @@ inputs:
   opengrep-version:
     description: Version of Opengrep to install (check latest from https://github.com/opengrep/opengrep/releases)
     required: false
-    default: "v1.33.1"
+    default: "v2.0.0"
   opengrep-sha256:
     description: SHA256 of the Opengrep binary for x64, given with any other opengrep-version, since its release publishes no checksum file
     required: false
-    default: "46e8133cc490f9f50518061590ce2f6be5a08afaeda034471c0ceda4b3899808"  # v1.33.1
+    default: "37e93f4da5fd04a18c5c1febbdd12f7e98dfccd4d0c9cf2593bcb25eeb462da0"  # v2.0.0
   opengrep-sha256-arm64:
     description: SHA256 of the Opengrep binary for arm64, given with any other opengrep-version
     required: false
-    default: "d1433f63a90b8bc0b6ad4b498a13b372b856ce9a754a43484ba4920fe2d76dcf"  # v1.33.1
+    default: "6257b65423a744b704af2ff9beeb8f222c2f6925236af386b56b031d4c06d6d8"  # v2.0.0
 
 runs:
   using: "composite"
@@ -25,7 +25,7 @@ runs:
       shell: bash
       env:
         OPENGREP_VERSION: ${{ inputs.opengrep-version }}
-        OPENGREP_BINARY: opengrep_manylinux_${{ runner.arch == 'ARM64' && 'aarch64' || 'x86' }}
+        OPENGREP_BINARY: opengrep_linux_${{ runner.arch == 'ARM64' && 'aarch64' || 'x86' }}
         OPENGREP_SHA256: ${{ runner.arch == 'ARM64' && inputs.opengrep-sha256-arm64 || inputs.opengrep-sha256 }}
       run: |
         # Downloaded into a directory of its own, since the repository may hold a file or a directory named like the binary.

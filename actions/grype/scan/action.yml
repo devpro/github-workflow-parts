@@ -9,7 +9,7 @@ inputs:
   grype-version:
     description: Version of Grype to install (check latest from https://github.com/anchore/grype/releases)
     required: false
-    default: "0.121.3"
+    default: "0.122.1"
   image:
     description: Reference of the image to scan, in the local Docker engine
     required: true

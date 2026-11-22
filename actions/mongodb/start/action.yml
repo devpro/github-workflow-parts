@@ -13,15 +13,15 @@ inputs:
   mongosh-version:
     description: Version of mongosh (check latest from https://github.com/mongodb-js/mongosh/releases)
     required: false
-    default: "2.14.2"
+    default: "2.14.3"
   mongosh-sha256:
     description: SHA256 of the mongosh archive for x64, given with any other mongosh-version, since its release publishes no checksum file
     required: false
-    default: "1523e16da7c6902333b681bf65d83bbef59bff558c46ac5636371d13beb4de53"  # 2.14.2
+    default: "2f9082b19c3daa4469865cb2d13ba64eea9f5b447371ecd25f175bb99320d575"  # 2.14.3
   mongosh-sha256-arm64:
     description: SHA256 of the mongosh archive for arm64, given with any other mongosh-version
     required: false
-    default: "20f89386f74c14cb63a163eea5491dc14759bcd64229b1c099c2390585a01fd3"  # 2.14.2
+    default: "47ce1c6b6aa22c58118416f6423237093bf67886b56998fae4dd8430b369b667"  # 2.14.3
   port:
     description: Port the server listens on
     required: false

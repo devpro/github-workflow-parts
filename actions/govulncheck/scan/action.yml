@@ -8,7 +8,7 @@ inputs:
   govulncheck-version:
     description: Version of govulncheck to install (check latest from https://pkg.go.dev/golang.org/x/vuln/cmd/govulncheck?tab=versions)
     required: false
-    default: "v1.9.0"
+    default: "v1.10.0"
   working-directory:
     description: Directory of the Go module (go.mod), relative to the workspace, which a composite action does not take from the defaults of the calling job
     required: false

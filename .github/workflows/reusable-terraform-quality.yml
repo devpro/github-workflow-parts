@@ -206,7 +206,7 @@ jobs:
       - name: Run Checkov
         if: success() || failure()
         run: |
-          pipx run --spec checkov==3.4.5 checkov -d . \
+          pipx run --spec checkov==3.4.6 checkov -d . \
             --skip-path workflow-parts \
             --soft-fail \
             --output cli --output sarif \
@@ -214,7 +214,7 @@ jobs:
         continue-on-error: true
       # needs GitHub code security > code scanning, not available on private repos
       # - name: Upload SARIF file
-      #   uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066  # v4.39.3
+      #   uses: github/codeql-action/upload-sarif@1bd86f2fdb4b86187fa4059f16f31a3202acc9ea  # v4.39.4
       #   if: success() || failure()
       #   with:
       #     sarif_file: results.sarif

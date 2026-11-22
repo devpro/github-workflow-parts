@@ -9,15 +9,15 @@ inputs:
   scanner-version:
     description: Version of the Sonar scanner CLI (check latest from https://github.com/SonarSource/sonar-scanner-cli/releases)
     required: false
-    default: "8.4.0.16527"
+    default: "8.5.0.16571"
   scanner-sha256:
     description: SHA256 of the scanner archive for x64, given with any other scanner-version
     required: false
-    default: "2a28f118e2e9375dfd36eb27b803e1d37f93daba4db068aca6eef9853041bb24"  # 8.4.0.16527
+    default: "62a200079f5ed38682e59ce5fb507f75b7a3c8dd672cfaf647be15a2406422cd"  # 8.5.0.16571
   scanner-sha256-arm64:
     description: SHA256 of the scanner archive for arm64, given with any other scanner-version
     required: false
-    default: "9a64ae895ea0a9d5fc1a7e4df148e60f174a4368a7f502fe709a50537f65b11c"  # 8.4.0.16527
+    default: "7f6e2d95375765edcf02f370185f5d5976da55b3f8f3ef594d46f207abefb9d8"  # 8.5.0.16571
   coverage-paths:
     description: lcov reports of the coverage, relative to the working directory, separated by commas, coverage/lcov.info when empty and the project has no sonar-project.properties
     required: false
