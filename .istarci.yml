@@ -9,7 +9,8 @@ runner:
     test-npm-publication: ghcr.io/devpro/ubuntu-node:latest
     test-go-lint-govulncheck-scan: registry.suse.com/bci/golang:1.27
   docker: ["test-container-scan-on-base*", "test-cosign-sign*", "test-container-build-push*"]
-  sonarqube: true
+  sonarqube:
+    gate: true
 
 workflow:
   skipJobs: [test-qemu-setup]
