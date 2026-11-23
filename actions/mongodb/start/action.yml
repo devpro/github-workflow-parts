@@ -74,6 +74,16 @@ runs:
           # Ready once the node is primary, the set being initiated by the first check the server answers.
           check="try { rs.status() } catch (e) { rs.initiate({ _id: '${REPLICA_SET}', members: [{ _id: 0, host: '127.0.0.1:${MONGODB_PORT}' }] }) } quit(db.hello().isWritablePrimary ? 0 : 1)"
         fi
+        # Each collection and index is a file the server keeps open, and under the soft limit of 1024 a container often has it aborts with "Too many open files".
+        # 64000 is the figure MongoDB's production notes recommend, a hard limit below it being as far as the soft one goes.
+        soft="$(ulimit -Sn)"
+        if [[ "$soft" != unlimited ]] && (( soft < 64000 )); then
+          hard="$(ulimit -Hn)"
+          if [[ "$hard" == unlimited ]] || (( hard > 64000 )); then
+            hard=64000
+          fi
+          ulimit -Sn "$hard"
+        fi
         # The log is the only place saying why a server did not start, and it is gone with the runner.
         if ! mongod "${args[@]}"; then
           cat "$log"
