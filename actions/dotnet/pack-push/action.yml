@@ -1,5 +1,5 @@
 name: Pack & Push
-description: Package .NET projects and push to the registry
+description: Packs .NET projects and pushes the packages to the registry
 
 inputs:
   dotnet-version:
@@ -18,7 +18,9 @@ inputs:
     required: false
     default: "false"
   working-directory:
-    description: Directory of the .NET code, relative to the workspace, which a composite action does not take from the defaults of the calling job
+    description: >-
+      Directory of the .NET code, relative to the workspace.
+      A composite action does not use the default working directory of the job.
     required: false
     default: "."
 

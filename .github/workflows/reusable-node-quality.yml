@@ -4,7 +4,7 @@ on:
   workflow_call:
     inputs:
       custom-tests:
-        description: Optional shell commands testing what build & test produced, such as end-to-end tests against the built application
+        description: Optional shell commands to run after build and test, for example end-to-end tests of the application
         type: string
         required: false
         default: ""
@@ -14,7 +14,7 @@ on:
         required: false
         default: ""
       fossa-enabled:
-        description: Enable license compliance with FOSSA
+        description: Enable the license compliance check with FOSSA
         type: boolean
         required: false
         default: false
@@ -29,12 +29,16 @@ on:
         required: false
         default: Quality
       mongodb-enabled:
-        description: Start a local MongoDB server on 127.0.0.1:27017, as the single-node replica set rs0 transactions need, with mongosh on the path, before lint, build & test
+        description: >-
+          Start a local MongoDB server on 127.0.0.1:27017 before lint, build and test, with mongosh on the path.
+          Uses the single-node replica set rs0, because transactions require a replica set.
         type: boolean
         required: false
         default: false
       mongodb-version:
-        description: Version of the MongoDB server mongodb-enabled starts, an 8.0 one for instance, the latest release the MongoDB action names when empty
+        description: >-
+          Version of the MongoDB server (for example an 8.0 version) when mongodb-enabled is true.
+          Uses the default version of the MongoDB action when empty.
         type: string
         required: false
         default: ""
@@ -49,27 +53,33 @@ on:
         required: false
         default: ubuntu-latest
       pnpm-version:
-        description: Version of pnpm installing the dependencies from pnpm-lock.yaml, npm installing them from package-lock.json when empty
+        description: >-
+          Version of pnpm to install the dependencies from pnpm-lock.yaml.
+          When empty, npm installs the dependencies from package-lock.json.
         type: string
         required: false
         default: ""
       sonar-enabled:
-        description: Enable check done by Sonar (SonarQube or SonarCloud)
+        description: Enable the analysis with Sonar (SonarQube or SonarCloud)
         type: boolean
         required: false
         default: false
       sonar-coverage-paths:
-        description: lcov reports of the coverage the test script writes, relative to the working directory, separated by commas, coverage/lcov.info when empty and the project has no sonar-project.properties
+        description: >-
+          lcov coverage reports that the test script writes, relative to the working directory, separated by commas.
+          Uses coverage/lcov.info when empty and the project has no sonar-project.properties.
         type: string
         required: false
         default: ""
       sonar-cpd-exclusions:
-        description: Files or directories that should be excluded from Sonar code duplication analysis
+        description: Files or directories to exclude from the Sonar code duplication analysis
         type: string
         required: false
         default: ""
       sonar-exclusions:
-        description: Files or directories that should be excluded from Sonar analysis, **/node_modules/** when empty and the project has no sonar-project.properties
+        description: >-
+          Files or directories to exclude from the Sonar analysis.
+          Uses **/node_modules/** when empty and the project has no sonar-project.properties.
         type: string
         required: false
         default: ""
@@ -84,7 +94,7 @@ on:
         required: false
         default: ""
       sonar-project-key:
-        description: Sonar project key, which sonar-project.properties gives otherwise
+        description: Sonar project key, required when the project has no sonar-project.properties
         type: string
         required: false
         default: ""
@@ -99,12 +109,14 @@ on:
         required: false
         default: false
       terraform-version:
-        description: Version of Terraform to install for the scripts and the custom tests, none when empty
+        description: >-
+          Version of Terraform to install for the scripts and the custom tests.
+          Does not install Terraform when empty.
         type: string
         required: false
         default: ""
       test-script:
-        description: Script of package.json running the tests, for example "test:coverage" to write the coverage Sonar reads
+        description: Script of package.json that runs the tests (for example "test:coverage" to write the coverage for Sonar)
         type: string
         required: false
         default: test
@@ -114,18 +126,21 @@ on:
         required: false
         default: 60
       workflow-parts-version:
-        description: GitHub workflow parts version (branch/tag/SHA). Should match the ref/tag/SHA the caller pinned for this reusable workflow itself. Ignored when the caller is this repository, whose checkout already holds the actions under test.
+        description: >-
+          GitHub workflow parts version (branch/tag/SHA).
+          Use the same version as the one that calls this reusable workflow.
+          Ignored when this repository is the caller, because it tests the actions of the current commit.
         type: string
         required: false
         default: main
       working-directory:
-        description: Directory holding the package.json and the lock file
+        description: Directory that contains the package.json and the lock file
         type: string
         required: false
         default: "."
     secrets:
       fossa-api-key:
-        description: FOSSA API KEY
+        description: FOSSA API key
         required: false
       sonar-token:
         description: Sonar token for login
@@ -145,7 +160,7 @@ jobs:
         working-directory: ${{ inputs.working-directory }}
     steps:
       - name: Set additional variables
-        # Run before the clone, which creates the working directory.
+        # Runs at the root of the workspace, because the working directory does not exist before the clone.
         working-directory: .
         env:
           EXTRA_VARS: ${{ inputs.extra-vars }}
@@ -154,7 +169,7 @@ jobs:
             echo "$EXTRA_VARS" >> "$GITHUB_ENV"
           fi
       - name: Set additional secrets
-        # Run before the clone, which creates the working directory.
+        # Runs at the root of the workspace, because the working directory does not exist before the clone.
         working-directory: .
         env:
           ADDITIONAL_VARS: ${{ secrets.additional-vars }}
@@ -176,11 +191,12 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           repository: devpro/github-workflow-parts
-          # The caller being this repository, the actions under test are those of the commit under test.
+          # Uses the current commit when this repository is the caller, so that the CI tests the actions of that commit.
           ref: ${{ github.repository == 'devpro/github-workflow-parts' && github.sha || inputs.workflow-parts-version }}
           path: workflow-parts
           persist-credentials: false
-      # Git ignores them, and so does Sonar, which leaves out what git ignores, without overriding the exclusions of the project.
+      # Excludes the workflow parts from git, because Sonar skips the files that git ignores.
+      # This does not replace the exclusions of the project.
       - name: Leave workflow parts out of git
         working-directory: .
         run: |
@@ -191,17 +207,17 @@ jobs:
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7.1.0
         with:
           node-version: ${{ inputs.node-version }}
-          # The npm cache is keyed on the lock file, which a package without dependencies does not have.
+          # Enables the npm cache only when a lock file exists, because the cache key uses it.
           cache: ${{ inputs.pnpm-version == '' && hashFiles(format('{0}/package-lock.json', inputs.working-directory)) != '' && 'npm' || '' }}
           cache-dependency-path: ${{ inputs.working-directory }}/package-lock.json
-      # pnpm installed with the npm of the Node set up above, rather than through a third party action.
+      # Installs pnpm with npm, so that no third-party action is necessary.
       - name: Setup pnpm
         id: pnpm
         if: inputs.pnpm-version != ''
         env:
           PNPM_VERSION: ${{ inputs.pnpm-version }}
         run: |
-          # An image already carrying that version, as a container job's may, needs no install.
+          # Skips the install when the image already has this version, as in some container jobs.
           current=$(pnpm --version 2>/dev/null || true)
           if [[ "$current" != "$PNPM_VERSION" && "$current" != "$PNPM_VERSION".* ]]; then
             npm install --global "pnpm@${PNPM_VERSION}"
@@ -226,7 +242,7 @@ jobs:
           else
             echo "No package-lock.json, nothing to install"
           fi
-          # The browsers have to match the Playwright version installed, so a project depending on it gets them without asking.
+          # Installs the browsers for each project that uses Playwright, because they must match its version.
           if [[ -x node_modules/.bin/playwright ]]; then
             echo "playwright=true" >> "$GITHUB_OUTPUT"
           fi
@@ -249,7 +265,7 @@ jobs:
         with:
           replica-set: rs0
           mongodb-version: ${{ inputs.mongodb-version }}
-      # The scripts lint, format and test the repository, which the workflow parts are no part of.
+      # Moves the workflow parts, so that the scripts lint, format and test only the repository.
       - name: Set aside workflow parts
         working-directory: .
         run: mv workflow-parts "${RUNNER_TEMP}/workflow-parts"
@@ -271,7 +287,7 @@ jobs:
         if: ${{ inputs.custom-tests != '' }}
         env:
           CUSTOM_TESTS: ${{ inputs.custom-tests }}
-        # Shell code by contract, run from a variable rather than pasted into the script by GitHub.
+        # Runs the shell code from a variable, so that GitHub does not paste it into the script.
         run: eval "$CUSTOM_TESTS"
       - name: Bring back workflow parts
         working-directory: .
@@ -290,7 +306,7 @@ jobs:
           token: ${{ secrets.sonar-token }}
           working-directory: ${{ inputs.working-directory }}
       - name: Check license compliance with FOSSA
-        # A repository turns it off where FOSSA cannot be reached, a local run holding no API key.
+        # Runs only when the caller enables it, because a run without an API key or without access to FOSSA cannot do this check.
         if: ${{ inputs.fossa-enabled }}
         uses: ./workflow-parts/actions/fossa/analyze
         # https://status.fossa.com/
@@ -298,7 +314,7 @@ jobs:
         timeout-minutes: 3
         with:
           api-key: "${{ secrets.fossa-api-key }}"
-          # The workflow parts are checked out beside the code, and are no part of it.
+          # Excludes the workflow parts, because they are not part of the code.
           exclude-paths: workflow-parts
           run-tests: ${{ inputs.fossa-test && github.event_name == 'pull_request' }}
           test-diff-revision: ${{ github.event.pull_request.base.sha }}
@@ -315,7 +331,8 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
           name: node-test-results
-          # The usual folders of the coverage and of Playwright, those of a workspace included, and report for anything else, a custom test's server log for instance.
+          # Uploads the usual coverage and Playwright folders, including those of workspaces.
+          # Also uploads the report folder for other files, such as the server log of a custom test.
           path: |
             ${{ inputs.working-directory }}/report/
             ${{ inputs.working-directory }}/coverage/

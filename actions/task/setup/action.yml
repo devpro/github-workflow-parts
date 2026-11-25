@@ -1,7 +1,7 @@
 name: Setup Task
 description: |
-  Installs Task (taskfile.dev) by downloading the official binary from its GitHub release and verifying its SHA256 checksum
-  (replacement for go-task/setup-task and for an install through npm, to reduce supply-chain risk).
+  Installs Task (taskfile.dev) by downloading the official binary from its GitHub release and verifying its SHA256 checksum.
+  Replaces go-task/setup-task and the npm install, to reduce supply-chain risk.
   Linux x64 or arm64 runners only (for example ubuntu-latest or ubuntu-24.04-arm).
 
 inputs:
@@ -19,7 +19,7 @@ runs:
         TASK_VERSION: ${{ inputs.task-version }}
         TASK_TARBALL: task_linux_${{ runner.arch == 'ARM64' && 'arm64' || 'amd64' }}.tar.gz
       run: |
-        # Downloaded into a directory of its own, since the repository may hold a file or a directory named like the binary.
+        # Downloads to a new directory, because the repository can contain a file or a directory with the name of the binary.
         cd "$(mktemp -d)"
         BASE_URL="https://github.com/go-task/task/releases/download/${TASK_VERSION}"
 
@@ -31,7 +31,7 @@ runs:
         if grep " ${TASK_TARBALL}$" task_checksums.txt | sha256sum --check --status; then
           echo "Verification successful!"
           tar -xzf "${TASK_TARBALL}" task
-          # Installed where the job owns the directory, so neither root nor sudo is needed, on a hosted runner or in a container.
+          # Installs in a directory that the job owns, so that a hosted runner or a container needs no root access and no sudo.
           mkdir -p "${RUNNER_TEMP}/bin"
           mv task "${RUNNER_TEMP}/bin/task"
           echo "${RUNNER_TEMP}/bin" >> "$GITHUB_PATH"

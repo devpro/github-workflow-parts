@@ -1,8 +1,8 @@
 name: Scan with Trivy
 description: |
-  Installs Trivy by downloading the official binary from its GitHub release and verifying its SHA256 checksum,
-  then scans a container image or a source directory for vulnerabilities or misconfigurations (replacement for aquasecurity/trivy-action,
-  to reduce third-party GitHub Action supply-chain risk).
+  Installs Trivy by downloading the official binary from its GitHub release and verifying its SHA256 checksum.
+  Scans a container image or a directory for vulnerabilities or misconfigurations.
+  Replaces aquasecurity/trivy-action, to reduce third-party GitHub Action supply-chain risk.
   Linux x64 or arm64 runners only (for example ubuntu-latest or ubuntu-24.04-arm).
 
 inputs:
@@ -11,14 +11,17 @@ inputs:
     required: false
     default: "0.76.2"
   scan-type:
-    description: What to scan, "image" (container image reference), "rootfs" (vulnerabilities of the binaries and packages of a directory) or "config" (misconfiguration/IaC scan of a directory)
+    description: >-
+      Type of scan: "image" (container image reference),
+      "rootfs" (vulnerabilities of the binaries and packages of a directory)
+      or "config" (misconfiguration/IaC scan of a directory)
     required: false
     default: "image"
   target:
     description: Container image reference (scan-type "image") or directory path (scan-type "rootfs" or "config") to scan
     required: true
   format:
-    description: Trivy report format (table, json, sarif, cyclonedx, spdx-json...)
+    description: Trivy report format (for example table, json, sarif, cyclonedx or spdx-json)
     required: false
     default: "table"
   output-file:
@@ -30,7 +33,7 @@ inputs:
     required: false
     default: "CRITICAL,HIGH"
   exit-code:
-    description: Exit code to use when findings matching the severity filter are detected (0 = never fail the step)
+    description: Exit code when there are findings of the given severities (0 = never fail the step)
     required: false
     default: "0"
   ignore-unfixed:
@@ -42,11 +45,14 @@ inputs:
     required: false
     default: "os,library"
   skip-dirs:
-    description: Comma-separated directories or glob patterns left out, relative to the target, none when empty
+    description: Comma-separated directories or glob patterns to exclude, relative to the target
     required: false
     default: ""
   ignore-file:
-    description: Trivy ignore file (.trivyignore.yaml) naming the findings left out, each with the reason and the day it counts again (expired_at), none when empty
+    description: >-
+      Trivy ignore file (.trivyignore.yaml).
+      Lists the findings to ignore, each with a reason and an expiry date (expired_at).
+      Ignores no findings when empty.
     required: false
     default: ""
 
@@ -60,7 +66,7 @@ runs:
         TRIVY_TARBALL: trivy_${{ inputs.trivy-version }}_Linux-${{ runner.arch == 'ARM64' && 'ARM64' || '64bit' }}.tar.gz
         TRIVY_CHECKSUMS: trivy_${{ inputs.trivy-version }}_checksums.txt
       run: |
-        # Downloaded into a directory of its own, since the repository may hold a file or a directory named like the binary.
+        # Downloads to a new directory, because the repository can contain a file or a directory with the name of the binary.
         cd "$(mktemp -d)"
         BASE_URL="https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}"
 
@@ -73,7 +79,7 @@ runs:
           echo "Verification successful!"
           tar -xzf "${TRIVY_TARBALL}" trivy
           chmod +x trivy
-          # Installed where the job owns the directory, so neither root nor sudo is needed, on a hosted runner or in a container.
+          # Installs in a directory that the job owns, so that a hosted runner or a container needs no root access and no sudo.
           mkdir -p "${RUNNER_TEMP}/bin"
           mv trivy "${RUNNER_TEMP}/bin/trivy"
           echo "${RUNNER_TEMP}/bin" >> "$GITHUB_PATH"
@@ -100,7 +106,7 @@ runs:
       run: |
         args=("$SCAN_TYPE" --format "$FORMAT" --severity "$SEVERITY" --exit-code "$EXIT_CODE")
 
-        # Trivy goes on without an ignore file it cannot find, which would hide a path given wrong.
+        # Stops when the ignore file does not exist, because Trivy continues without it and hides an incorrect path.
         if [ -n "$IGNORE_FILE" ]; then
           if [ ! -f "$IGNORE_FILE" ]; then
             echo "ERROR: Ignore file ${IGNORE_FILE} not found" >&2
@@ -117,14 +123,14 @@ runs:
           args+=(--output "$OUTPUT_FILE")
         fi
 
-        # A directory is scanned for vulnerabilities only, as secrets are matched in the bytes of every binary it holds.
+        # Scans a directory only for vulnerabilities, because the secret scanner also searches the bytes of each binary.
         if [ "$SCAN_TYPE" = "rootfs" ]; then
           args+=(--scanners vuln)
         fi
 
-        # no-progress, ignore-unfixed and pkg-types only exist for vulnerability scans
+        # Adds no-progress, ignore-unfixed and pkg-types only to vulnerability scans, because other scans do not have them.
         if [ "$SCAN_TYPE" = "image" ] || [ "$SCAN_TYPE" = "rootfs" ]; then
-          # A CI log is not a terminal, and every redraw of the database download bar becomes log text.
+          # Disables the progress bar, because each update of the bar adds text to the CI log.
           args+=(--no-progress)
           if [ "$IGNORE_UNFIXED" = "true" ]; then
             args+=(--ignore-unfixed)

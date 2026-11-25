@@ -1,11 +1,11 @@
 name: Build and push a container image
 description: |
-  Builds a container image with the BuildKit of the Docker daemon for one or more platforms and pushes it under a tag,
-  each platform of several being pushed under a tag of its own first, then put together under the tag.
-  The registry login is left to the job, which holds the credentials.
-  With push false, the image is only built and left in the daemon, so a pipeline checks the packaging without publishing it.
-  Linux runners (for example ubuntu-latest or ubuntu-24.04-arm) build Linux platforms,
-  a Windows runner (for example windows-2025) builds windows/amd64 alone, for the Windows version of the runner.
+  Builds a container image for one or more platforms with the BuildKit of the Docker daemon, and pushes it.
+  With several platforms, pushes each platform with its own tag first, then creates the common tag.
+  The job must log in to the registry before this action.
+  When push is false, only builds the image and keeps it in the daemon, so that a pipeline can test the build.
+  Linux runners (for example ubuntu-latest or ubuntu-24.04-arm) build Linux platforms.
+  Windows runners (for example windows-2025) build only windows/amd64, for their own Windows version.
 
 inputs:
   image-definition:
@@ -15,10 +15,14 @@ inputs:
     description: Repository of the image, with its registry (for example docker.io/devprofr/app)
     required: true
   image-tag:
-    description: Tag to push, the tag of each platform of several being this one followed by the platform (1.0.1-linux-arm64 for instance)
+    description: >-
+      Tag to push.
+      When there are several platforms, each platform also gets this tag with its name at the end (for example 1.0.1-linux-arm64).
     required: true
   platforms:
-    description: Comma-separated platforms to build (a platform other than the runner's own needs the Setup QEMU action first), or windows/amd64 alone on a Windows runner
+    description: >-
+      Comma-separated platforms to build, or only windows/amd64 on a Windows runner.
+      Requires the Setup QEMU action before a build for a platform that is different from the runner.
     required: false
     default: "linux/amd64"
   build-arguments:
@@ -26,25 +30,32 @@ inputs:
     required: false
     default: ""
   push:
-    description: Push the image, which is otherwise built only and left in the daemon, with no digest
+    description: >-
+      Push the image.
+      When false, only build the image and keep it in the daemon, with no digest output.
     required: false
     default: "true"
   working-directory:
-    description: Directory the build runs from, relative to the workspace, which a composite action does not take from the defaults of the calling job
+    description: >-
+      Directory where the build runs, relative to the workspace.
+      A composite action does not use the default working directory of the job.
     required: false
     default: "."
 
 outputs:
   digest:
-    description: Digest of the pushed image, a manifest list when several platforms were built, empty when not pushed
+    description: >-
+      Digest of the pushed image, or of the manifest list when there are several platforms.
+      Empty when the image is not pushed.
     value: ${{ steps.build.outputs.digest || steps.build-windows.outputs.digest }}
 
 runs:
   using: "composite"
   steps:
-    # The Docker CLI of the runner does what the docker/* actions wrapped, with no third party action in between.
-    # The builder of the daemon runs no BuildKit image, which a builder of its own would pull, and keeps no state of its own a later job would find.
-    # It pushes no image by digest alone and builds one platform at a time on the classic image store, so each platform gets a tag.
+    # Uses the Docker CLI of the runner, so that no third-party action is necessary.
+    # Uses the default builder of the daemon, because a separate builder pulls a BuildKit image and leaves data for later jobs.
+    # Gives each platform a tag, because this builder cannot push by digest only.
+    # With the classic image store, this builder also builds only one platform at a time.
     - name: Build and push container image
       id: build
       if: ${{ inputs.platforms != 'windows/amd64' }}
@@ -63,7 +74,7 @@ runs:
           [ -n "$argument" ] && build_args+=(--build-arg "$argument")
         done <<< "$BUILD_ARGUMENTS"
 
-        # Builds and pushes one platform under a tag, and prints the digest of what was pushed.
+        # Builds one platform, pushes it with a tag and prints the digest of the pushed image.
         build_push() {
           local platform="$1" ref="$2" metadata digest
           if [[ "$PUSH" != true ]]; then
@@ -75,7 +86,7 @@ runs:
           docker buildx build --builder default --file "$IMAGE_DEFINITION" --platform "$platform" \
             --tag "$ref" --push --metadata-file "$metadata" "${build_args[@]}" . >&2
           digest="$(jq -r '."containerimage.digest" // empty' "$metadata")"
-          # The daemon keeps the image it built, which the registry now holds.
+          # Removes the local image, because the registry now has it.
           docker image rm "$ref" >/dev/null 2>&1 || true
           if [[ "$digest" != sha256:* ]]; then
             echo "ERROR: The build reported no digest for ${ref}" >&2
@@ -102,13 +113,14 @@ runs:
             platform_digest="$(build_push "$platform" "${IMAGE_REPOSITORY}:${IMAGE_TAG}-${platform//\//-}")"
             sources+=("${IMAGE_REPOSITORY}@${platform_digest}")
           done
-          # The tag names a complete image only once every platform is pushed.
+          # Creates the tag after all platforms are pushed, so that the tag never points to an incomplete image.
           docker buildx imagetools create --tag "${IMAGE_REPOSITORY}:${IMAGE_TAG}" "${sources[@]}"
           digest="$(docker buildx imagetools inspect "${IMAGE_REPOSITORY}:${IMAGE_TAG}" --format '{{json .Manifest}}' | jq -r .digest)"
         fi
         echo "Pushed ${IMAGE_REPOSITORY}:${IMAGE_TAG}@${digest}"
         echo "digest=$digest" >> "$GITHUB_OUTPUT"
-    # The Windows engine has no BuildKit, so the classic builder builds the image, for the platform of the engine only.
+    # Uses the classic builder, because the Windows engine has no BuildKit.
+    # This builder can build only for the platform of the engine.
     - name: Build and push Windows container image
       id: build-windows
       if: ${{ inputs.platforms == 'windows/amd64' }}
@@ -135,10 +147,11 @@ runs:
         }
         docker push $ref
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-        # Docker Hub names its repositories without the registry, and an image built here holds only the digest of its push.
+        # Takes the first digest without a check of the repository name, because Docker Hub names do not include the registry.
+        # An image built in this job has only the digest of its push.
         $repoDigest = docker image inspect $ref --format '{{range .RepoDigests}}{{println .}}{{end}}' |
           Where-Object { $_ } | Select-Object -First 1
-        # The daemon keeps the image it built, which the registry now holds.
+        # Removes the local image, because the registry now has it.
         docker image rm $ref *> $null
         $digest = ($repoDigest -split '@')[-1]
         if ($digest -notlike 'sha256:*') {

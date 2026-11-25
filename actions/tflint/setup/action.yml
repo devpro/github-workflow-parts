@@ -1,7 +1,7 @@
 name: Setup TFLint
 description: |
-  Installs TFLint by downloading the official binary from its GitHub release and verifying its SHA256 checksum (replacement for terraform-linters/setup-tflint,
-  to reduce third-party GitHub Action supply-chain risk).
+  Installs TFLint by downloading the official binary from its GitHub release and verifying its SHA256 checksum.
+  Replaces terraform-linters/setup-tflint, to reduce third-party GitHub Action supply-chain risk.
   Linux x64 or arm64 runners only (for example ubuntu-latest or ubuntu-24.04-arm).
 
 inputs:
@@ -19,7 +19,7 @@ runs:
         TFLINT_VERSION: ${{ inputs.tflint-version }}
         TFLINT_ZIP: tflint_linux_${{ runner.arch == 'ARM64' && 'arm64' || 'amd64' }}.zip
       run: |
-        # Downloaded into a directory of its own, since the repository may hold a file or a directory named like the binary.
+        # Downloads to a new directory, because the repository can contain a file or a directory with the name of the binary.
         cd "$(mktemp -d)"
         BASE_URL="https://github.com/terraform-linters/tflint/releases/download/${TFLINT_VERSION}"
 
@@ -32,7 +32,7 @@ runs:
           echo "Verification successful!"
           unzip -o "${TFLINT_ZIP}"
           chmod +x tflint
-          # Installed where the job owns the directory, so neither root nor sudo is needed, on a hosted runner or in a container.
+          # Installs in a directory that the job owns, so that a hosted runner or a container needs no root access and no sudo.
           mkdir -p "${RUNNER_TEMP}/bin"
           mv tflint "${RUNNER_TEMP}/bin/tflint"
           echo "${RUNNER_TEMP}/bin" >> "$GITHUB_PATH"

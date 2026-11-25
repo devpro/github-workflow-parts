@@ -1,8 +1,8 @@
 name: Install Playwright browsers
 description: |
-  Installs the browsers of the Playwright version the project depends on, with their system packages on a hosted runner.
-  The browser build has to match that version, so it is installed after the dependencies (npm ci) rather than baked into an image.
-  System packages need root, which a hosted runner gets through sudo, and a container job's image already installed them.
+  Installs the browsers for the Playwright version of the project, and their system packages on a hosted runner.
+  Run it after the dependencies are installed (npm ci), because the browsers must match the Playwright version.
+  System packages need root access: a hosted runner uses sudo, and the image of a container job must already contain them.
 
 inputs:
   browsers:
@@ -10,7 +10,7 @@ inputs:
     required: false
     default: chromium
   working-directory:
-    description: Directory of the project depending on Playwright
+    description: Directory of the project that uses Playwright
     required: false
     default: "."
 

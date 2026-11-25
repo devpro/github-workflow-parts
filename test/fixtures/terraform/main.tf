@@ -1,7 +1,6 @@
-# Minimal, valid Terraform configuration used by this repository's own CI (see .github/workflows/ci.yml)
-# to exercise the reusable-terraform-quality.yml workflow end-to-end: terraform fmt/init/validate,
-# Checkov, TFLint and Trivy all run against it.
-# It intentionally has no cloud provider dependency so it can run without any credentials.
+# Gives the CI (.github/workflows/ci.yml) a minimal configuration to test reusable-terraform-quality.yml.
+# The workflow runs terraform fmt, init and validate, then Checkov, TFLint and Trivy.
+# Uses no cloud provider, so that the test needs no credentials.
 
 terraform {
   required_version = ">= 1.9.0"

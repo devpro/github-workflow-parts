@@ -1,4 +1,4 @@
-// Package untidy requires a module it never imports, which go mod tidy would take out and the lint action fails on.
+// Package untidy requires a module that it does not import, so that the lint action fails.
 package untidy
 
 // Value returns one.

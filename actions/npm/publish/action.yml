@@ -1,24 +1,24 @@
 name: Publish an npm package
 description: |
-  Publishes the package of the working directory unless its version is already on the registry,
-  which refuses to publish over it, so a push that did not bump the version is skipped rather than failed.
-  The registry and the credentials are those of the .npmrc that actions/setup-node writes with registry-url:
-  a token given as NODE_AUTH_TOKEN, or the OIDC token of npm trusted publishing (permission id-token write).
-  A run with neither, as a local one is, packs and checks the package with --dry-run added to the command, the registry refusing to answer it.
+  Publishes the package in the working directory.
+  Skips a version that is already in the registry, so that a push without a new version does not fail.
+  Uses the registry and the credentials of the .npmrc that actions/setup-node writes with registry-url.
+  The credentials are a token in NODE_AUTH_TOKEN, or the OIDC token of npm trusted publishing (permission id-token write).
+  Without credentials, as in a local run, adds --dry-run to the command if the registry refuses access, to check the package without a publication.
 
 inputs:
   publish-command:
-    description: Command publishing the package, "pnpm publish --no-git-checks" for a pnpm workspace for instance
+    description: Command to publish the package (for example "pnpm publish --no-git-checks" for a pnpm workspace)
     required: false
     default: "npm publish"
   working-directory:
-    description: Directory holding the package.json of the package
+    description: Directory that contains the package.json of the package
     required: false
     default: "."
 
 outputs:
   published:
-    description: "\"true\" when the package was published, \"false\" when its version already was"
+    description: Set to "true" when the action published the package, or "false" when the version was already published
     value: ${{ steps.registry.outputs.exists == 'false' && 'true' || 'false' }}
   version:
     description: Version of the package, read from its package.json
@@ -35,7 +35,8 @@ runs:
         name=$(node -p "require('./package.json').name")
         version=$(node -p "require('./package.json').version")
         echo "version=${version}" >> "$GITHUB_OUTPUT"
-        # npm answers E404 for a package or a version the registry does not have, and anything else is a failure to read it.
+        # Continues on E404, because npm gives this error when the registry does not have the package or the version.
+        # All other errors mean that npm could not read the registry.
         errors=$(mktemp)
         if npm view "${name}@${version}" version > /dev/null 2> "$errors"; then
           echo "${name}@${version} is already published, nothing to do"
@@ -56,7 +57,7 @@ runs:
       working-directory: ${{ inputs.working-directory }}
       env:
         PUBLISH_COMMAND: ${{ inputs.publish-command }}
-      # Shell code by contract, run from a variable rather than pasted into the script by GitHub.
+      # Runs the shell code from a variable, so that GitHub does not paste it into the script.
       run: eval "$PUBLISH_COMMAND"
     - name: Check the package without publishing it
       if: steps.registry.outputs.exists == 'dry-run'

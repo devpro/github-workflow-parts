@@ -24,7 +24,7 @@ on:
         required: false
         default: "ubuntu-latest"
       destroy:
-        description: "Destroy the resources of the environment rather than apply the configuration"
+        description: Destroy the resources of the environment instead of applying the configuration
         type: boolean
         required: false
         default: false
@@ -47,7 +47,10 @@ on:
         required: false
         default: ""
       workflow-parts-version:
-        description: "GitHub workflow parts version (branch/tag/SHA). Should match the ref/tag/SHA the caller pinned for this reusable workflow itself. Ignored when the caller is this repository, whose checkout already holds the actions under test."
+        description: >-
+          GitHub workflow parts version (branch/tag/SHA).
+          Use the same version as the one that calls this reusable workflow.
+          Ignored when this repository is the caller, because it tests the actions of the current commit.
         type: string
         required: false
         default: "main"
@@ -108,7 +111,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           repository: devpro/github-workflow-parts
-          # The caller being this repository, the actions under test are those of the commit under test.
+          # Uses the current commit when this repository is the caller, so that the CI tests the actions of that commit.
           ref: ${{ github.repository == 'devpro/github-workflow-parts' && github.sha || inputs.workflow-parts-version }}
           path: workflow-parts
           persist-credentials: false
@@ -134,7 +137,7 @@ jobs:
         if: ${{ inputs.custom-commands != '' }}
         env:
           CUSTOM_COMMANDS: ${{ inputs.custom-commands }}
-        # Shell code by contract, run from a variable rather than pasted into the script by GitHub.
+        # Runs the shell code from a variable, so that GitHub does not paste it into the script.
         run: eval "$CUSTOM_COMMANDS"
       - name: Cache Terraform plugins
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
@@ -149,14 +152,15 @@ jobs:
       - name: Terraform validate
         run: terraform validate
       - name: Terraform plan
-        # Shell words by contract, quotes included, parsed from a variable rather than pasted into the script by GitHub.
+        # Reads the arguments from a variable, so that GitHub does not paste them into the script.
+        # Uses eval so that the shell applies the quotes in the arguments.
         run: |
           var_flags=()
           eval "var_flags=(${TERRAFORM_VAR_FLAGS})"
           terraform plan -input=false -out=plan.tfplan "${var_flags[@]}"
         env:
           TERRAFORM_VAR_FLAGS: ${{ inputs.terraform-var-flags }}
-          # Read by Terraform as arguments of the plan command, the plan of a destruction being applied as any other.
+          # Adds -destroy to the plan command when the destroy input is true, so that the apply step destroys the resources.
           TF_CLI_ARGS_plan: ${{ inputs.destroy && '-destroy' || '' }}
       - name: Terraform apply
         run: terraform apply -auto-approve plan.tfplan

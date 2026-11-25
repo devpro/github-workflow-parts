@@ -1,13 +1,13 @@
 name: Setup QEMU
 description: |
-  Registers QEMU user emulation for other platforms than the runner's own, so that Docker builds and runs their images,
-  from the qemu-user-static package of the Ubuntu archive (qemu-user-binfmt from Ubuntu 26.04), which apt verifies against the keys of the runner's own distribution
-  (replacement for docker/setup-qemu-action and its tonistiigi/binfmt image, to run no third party image with privileges).
-  Linux runners on Ubuntu only (for example ubuntu-latest), with sudo, since the registration is made in the kernel.
+  Registers QEMU user emulation, so that Docker can build and run images for other platforms.
+  Installs the qemu-user-static package of Ubuntu (qemu-user-binfmt since Ubuntu 26.04), which apt verifies.
+  Replaces docker/setup-qemu-action and its tonistiigi/binfmt image, so that no third-party image runs with privileges.
+  Ubuntu runners only (for example ubuntu-latest), with sudo, because the registration is in the kernel.
 
 inputs:
   platforms:
-    description: Comma-separated platforms to check the emulation of, as Docker names them (for example "linux/arm64,linux/arm/v7")
+    description: Comma-separated platforms that must have emulation, with the Docker names (for example "linux/arm64,linux/arm/v7")
     required: false
     default: "linux/arm64"
 
@@ -18,13 +18,14 @@ runs:
       shell: bash
       run: |
         sudo apt-get update -qq
-        # From QEMU 9.1 (Ubuntu 26.04), qemu-user ships the static binaries and qemu-user-static is only a virtual package, which apt cannot install.
+        # Selects the package by what apt has, because qemu-user-static is a virtual package since QEMU 9.1 (Ubuntu 26.04).
+        # apt cannot install a virtual package, and qemu-user now contains the static binaries.
         package=qemu-user-static
         if apt-cache show --no-all-versions qemu-user-binfmt | grep -q '^Provides:.*\bqemu-user-static\b'; then
           package=qemu-user-binfmt
         fi
         sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends "$package"
-        # The package ships its registrations in binfmt.d, which systemd-binfmt loads into the kernel.
+        # Loads the registrations that the package puts in binfmt.d into the kernel.
         sudo /usr/lib/systemd/systemd-binfmt
     - name: Check the emulation of each platform
       shell: bash
@@ -44,7 +45,8 @@ runs:
             *) echo "ERROR: No QEMU emulation known for ${platform}" >&2; exit 1 ;;
           esac
           registration="/proc/sys/fs/binfmt_misc/qemu-${name}"
-          # The F flag opens the interpreter at registration, which is how a container without it in its file system runs the binaries.
+          # Requires the F flag, which opens the interpreter at registration.
+          # Without this flag, a container must have the interpreter in its file system.
           if ! grep -qx enabled "$registration" 2>/dev/null || ! grep -q '^flags: .*F' "$registration"; then
             echo "ERROR: ${platform} is not emulated: ${registration} is missing, disabled or without the F flag" >&2
             exit 1

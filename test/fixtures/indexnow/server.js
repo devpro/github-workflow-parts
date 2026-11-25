@@ -1,5 +1,6 @@
-// Serves a sitemap index of two sitemaps, and an IndexNow API that records what it is sent, for the IndexNow action to be tested without reaching IndexNow.
-// Usage: node server.js <file the submission is written to> <port>
+// Serves a sitemap index with two sitemaps and an IndexNow API that records each submission.
+// This tests the IndexNow action without access to IndexNow.
+// Usage: node server.js <output file for the submission> <port>
 const fs = require("node:fs");
 const http = require("node:http");
 

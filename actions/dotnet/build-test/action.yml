@@ -1,5 +1,5 @@
 name: Build & Test
-description: Builds and runs tests on a .NET codebase
+description: Builds and tests .NET code
 
 inputs:
   dotnet-test-args:
@@ -11,7 +11,9 @@ inputs:
     required: false
     default: report
   working-directory:
-    description: Directory of the .NET code, relative to the workspace, which a composite action does not take from the defaults of the calling job
+    description: >-
+      Directory of the .NET code, relative to the workspace.
+      A composite action does not use the default working directory of the job.
     required: false
     default: "."
 
@@ -26,7 +28,8 @@ runs:
         BUILD_SOURCEBRANCHNAME: ${{ github.ref_name }}
         BUILD_BUILDID: ${{ github.run_id }}
     - name: Run tests
-      # Shell words by contract, quotes included, parsed from a variable rather than pasted into the script by GitHub.
+      # Reads the arguments from a variable, so that GitHub does not paste them into the script.
+      # Uses eval so that the shell applies the quotes in the arguments.
       run: |
         test_args=()
         eval "test_args=(${DOTNET_TEST_ARGS})"
@@ -39,7 +42,8 @@ runs:
         ASPNETCORE_ENVIRONMENT: Development
         DOTNET_TEST_ARGS: ${{ inputs.dotnet-test-args }}
         REPORT_FOLDER: ${{ inputs.report-folder }}
-    # Microsoft.Testing.Platform writes the coverage beside the results, and VSTest in a folder of its own for each run.
+    # Searches all subfolders, because VSTest writes the coverage to a new folder for each run.
+    # Microsoft.Testing.Platform writes it next to the test results.
     - name: Generate test report
       if: ${{ always() && hashFiles(format('{0}/{1}/TestResults/**/*.cobertura.xml', inputs.working-directory, inputs.report-folder)) != '' }}
       run: |

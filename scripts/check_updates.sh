@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-# Lists the pinned versions of the catalog that have a newer upstream release.
-# The current versions are read from the repository, so the script stays right after every bump,
-# and only where to look for a release is kept here.
-# Exits with 1 when an update is available or a source is unknown.
+# Lists the pinned versions of the catalog that have a newer release.
+# Reads the current versions from the repository, so that the script stays correct after each update.
+# Contains only the location of the releases.
+# Exits with 1 when an update is available, or when a release or its source is unknown.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-# Where each version input finds its latest release.
-# A GitHub source is owner/repo, followed by the prefix of its tags when they have one.
-# "skip" marks a channel chosen on purpose, such as an LTS major version.
+# Gives the source of the latest release for each version input.
+# A GitHub source is owner/repo, then the tag prefix if the tags have one.
+# Use "skip" for a version that is selected on purpose, such as an LTS major version.
 declare -A SOURCES=(
   [chart-releaser-version]="github helm/chart-releaser"
   [chart-testing-version]="github helm/chart-testing"
@@ -45,7 +45,7 @@ declare -A SOURCES=(
   [actionlint-version]="github rhysd/actionlint"
 )
 
-# Pre-releases are left out, since a default is only ever moved to a stable release.
+# Excludes prereleases, because a default version must be stable.
 latest_github() {
   local repo=$1 prefix=${2:-}
   git ls-remote --tags --refs "https://github.com/${repo}" | sed 's#.*refs/tags/##' \
@@ -67,7 +67,7 @@ latest() {
 
 status=0
 
-# Compares without the leading v, which some pins keep and some tags lack.
+# Compares without the v prefix, because only some pins and some tags have it.
 report() {
   local name=$1 current=$2 found=$3 where=$4
   if [[ -z "$found" ]]; then
@@ -79,9 +79,9 @@ report() {
   fi
 }
 
-# Each row: name, current version, file.
+# Prints one row for each pin: name, current version, file.
 pins() {
-  # Version inputs of the composite actions, with a non-empty default.
+  # Reads the version inputs of the composite actions that have a default value.
   for file in actions/*/*/action.yml actions/*/*/*/action.yml; do
     [[ -f "$file" ]] || continue
     awk -v f="$file" '
@@ -90,12 +90,13 @@ pins() {
       name && /^    default:/ { gsub(/["'\'']/, "", $2); if ($2 != "") print name, $2, f; name = "" }
     ' "$file"
   done
-  # The MongoDB server version sits in an expression, so that workflows can pass an empty input.
+  # Reads the MongoDB server version from an expression, because the default is there and workflows can pass an empty input.
   sed -nE "s/.*inputs\.mongodb-version \|\| '([0-9.]+)'.*/mongodb-server-version \1 actions\/mongodb\/start\/action.yml/p" actions/mongodb/start/action.yml
-  # Literal versions in the reusable workflows, ci.yml being left out since its older versions test the inputs.
+  # Reads the literal versions in the reusable workflows.
+  # Excludes ci.yml, because it uses older versions to test the inputs.
   grep -HnoE '^\s+[a-z0-9-]+-version: v?[0-9][0-9.]*$' .github/workflows/reusable-*.yml \
     | awk -F: '{ gsub(/ /, "", $3); print $3, $4 ? $4 : "", $1 }' | sed 's/  */ /g'
-  # Tools that the reusable workflows run inline, pinned by pipx, npx or a variable.
+  # Reads the versions of the tools that workflows and scripts pin with pipx, npx, a variable or a requirements file.
   grep -HoE 'pipx run --spec [A-Za-z0-9_.-]+==[^ ]+' .github/workflows/reusable-*.yml \
     | sed -E 's/^([^:]+):pipx run --spec ([^=]+)==(.*)/pypi:\2 \3 \1/'
   grep -HoE 'npx --yes [@A-Za-z0-9_./-]+@[0-9][^ ]*' .github/workflows/reusable-*.yml \
@@ -104,7 +105,7 @@ pins() {
     | sed -E 's/^([^:]+):shellcheck_version="([^"]+)"/shellcheck-version \2 \1/'
   sed -nE 's/^ACTIONLINT_VERSION=(.*)/actionlint-version \1 test\/run_static_checks.sh/p' test/run_static_checks.sh
   sed -nE 's/^([A-Za-z0-9_.-]+)==([^ ]+).*/pypi:\1 \2 test\/requirements.txt/p' test/requirements.txt
-  # Providers locked by the Terraform fixtures, since the provider scan warns about the vulnerabilities of an old one.
+  # Reads the providers in the lock files of the fixtures, because the provider scan reports vulnerabilities in old versions.
   git ls-files '*.terraform.lock.hcl' | while read -r lock; do
     awk -v f="$lock" '
       /^provider "/ { split($2, parts, "/"); provider = parts[2] "/" parts[3]; gsub(/"/, "", provider) }
@@ -135,11 +136,11 @@ while read -r name current file; do
     continue
   fi
   [[ "$source" == skip ]] && continue
-  # shellcheck disable=SC2086 # The source is split into its kind and arguments on purpose.
+  # shellcheck disable=SC2086 # Splits the source into its kind and arguments on purpose.
   report "$name" "$current" "$(latest $source || true)" "$file"
 done < <(pins)
 
-# GitHub Actions pinned by SHA, with their version in the trailing comment.
+# Checks the GitHub Actions that are pinned by SHA, with the version from the comment at the end of the line.
 while read -r action version; do
   repo=$(cut -d/ -f1-2 <<< "$action")
   report "$action" "$version" "$(latest_github "$repo" || true)" "uses"

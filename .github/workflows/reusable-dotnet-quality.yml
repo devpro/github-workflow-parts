@@ -24,7 +24,7 @@ on:
         required: false
         default: ""
       fossa-enabled:
-        description: Enable license compliance with FOSSA
+        description: Enable the license compliance check with FOSSA
         type: boolean
         required: false
         default: false
@@ -34,12 +34,16 @@ on:
         required: false
         default: false
       mongodb-enabled:
-        description: Start a local MongoDB server on 127.0.0.1:27017, as the single-node replica set rs0 transactions need, with mongosh on the path, before build & test
+        description: >-
+          Start a local MongoDB server on 127.0.0.1:27017 before build and test, with mongosh on the path.
+          Uses the single-node replica set rs0, because transactions require a replica set.
         type: boolean
         required: false
         default: false
       mongodb-version:
-        description: Version of the MongoDB server mongodb-enabled starts, an 8.0 one for instance, the latest release the MongoDB action names when empty
+        description: >-
+          Version of the MongoDB server (for example an 8.0 version) when mongodb-enabled is true.
+          Uses the default version of the MongoDB action when empty.
         type: string
         required: false
         default: ""
@@ -59,17 +63,17 @@ on:
         required: false
         default: ubuntu-latest
       sonar-enabled:
-        description: Enable check done by Sonar (SonarQube or SonarCloud)
+        description: Enable the analysis with Sonar (SonarQube or SonarCloud)
         type: boolean
         required: false
         default: false
       sonar-cpd-exclusions:
-        description: Files or directories that should be excluded from Sonar code duplication analysis
+        description: Files or directories to exclude from the Sonar code duplication analysis
         type: string
         required: false
         default: "**/*Generated*.cs"
       sonar-exclusions:
-        description: Files or directories that should be excluded from Sonar analysis
+        description: Files or directories to exclude from the Sonar analysis
         type: string
         required: false
         default: "node_modules"
@@ -94,12 +98,15 @@ on:
         required: false
         default: ""
       sonar-settings-file:
-        description: SonarQube.Analysis.xml file of the repository, relative to the working directory, holding analysis settings such as issue exclusions
+        description: SonarQube.Analysis.xml file with analysis settings such as issue exclusions, relative to the working directory
         type: string
         required: false
         default: ""
       workflow-parts-version:
-        description: GitHub workflow parts version (branch/tag/SHA). Should match the ref/tag/SHA the caller pinned for this reusable workflow itself. Ignored when the caller is this repository, whose checkout already holds the actions under test.
+        description: >-
+          GitHub workflow parts version (branch/tag/SHA).
+          Use the same version as the one that calls this reusable workflow.
+          Ignored when this repository is the caller, because it tests the actions of the current commit.
         type: string
         required: false
         default: main
@@ -110,7 +117,7 @@ on:
         default: "."
     secrets:
       fossa-api-key:
-        description: FOSSA API KEY
+        description: FOSSA API key
         required: false
       sonar-token:
         description: Sonar token for login
@@ -130,7 +137,7 @@ jobs:
     steps:
       - name: Set additional variables
         shell: bash
-        # Run before the clone, which creates the working directory.
+        # Runs at the root of the workspace, because the working directory does not exist before the clone.
         working-directory: .
         env:
           EXTRA_VARS: ${{ inputs.extra-vars }}
@@ -140,7 +147,7 @@ jobs:
           fi
       - name: Set additional secrets
         shell: bash
-        # Run before the clone, which creates the working directory.
+        # Runs at the root of the workspace, because the working directory does not exist before the clone.
         working-directory: .
         env:
           ADDITIONAL_VARS: ${{ secrets.additional-vars }}
@@ -166,7 +173,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           repository: devpro/github-workflow-parts
-          # The caller being this repository, the actions under test are those of the commit under test.
+          # Uses the current commit when this repository is the caller, so that the CI tests the actions of that commit.
           ref: ${{ github.repository == 'devpro/github-workflow-parts' && github.sha || inputs.workflow-parts-version }}
           path: workflow-parts
           persist-credentials: false
@@ -185,7 +192,7 @@ jobs:
         if: ${{ inputs.custom-commands != '' }}
         env:
           CUSTOM_COMMANDS: ${{ inputs.custom-commands }}
-        # Shell code by contract, run from a variable rather than pasted into the script by GitHub.
+        # Runs the shell code from a variable, so that GitHub does not paste it into the script.
         run: eval "$CUSTOM_COMMANDS"
       - name: Build & test
         if: ${{ ! inputs.sonar-enabled }}
@@ -208,7 +215,7 @@ jobs:
           sonar-settings-file: ${{ inputs.sonar-settings-file }}
           sonar-token: ${{ secrets.sonar-token }}
       - name: Check license compliance with FOSSA
-        # A repository turns it off where FOSSA cannot be reached, a local run holding no API key.
+        # Runs only when the caller enables it, because a run without an API key or without access to FOSSA cannot do this check.
         if: ${{ inputs.fossa-enabled }}
         uses: ./workflow-parts/actions/fossa/analyze
         # https://status.fossa.com/
@@ -216,7 +223,7 @@ jobs:
         timeout-minutes: 3
         with:
           api-key: "${{ secrets.fossa-api-key }}"
-          # The workflow parts are checked out beside the code, and are no part of it.
+          # Excludes the workflow parts, because they are not part of the code.
           exclude-paths: workflow-parts
           run-tests: ${{ inputs.fossa-test && github.event_name == 'pull_request' }}
           test-diff-revision: ${{ github.event.pull_request.base.sha }}
@@ -233,7 +240,7 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
           name: dotnet-test-results
-          # The build, test and FOSSA actions write the results, the coverage and the reports in the report folder of the working directory.
+          # Uploads the report folder, because the build, test and FOSSA actions write their results and reports there.
           path: |
             ${{ inputs.working-directory }}/report/
             ./**/*test-result.xml

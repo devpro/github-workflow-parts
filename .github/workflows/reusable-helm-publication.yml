@@ -1,12 +1,13 @@
 name: Reusable - Helm publication
 
-# The caller grants "contents: write" to create the releases and push the index, "pages: write" and "id-token: write" to deploy the Pages,
-# and the repository has a Pages branch holding index.yaml, published from GitHub Actions.
+# Requires "contents: write" from the caller to create the releases and push the index.
+# Requires "pages: write" and "id-token: write" from the caller to deploy the Pages.
+# Requires a Pages branch that contains index.yaml, and Pages published from GitHub Actions.
 on:
   workflow_call:
     inputs:
       charts-directory:
-        description: Directory holding one chart per subdirectory, relative to the root of the repository
+        description: Directory that contains one subdirectory for each chart, relative to the root of the repository
         type: string
         required: false
         default: charts
@@ -21,7 +22,9 @@ on:
         required: false
         default: ubuntu-latest
       pages-branch:
-        description: Branch holding the index.yaml of the chart repository, and an index.tpl to render it as index.html
+        description: >-
+          Branch that contains the index.yaml of the chart repository.
+          Renders index.html when the branch also contains an index.tpl.
         type: string
         required: false
         default: gh-pages
@@ -31,7 +34,10 @@ on:
         required: false
         default: 30
       workflow-parts-version:
-        description: "GitHub workflow parts version (branch/tag/SHA). Should match the ref/tag/SHA the caller pinned for this reusable workflow itself. Ignored when the caller is this repository, whose checkout already holds the actions under test."
+        description: >-
+          GitHub workflow parts version (branch/tag/SHA).
+          Use the same version as the one that calls this reusable workflow.
+          Ignored when this repository is the caller, because it tests the actions of the current commit.
         type: string
         required: false
         default: "main"
@@ -40,7 +46,9 @@ on:
         description: URL of the chart repository
         value: ${{ jobs.pages-deploy.outputs.page-url }}
       published-charts:
-        description: Charts published by the run, as name-version separated by spaces, empty when every version already was
+        description: >-
+          Charts that the run published, as name-version, separated by spaces.
+          Empty when all versions were already published.
         value: ${{ jobs.helm-publication.outputs.published-charts }}
 
 jobs:
@@ -51,18 +59,18 @@ jobs:
     outputs:
       published-charts: ${{ steps.package.outputs.published-charts }}
     steps:
-      # The whole history and every branch, as chart-releaser adds a worktree of the Pages branch from the remote one.
+      # Fetches all history and all branches, because chart-releaser creates a worktree from the remote Pages branch.
       - name: Clone repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           fetch-depth: 0
-          # chart-releaser pushes with a URL carrying its own token.
+          # Does not keep the credentials, because chart-releaser pushes with a token in the URL.
           persist-credentials: false
       - name: Checkout workflow parts
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           repository: devpro/github-workflow-parts
-          # The caller being this repository, the actions under test are those of the commit under test.
+          # Uses the current commit when this repository is the caller, so that the CI tests the actions of that commit.
           ref: ${{ github.repository == 'devpro/github-workflow-parts' && github.sha || inputs.workflow-parts-version }}
           path: workflow-parts
           persist-credentials: false
@@ -72,13 +80,14 @@ jobs:
         uses: ./workflow-parts/actions/helm/setup
       - name: Setup chart-releaser
         uses: ./workflow-parts/actions/chart-releaser/setup
-      # Helm resolves a dependency of a chart through a repository added under any name with the same URL.
+      # Adds each repository with a generated name, because Helm finds the repository of a dependency by its URL.
       - name: Add the repositories of the chart dependencies
         env:
           CHARTS_DIRECTORY: ${{ inputs.charts-directory }}
         run: |
-          # An OCI or a file dependency needs no repository.
-          urls=$({ grep -h '^[[:space:]]*repository:' "${CHARTS_DIRECTORY}"/*/Chart.yaml || true; } | awk '{ print $2 }' | tr -d "\"'" | { grep -E '^https?://' || true; } | sort -u)
+          # Keeps only HTTP addresses, because OCI and file dependencies need no repository.
+          urls=$({ grep -h '^[[:space:]]*repository:' "${CHARTS_DIRECTORY}"/*/Chart.yaml || true; } \
+            | awk '{ print $2 }' | tr -d "\"'" | { grep -E '^https?://' || true; } | sort -u)
           if [[ -z "$urls" ]]; then
             echo "No chart repository to add"
             exit 0
@@ -89,7 +98,7 @@ jobs:
             helm repo add "dependency-${index}" "$url"
           done <<< "$urls"
           helm repo update
-      # A version already in the index is never packaged again, so a run after a failure publishes what the failure left out.
+      # Skips the versions that are in the index, so that a new run publishes only the charts that a failed run did not publish.
       - name: Package the charts not yet published
         id: package
         env:
@@ -105,7 +114,7 @@ jobs:
               /^name:/ { name = $2 }
               /^version:/ { version = $2 }
               END { gsub(/["\047]/, "", name); gsub(/["\047]/, "", version); print name "-" version }')
-            # chart-releaser lists each package by the URL of its release asset.
+            # Looks for the end of the URL, because chart-releaser lists each package by the URL of its release asset.
             if grep -q "/${release}\.tgz$" <<< "$index"; then
               continue
             fi
@@ -124,14 +133,14 @@ jobs:
         run: |
           owner="${GITHUB_REPOSITORY%%/*}"
           repository="${GITHUB_REPOSITORY#*/}"
-          # A release left by a run that failed afterwards is kept, as an immutable release cannot be changed anyway.
+          # Keeps the releases of a failed run, because an immutable release cannot change.
           cr upload --owner "$owner" --git-repo "$repository" --commit "$GITHUB_SHA" --package-path .cr-release-packages --skip-existing
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           mkdir -p .cr-index
           cr index --owner "$owner" --git-repo "$repository" --package-path .cr-release-packages --index-path .cr-index/index.yaml --pages-branch "$PAGES_BRANCH" --push
 
-      # The Pages branch is read again, as the index pushed above is not in the clone.
+      # Checks out the Pages branch again, because the clone does not contain the index from the previous step.
       - name: Checkout the Pages branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:

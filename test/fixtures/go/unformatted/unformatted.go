@@ -1,4 +1,4 @@
-// Package unformatted is not formatted by gofmt, which the lint action fails on.
+// Package unformatted is not formatted with gofmt, so that the lint action fails.
 package unformatted
 
 func  Value( ) int {return 1}

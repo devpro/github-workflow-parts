@@ -1,4 +1,4 @@
-# Leaves out the root user of the base container fixture until a day that has not come.
+# Ignores the root user finding of the base container fixture until a date in the future.
 misconfigurations:
   - id: DS-0002
     statement: The base container fixture runs as root on purpose

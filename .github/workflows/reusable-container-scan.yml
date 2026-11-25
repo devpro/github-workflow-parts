@@ -4,12 +4,14 @@ on:
   workflow_call:
     inputs:
       base-image-argument:
-        description: Build argument the image definition reads the base image from
+        description: Build argument that gives the base image to the image definition
         type: string
         required: false
         default: BASE_IMAGE
       base-image-definition:
-        description: Path to the definition of the image this one is built on, built first so that the scan reads what this commit produces rather than a published base
+        description: >-
+          Path to the definition of the base image.
+          Builds the base image first, so that the scan uses the base of this commit and not a published base.
         type: string
         required: false
         default: ""
@@ -45,17 +47,23 @@ on:
         required: false
         default: ubuntu-latest
       severity:
-        description: Severities of a vulnerability with a fix that fail the scan, "CRITICAL,HIGH,MEDIUM" to hold an image to MEDIUM as well
+        description: Severities that fail the scan when the vulnerability has a fix (for example "CRITICAL,HIGH,MEDIUM" to include MEDIUM)
         type: string
         required: false
         default: CRITICAL,HIGH
       trivy-ignore-file:
-        description: Trivy ignore file, relative to the root of the repository, naming the vulnerabilities left out, each with the reason and the day it counts again (expired_at), read when it exists
+        description: >-
+          Trivy ignore file, relative to the root of the repository.
+          Lists the vulnerabilities to ignore, each with a reason and an expiry date (expired_at).
+          The default file is optional.
         type: string
         required: false
         default: .trivyignore.yaml
       workflow-parts-version:
-        description: "GitHub workflow parts version (branch/tag/SHA). Should match the ref/tag/SHA the caller pinned for this reusable workflow itself. Ignored when the caller is this repository, whose checkout already holds the actions under test."
+        description: >-
+          GitHub workflow parts version (branch/tag/SHA).
+          Use the same version as the one that calls this reusable workflow.
+          Ignored when this repository is the caller, because it tests the actions of the current commit.
         type: string
         required: false
         default: "main"
@@ -82,19 +90,20 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           repository: devpro/github-workflow-parts
-          # The caller being this repository, the actions under test are those of the commit under test.
+          # Uses the current commit when this repository is the caller, so that the CI tests the actions of that commit.
           ref: ${{ github.repository == 'devpro/github-workflow-parts' && github.sha || inputs.workflow-parts-version }}
           path: workflow-parts
           persist-credentials: false
-      # A scan judges what a clean build produces today.
-      # A cached `apt-get upgrade` layer or a stale base image keeps an already fixed package version, on a runner whose Docker daemon outlives the job.
+      # Builds without cache, so that the scan checks the result of a clean build.
+      # A runner that keeps its Docker data can have an old base image or an old `apt-get upgrade` layer.
+      # These can contain package versions that already have a fix.
       - name: Build base container image
         if: ${{ inputs.base-image-definition != '' }}
         run: docker build . --pull --no-cache --file "$BASE_DEFINITION" --tag "$BASE_REF"
         shell: bash
         env:
           BASE_DEFINITION: ${{ inputs.base-image-definition }}
-      # An image built on the base above reads it from the local daemon, which a pull would look for in a registry that has never seen it.
+      # Does not pull when the previous step built the base image, because only the local daemon has that image.
       - name: Build container image
         run: |
           args=(--no-cache --file "$IMAGE_DEFINITION" --tag "$IMAGE_REF")
@@ -109,7 +118,8 @@ jobs:
           BASE_ARGUMENT: ${{ inputs.base-image-argument }}
           BASE_DEFINITION: ${{ inputs.base-image-definition }}
           IMAGE_DEFINITION: ${{ inputs.image-definition }}
-      # The only judge of the image a repository builds: any vulnerability of those severities with a fix fails the job, unless the ignore file names it until a day.
+      # Fails the job for each vulnerability that has one of the given severities and a fix.
+      # The ignore file can exclude a vulnerability until a given date.
       - name: Scan container image with Trivy
         uses: ./workflow-parts/actions/trivy/scan
         with:
@@ -118,7 +128,7 @@ jobs:
           format: table
           exit-code: "1"
           ignore-unfixed: "true"
-          # The default file is optional, and any other one named must exist.
+          # Skips the default file when it does not exist, but requires any other file that the caller gives.
           ignore-file: ${{ (inputs.trivy-ignore-file != '.trivyignore.yaml' || hashFiles('.trivyignore.yaml') != '') && inputs.trivy-ignore-file || '' }}
           pkg-types: os,library
           severity: ${{ inputs.severity }}

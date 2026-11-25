@@ -19,29 +19,37 @@ on:
         required: false
         default: ubuntu-latest
       paths:
-        description: Paths whose change the changed output tells, separated by spaces
+        description: >-
+          Paths to check for changes, separated by spaces.
+          The changed output gives the result.
         type: string
         required: false
         default: "src test"
       version-file:
-        description: MSBuild file whose VersionPrefix gives the version-major-minor output (Directory.Build.props for instance), none when empty
+        description: >-
+          MSBuild file (for example Directory.Build.props) with the VersionPrefix for the version-major-minor output.
+          Reads no version when empty.
         type: string
         required: false
         default: ""
       workflow-parts-version:
-        description: "GitHub workflow parts version (branch/tag/SHA). Should match the ref/tag/SHA the caller pinned for this reusable workflow itself. Ignored when the caller is this repository, whose checkout already holds the actions under test."
+        description: >-
+          GitHub workflow parts version (branch/tag/SHA).
+          Use the same version as the one that calls this reusable workflow.
+          Ignored when this repository is the caller, because it tests the actions of the current commit.
         type: string
         required: false
         default: "main"
     outputs:
       branch-slug:
-        description: Branch name without its first segment (feature/, release/), lower case, with only letters, digits and dashes, to name an environment
+        description: >-
+          Branch name to use in an environment name: without the first segment (feature/, release/), in lower case, with only letters, digits and dashes
         value: ${{ jobs.git-check.outputs.branch-slug }}
       changed:
-        description: "\"true\" when the commit changes one of the paths, or when there is no base to compare with"
+        description: Set to "true" when the commit changes one of the paths, or when there is no base to compare with
         value: ${{ jobs.git-check.outputs.changed }}
       version-major-minor:
-        description: Major and minor parts of the VersionPrefix of the version file, to tag an image
+        description: Major and minor parts of the VersionPrefix in the version file, for example to tag an image
         value: ${{ jobs.git-check.outputs.version-major-minor }}
 
 jobs:
@@ -57,14 +65,14 @@ jobs:
       - name: Clone repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
-          # The base of the comparison is in the history.
+          # Fetches the history, because the comparison needs the base commit.
           fetch-depth: 0
           persist-credentials: false
       - name: Checkout workflow parts
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           repository: devpro/github-workflow-parts
-          # The caller being this repository, the actions under test are those of the commit under test.
+          # Uses the current commit when this repository is the caller, so that the CI tests the actions of that commit.
           ref: ${{ github.repository == 'devpro/github-workflow-parts' && github.sha || inputs.workflow-parts-version }}
           path: workflow-parts
           persist-credentials: false
@@ -86,7 +94,7 @@ jobs:
           fi
           echo "Version ${version}"
           echo "version-major-minor=$(cut -d . -f 1-2 <<< "$version")" >> "$GITHUB_OUTPUT"
-      # A pull request names its branch in GITHUB_HEAD_REF, GITHUB_REF_NAME holding its merge ref.
+      # Reads the branch of a pull request from GITHUB_HEAD_REF, because GITHUB_REF_NAME contains the merge ref.
       - name: Name the branch
         id: slug
         run: |

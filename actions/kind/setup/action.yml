@@ -1,8 +1,8 @@
 name: Setup kind
 description: |
-  Installs kind, which runs a Kubernetes cluster in containers, and kubectl,
-  by downloading the official binaries and verifying their SHA256 checksums
-  (replacement for helm/kind-action, a JavaScript action, which a container job cannot run without Node.js).
+  Installs kind, which runs a Kubernetes cluster in containers, and kubectl.
+  Downloads the official binaries and verifies their SHA256 checksums.
+  Replaces helm/kind-action, a JavaScript action that a container job cannot run without Node.js.
   Linux x64 or arm64 runners only (for example ubuntu-latest or ubuntu-24.04-arm).
 
 inputs:
@@ -11,7 +11,9 @@ inputs:
     required: false
     default: "v0.33.0"
   kubectl-version:
-    description: Version of kubectl to install, within one minor version of the clusters it talks to (check latest from https://dl.k8s.io/release/stable.txt)
+    description: >-
+      Version of kubectl to install (check latest from https://dl.k8s.io/release/stable.txt).
+      Must be within one minor version of the cluster.
     required: false
     default: "v1.37.2"
 
@@ -25,7 +27,7 @@ runs:
         KIND_VERSION: ${{ inputs.kind-version }}
         KUBECTL_VERSION: ${{ inputs.kubectl-version }}
       run: |
-        # Downloaded into a directory of its own, since the repository may hold a file or a directory named like the binary.
+        # Downloads to a new directory, because the repository can contain a file or a directory with the name of the binary.
         cd "$(mktemp -d)"
         KIND_BINARY="kind-linux-${ARCH}"
         curl -fsSL -O "https://github.com/kubernetes-sigs/kind/releases/download/${KIND_VERSION}/${KIND_BINARY}"
@@ -33,9 +35,9 @@ runs:
         sha256sum --check --status "${KIND_BINARY}.sha256sum"
         KUBECTL_URL="https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${ARCH}/kubectl"
         curl -fsSL -O "$KUBECTL_URL"
-        # The checksum file of kubectl holds the hash alone.
+        # Adds the file name, because the checksum file of kubectl contains only the hash.
         echo "$(curl -fsSL "${KUBECTL_URL}.sha256")  kubectl" | sha256sum --check --status
-        # Installed where the job owns the directory, so neither root nor sudo is needed, on a hosted runner or in a container.
+        # Installs in a directory that the job owns, so that a hosted runner or a container needs no root access and no sudo.
         mkdir -p "${RUNNER_TEMP}/bin"
         install -m 0755 "${KIND_BINARY}" "${RUNNER_TEMP}/bin/kind"
         install -m 0755 kubectl "${RUNNER_TEMP}/bin/kubectl"

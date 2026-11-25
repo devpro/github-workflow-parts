@@ -99,7 +99,7 @@ jobs:
           kubectl-version: v1.36.4
       - name: Verify the versions
         run: |
-          # Compared once captured, since a reader closing the pipe early fails the step with SIGPIPE under pipefail.
+          # Captures each output before the comparison, because a pipe that closes early causes a SIGPIPE failure with pipefail.
           [[ "$(terraform version)" == "Terraform v1.9.8"* ]]
           [[ "$(tflint --version)" == *"version 0.53.0"* ]]
           [[ "$(helm version --short)" == v3.16.4+* ]]
@@ -108,7 +108,7 @@ jobs:
           [[ "$(kind version)" == "kind v0.32.0 "* ]]
           [[ "$(kubectl version --client)" == *"v1.36.4"* ]]
 
-  # A setup action that cannot verify what it downloaded stops the job rather than running it.
+  # Tests that a setup action stops the job when it cannot verify a download.
   test-setup-fails-closed:
     name: "Test / Setup actions fail on a missing release or a wrong checksum"
     runs-on: ubuntu-latest
@@ -240,13 +240,14 @@ jobs:
           kube-linter lint "${RUNNER_TEMP}/demo" --format json > "${RUNNER_TEMP}/kube-linter.json" || true
           jq -e '.Reports != null' "${RUNNER_TEMP}/kube-linter.json"
           mkdir -p "${RUNNER_TEMP}/demo/tests"
-          printf '%s\n' 'suite: deployment' 'templates: [templates/deployment.yaml]' 'tests:' '  - it: renders a deployment' '    asserts:' '      - isKind:' '          of: Deployment' > "${RUNNER_TEMP}/demo/tests/deployment_test.yaml"
+          printf '%s\n' 'suite: deployment' 'templates: [templates/deployment.yaml]' 'tests:' \
+            '  - it: renders a deployment' '    asserts:' '      - isKind:' '          of: Deployment' > "${RUNNER_TEMP}/demo/tests/deployment_test.yaml"
           untt "${RUNNER_TEMP}/demo"
           kind version
           kubectl version --client
           cr package "${RUNNER_TEMP}/demo" --package-path "${RUNNER_TEMP}/packages"
           helm repo index "${RUNNER_TEMP}/packages"
-          # A Go template, whose variables the shell must leave alone.
+          # Uses single quotes so that the shell does not replace the variables of the Go template.
           # shellcheck disable=SC2016
           echo '{{ range $name, $versions := .Entries }}{{ $name }}{{ end }}' > "${RUNNER_TEMP}/packages/index.tpl"
           helm-repo-html --input "${RUNNER_TEMP}/packages/index.yaml" --template "${RUNNER_TEMP}/packages/index.tpl" --output "${RUNNER_TEMP}/packages/index.html"
@@ -271,7 +272,7 @@ jobs:
         run: |
           mkdir -p "${RUNNER_TEMP}/opengrep-fixture"
           printf '%s\n' 'const input = process.argv[2];' 'eval(input);' > "${RUNNER_TEMP}/opengrep-fixture/app.js"
-          # $X is a metavariable of the Opengrep pattern, which the shell must leave as it is.
+          # Uses single quotes so that the shell does not replace $X, a metavariable of the Opengrep pattern.
           # shellcheck disable=SC2016
           [ "$(opengrep scan --quiet --json -e 'eval($X)' --lang js "${RUNNER_TEMP}/opengrep-fixture" | jq '.results | length')" = 1 ]
           trivy fs --quiet --scanners vuln --exit-code 0 test/fixtures/node
@@ -364,7 +365,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
-      # The server outlives this step, which the next ones reach, and goes with the job.
+      # Keeps the server in operation after this step, because the next steps use it until the job ends.
       - name: Serve a sitemap index and an IndexNow API that records the submission
         run: |
           nohup node test/fixtures/indexnow/server.js "${RUNNER_TEMP}/indexnow.json" 18089 > "${RUNNER_TEMP}/indexnow.log" 2>&1 &
@@ -425,7 +426,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
-      # Signing needs an OIDC token and a registry to push to, so the run stops short of it.
+      # Does not sign, because a signature needs an OIDC token and write access to a registry.
       - name: Install Cosign and read the digest of a public image
         id: cosign
         uses: ./actions/cosign/sign
@@ -531,7 +532,7 @@ jobs:
           image-definition: test/fixtures/container/base/Dockerfile
           image-repository: localhost:5000/build-test-base
           image-tag: ${{ github.run_id }}
-      # The derived image fails to build unless the build argument names the base pushed above.
+      # Tests the build argument, because the build fails when the argument does not give the base from the previous step.
       - name: Build and push the derived image
         id: derived
         uses: ./actions/container/build-push
@@ -555,7 +556,7 @@ jobs:
             fi
           done
 
-  # A Windows image is built on the Windows runner alone, and a CI run pushes nothing.
+  # Builds only a Windows image on the Windows runner, and pushes nothing from the CI.
   test-windows-container-publication:
     name: "Test / Container publication reusable workflow, a Windows image without push"
     uses: ./.github/workflows/reusable-container-publication.yml
@@ -598,13 +599,14 @@ jobs:
         run: |
           image="localhost:5000/native-test@${DIGEST}"
           architectures=$(docker buildx imagetools inspect "$image" --raw | jq -r '[.manifests[]?.platform | select(.os == "linux") | .architecture] | join(",")')
-          # A single platform pushed without attestations is a manifest rather than a list, and names its architecture in its configuration.
+          # Reads the architecture from the image configuration when there is no manifest list.
+          # An image with one platform and no attestations has no list.
           if [ -z "$architectures" ]; then
             architectures=$(docker buildx imagetools inspect "$image" --format '{{json .Image}}' | jq -r .architecture)
           fi
           [ "$architectures" = arm64 ]
 
-  # Each tool runs once installed, which a binary built for another processor does not.
+  # Tests that each tool runs, because a binary for another processor does not start.
   test-setup-arm64:
     name: "Test / Setup actions install arm64 binaries on an arm64 runner"
     runs-on: ubuntu-24.04-arm
@@ -653,10 +655,11 @@ jobs:
       - name: Verify the binaries are for arm64
         run: |
           for tool in terraform tflint helm ct goreleaser task kube-linter kubeconform untt kind kubectl opengrep mongod mongosh syft trivy; do
-            # The ELF machine field, 0xb7 being aarch64, read without the file command a runner image may lack.
+            # Reads the machine field of the ELF header, where 0xb7 means aarch64.
+            # Does not use the file command, because some runner images do not have it.
             [ "$(od -An -tx1 -j18 -N1 "$(command -v "$tool")" | tr -d ' ')" = b7 ]
           done
-          # The codeql command is a launcher script, run here so that its arm64 Java and extractors answer.
+          # Runs codeql instead of a header check, because it is a script that starts arm64 Java and extractors.
           codeql version --format=terse
 
   test-mongodb-start:
@@ -762,7 +765,7 @@ jobs:
           target-path: test/fixtures
           output-file: sbom-exclude-test.spdx.json
           upload-artifact: "false"
-      # PowerShell reads the JSON, as a Windows runner image may lack jq.
+      # Reads the JSON with PowerShell, because some Windows runner images do not have jq.
       - name: Verify SBOM was generated
         shell: pwsh
         run: |
@@ -795,7 +798,7 @@ jobs:
           format: sarif
           output-file: trivy-test.sarif
           severity: HIGH,CRITICAL
-      # The base fixture runs as root, which Trivy reports as a HIGH misconfiguration.
+      # Uses the base fixture, because it runs as root and Trivy reports this as a HIGH misconfiguration.
       - name: Scan a directory with a finding, failing on it
         id: trivy-finding
         continue-on-error: true
@@ -831,7 +834,7 @@ jobs:
           scan-type: config
           target: test/fixtures/terraform
           ignore-file: test/fixtures/trivy/missing.yaml
-      # The metadata of an installed Python package, a version with known vulnerabilities, stands for the binaries and packages of a directory.
+      # Scans the metadata of a Python package version that has known vulnerabilities.
       - name: Scan the installed packages of a directory with Trivy
         uses: ./actions/trivy/scan
         with:
@@ -852,8 +855,9 @@ jobs:
           [ "$EXPIRED_OUTCOME" = failure ]
           [ "$MISSING_IGNORE_FILE_OUTCOME" = failure ]
 
-  # The fixture locks the latest release of hashicorp/local, so a "Vulnerable provider" warning on it comes from the Go version and modules HashiCorp built it with.
-  # It is expected, shows the provider scan works, and goes away with a new release of the provider once the lock files are updated with terraform init -upgrade.
+  # Expects a "Vulnerable provider" warning for hashicorp/local, which shows that the provider scan works.
+  # The fixture locks the latest release, and the vulnerabilities come from the Go version and the modules of that release.
+  # To remove the warning, update the lock files with terraform init -upgrade when a new release is available.
   test-terraform-quality:
     name: "Test / Terraform quality reusable workflow"
     uses: ./.github/workflows/reusable-terraform-quality.yml
@@ -865,17 +869,18 @@ jobs:
     uses: ./.github/workflows/reusable-dotnet-quality.yml
     with:
       working-directory: test/fixtures/dotnet
-      # Each line runs as written, quotes included, or the commands fail.
+      # Tests that each line runs as written, with its quotes, because the commands fail if it does not.
       custom-commands: |
         words=("two words" three)
         [ "${#words[@]}" = 2 ]
         [ "$(dotnet --version | cut -d . -f 1)" -ge 10 ]
         mongosh --quiet --eval 'db.hello().isWritablePrimary' "mongodb://127.0.0.1:27017/?replicaSet=rs0" | grep -qx true
       mongodb-enabled: true
-      # The fixture holds a test that fails, which only the filter keeps the job from running, its quotes being read as shell quotes rather than passed on.
+      # Excludes a test that always fails, so that the job passes only when the filter works.
+      # The filter works only when the shell removes its quotes.
       dotnet-test-args: --report-xunit-trx --coverage --coverage-output-format cobertura --filter-not-namespace 'Fixture.Tests.LeftOut*'
 
-  # Runs where a Sonar server is set in SONAR_HOST_URL, as IstarCI provides a SonarQube locally, and is skipped otherwise.
+  # Runs only when SONAR_HOST_URL gives a Sonar server, for example the local SonarQube of IstarCI.
   test-dotnet-quality-sonar:
     name: "Test / .NET quality reusable workflow with Sonar"
     if: vars.SONAR_HOST_URL != ''
@@ -892,7 +897,7 @@ jobs:
     secrets:
       sonar-token: ${{ secrets.SONAR_TOKEN }}
 
-  # The fixture mixes a project of the old format restored from packages.config and an SDK one, as .NET Framework code being migrated does.
+  # Tests an old-format project with packages.config and an SDK project together, as in a .NET Framework migration.
   test-windows-dotnet-framework-quality:
     name: "Test / .NET Framework quality reusable workflow"
     uses: ./.github/workflows/reusable-dotnet-framework-quality.yml
@@ -918,7 +923,7 @@ jobs:
         with:
           dotnet-test-args: --report-xunit-trx --coverage --coverage-output-format cobertura --filter-not-namespace 'Fixture.Tests.LeftOut*'
           working-directory: test/fixtures/dotnet
-      # The paths are those the .NET quality workflow uploads as its artifact.
+      # Checks the paths that the .NET quality workflow uploads as an artifact.
       - name: Verify the results, the coverage and the reports
         working-directory: test/fixtures/dotnet/report
         run: |
@@ -949,7 +954,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
-      # The empty tree of git stands for a base holding nothing, which needs no history in the clone.
+      # Uses the empty tree of git as the base, because it contains no files and needs no history.
       - name: Compare a path with the empty tree
         id: added
         uses: ./actions/git/check-changes
@@ -986,7 +991,7 @@ jobs:
           [ "$UNCHANGED" = false ]
           [ "$UNREADABLE" = true ]
 
-  # A local run reads the outputs of a called workflow under the id of the job inside it, which the caller shares.
+  # Uses the same id as the job in the called workflow, because a local run reads the outputs with that id.
   git-check:
     name: "Test / Git check reusable workflow"
     uses: ./.github/workflows/reusable-git-check.yml
@@ -1025,14 +1030,15 @@ jobs:
         with:
           publish-command: "false"
           working-directory: test/fixtures/npm/published
-      # A dry run goes through every step of a publication but the upload, which needs no credentials.
+      # Uses a dry run, which does all publication steps except the upload and needs no credentials.
       - name: Publish a package the registry does not have
         id: unpublished
         uses: ./actions/npm/publish
         with:
           publish-command: npm publish --dry-run
           working-directory: test/fixtures/npm/unpublished
-      # GitHub Packages refuses to answer a run with no token about a package it holds, as a local run is, and answers E404 for one it does not.
+      # Tests a run without a token, such as a local run.
+      # Without a token, GitHub Packages refuses to show a package that it has, and gives E404 for a package that it does not have.
       - name: Publish with no credential
         id: no-credential
         uses: ./actions/npm/publish
@@ -1111,9 +1117,9 @@ jobs:
         terraform version
         node -e "require('playwright').chromium.launch().then((browser) => browser.close())"
         [ -f coverage/lcov.info ]
-        # Each script ran once, in that order, the missing ones being skipped.
+        # Checks that each script ran one time in this order, and that the missing scripts were skipped.
         diff <(printf '%s\n' lint format:check typecheck build test:coverage) report/scripts.log
-        # The custom tests see the repository alone, without the workflow parts checked out beside it.
+        # Checks that the workflow parts are not in the workspace when the custom tests run.
         [ ! -e "${GITHUB_WORKSPACE}/workflow-parts" ]
       extra-vars: |
         FIXTURE_VALUE=extra
@@ -1132,7 +1138,7 @@ jobs:
       pnpm-version: "12"
       working-directory: test/fixtures/pnpm
 
-  # Runs where a Sonar server is set in SONAR_HOST_URL, as IstarCI provides a SonarQube locally, and is skipped otherwise.
+  # Runs only when SONAR_HOST_URL gives a Sonar server, for example the local SonarQube of IstarCI.
   test-node-quality-sonar:
     name: "Test / Node.js quality reusable workflow with Sonar"
     if: vars.SONAR_HOST_URL != ''
@@ -1148,7 +1154,7 @@ jobs:
     secrets:
       sonar-token: ${{ secrets.SONAR_TOKEN }}
 
-  # Runs where a Sonar server is set in SONAR_HOST_URL, as IstarCI provides a SonarQube locally, and is skipped otherwise.
+  # Runs only when SONAR_HOST_URL gives a Sonar server, for example the local SonarQube of IstarCI.
   test-sonar-scan-properties:
     name: "Test / Sonar scan action with a sonar-project.properties"
     if: vars.SONAR_HOST_URL != ''
@@ -1159,24 +1165,24 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
-      # As the Node.js quality workflow does with its workflow parts.
+      # Excludes the folder in the same way as the Node.js quality workflow excludes its workflow parts.
       - name: Leave a folder of the fixture out of git
         run: |
           exclude="$(git rev-parse --git-path info/exclude)"
           mkdir -p "$(dirname "$exclude")"
           echo "/test/fixtures/sonar-properties/extra/" >> "$exclude"
-      # No project key nor exclusions given: the file holds them.
+      # Gives no project key and no exclusions, because sonar-project.properties contains them.
       - name: Analyze the fixture
         uses: ./actions/sonar/scan
         env:
-          # The report the scanner sends is kept, for the step below to read which files were indexed.
+          # Keeps the scanner report, so that the next step can read the list of indexed files.
           SONAR_SCANNER_JSON_PARAMS: '{"sonar.scanner.keepReport": "true"}'
         with:
           host-url: ${{ vars.SONAR_HOST_URL }}
           organization: ${{ vars.SONAR_ORGANIZATION }}
           token: ${{ secrets.SONAR_TOKEN }}
           working-directory: test/fixtures/sonar-properties
-      # The token of the run may only send an analysis, so the report the scanner kept tells what it indexed.
+      # Reads the local scanner report, because the token can send an analysis but cannot read it.
       - name: Verify the analysis holds only the file neither the exclusions of the file nor git leave out
         working-directory: test/fixtures/sonar-properties/.scannerwork
         run: |
@@ -1188,7 +1194,7 @@ jobs:
     name: "Test / npm publication reusable workflow, without publishing"
     uses: ./.github/workflows/reusable-npm-publication.yml
     with:
-      # A dry run goes through every step of a publication but the upload, which needs no credentials.
+      # Uses a dry run, which does all publication steps except the upload and needs no credentials.
       publish-command: npm publish --dry-run
       working-directory: test/fixtures/npm/unpublished
 

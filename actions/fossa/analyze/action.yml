@@ -1,8 +1,8 @@
 name: Analyze with FOSSA
 description: |
-  Installs the FOSSA CLI by downloading the official binary from its GitHub release and verifying its SHA256 checksum,
-  then analyzes the dependencies for license compliance, optionally tests them against the policy, and writes an HTML report
-  (replacement for fossas/fossa-action, to reduce third-party GitHub Action supply-chain risk).
+  Installs the FOSSA CLI by downloading the official binary from its GitHub release and verifying its SHA256 checksum.
+  Analyzes the licenses of the dependencies, can test them against the policy, and writes an HTML report.
+  Replaces fossas/fossa-action, to reduce third-party GitHub Action supply-chain risk.
   Linux x64 or arm64 runners only (for example ubuntu-latest or ubuntu-24.04-arm).
 
 inputs:
@@ -14,7 +14,7 @@ inputs:
     description: FOSSA API key
     required: true
   exclude-paths:
-    description: Paths left out of the analysis, relative to working-directory, one per line
+    description: Paths to exclude from the analysis, relative to working-directory, one per line
     required: false
     default: ""
   run-tests:
@@ -22,15 +22,21 @@ inputs:
     required: false
     default: "false"
   test-diff-revision:
-    description: Revision to report only the issues introduced since (empty tests everything)
+    description: >-
+      Revision to compare with, to report only newer issues.
+      Reports all issues when empty.
     required: false
     default: ""
   report-file:
-    description: Path of the generated HTML report, relative to the working directory (empty writes none)
+    description: >-
+      Path of the generated HTML report, relative to the working directory.
+      Writes no report when empty.
     required: false
     default: "report/fossa.html"
   working-directory:
-    description: Directory of the project to analyze, relative to the workspace, which a composite action does not take from the defaults of the calling job
+    description: >-
+      Directory of the project to analyze, relative to the workspace.
+      A composite action does not use the default working directory of the job.
     required: false
     default: "."
 
@@ -43,7 +49,7 @@ runs:
         FOSSA_VERSION: ${{ inputs.fossa-version }}
         FOSSA_TARBALL: fossa_${{ inputs.fossa-version }}_linux_${{ runner.arch == 'ARM64' && 'arm64' || 'amd64' }}.tar.gz
       run: |
-        # Downloaded into a directory of its own, since the repository may hold a file or a directory named like the binary.
+        # Downloads to a new directory, because the repository can contain a file or a directory with the name of the binary.
         cd "$(mktemp -d)"
         BASE_URL="https://github.com/fossas/fossa-cli/releases/download/v${FOSSA_VERSION}"
 
@@ -52,12 +58,12 @@ runs:
         curl -fsSL -O "${BASE_URL}/${FOSSA_TARBALL}.sha256"
 
         echo "Verifying checksum..."
-        # The checksum file holds the hash, with or without the file name after it.
+        # Reads only the first word, because the checksum file can have the file name after the hash.
         if echo "$(cut -d ' ' -f 1 "${FOSSA_TARBALL}.sha256")  ${FOSSA_TARBALL}" | sha256sum --check --status; then
           echo "Verification successful!"
           tar -xzf "${FOSSA_TARBALL}" fossa
           chmod +x fossa
-          # Installed where the job owns the directory, so neither root nor sudo is needed, on a hosted runner or in a container.
+          # Installs in a directory that the job owns, so that a hosted runner or a container needs no root access and no sudo.
           mkdir -p "${RUNNER_TEMP}/bin"
           mv fossa "${RUNNER_TEMP}/bin/fossa"
           echo "${RUNNER_TEMP}/bin" >> "$GITHUB_PATH"

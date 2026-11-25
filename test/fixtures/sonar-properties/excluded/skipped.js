@@ -1,2 +1,2 @@
-// Analyzed only when neither sonar.exclusions nor what git ignores names it.
+// Contains code that Sonar analyzes only when sonar.exclusions and git do not exclude it.
 export const name = "excluded/skipped";

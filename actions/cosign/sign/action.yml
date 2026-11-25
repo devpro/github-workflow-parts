@@ -1,6 +1,7 @@
 name: Sign a container image
 description: |
-  Make sure to add (needed by cosign):
+  Signs a container image with Cosign.
+  Requires these permissions for Cosign:
   ```
   permissions:
     id-token: write
@@ -28,7 +29,7 @@ inputs:
 
 outputs:
   digest:
-    description: Digest of the image, which the signature is attached to
+    description: Digest of the image that Cosign signs
     value: ${{ steps.digest.outputs.DIGEST }}
 
 runs:
@@ -36,7 +37,7 @@ runs:
   steps:
     - name: Install Cosign
       run: |
-        # Downloaded into a directory of its own, since the repository may hold a file or a directory named like the binary.
+        # Downloads to a new directory, because the repository can contain a file or a directory with the name of the binary.
         cd "$(mktemp -d)"
         echo "Downloading Cosign binary and checksums..."
         curl -fsSL -O "https://github.com/sigstore/cosign/releases/download/${COSIGN_VERSION}/${COSIGN_BINARY}"
@@ -47,7 +48,7 @@ runs:
           echo "Verification successful!"
           rm "$COSIGN_CHECKSUM_FILE"
           chmod +x "$COSIGN_BINARY"
-          # Installed where the job owns the directory, so neither root nor sudo is needed, on a hosted runner or in a container.
+          # Installs in a directory that the job owns, so that a hosted runner or a container needs no root access and no sudo.
           mkdir -p "${RUNNER_TEMP}/bin"
           mv "$COSIGN_BINARY" "${RUNNER_TEMP}/bin/cosign"
           echo "${RUNNER_TEMP}/bin" >> "$GITHUB_PATH"
@@ -66,7 +67,7 @@ runs:
       id: digest
       run: |
         DIGEST=$(docker buildx imagetools inspect "$IMAGE_REF" --format '{{json .Manifest}}' | jq -r '.digest')
-        # A digest missing from the registry answer would otherwise be signed as the literal text "null".
+        # Stops when the registry gives no digest, so that Cosign does not sign the text "null".
         if [[ "$DIGEST" != sha256:* ]]; then
           echo "ERROR: No digest found for ${IMAGE_REF}" >&2
           exit 1

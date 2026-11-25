@@ -1,4 +1,4 @@
-# C# is indented by four, where the rest of this repository is indented by two.
+# Sets an indent of four spaces for C#, because the other files in this repository use two.
 root = true
 
 [*]

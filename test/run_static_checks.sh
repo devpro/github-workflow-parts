@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Runs the static checks of the workflow parts, the same way on a workstation and in the CI.
-# The tools are pinned and verified like the binaries the actions download, and kept between two local runs.
-# Linux x64 only.
+# Runs the static checks of the workflow parts in the same way on a workstation and in the CI.
+# Pins and verifies the tools, and keeps them between local runs.
+# Supports only Linux x64.
 
 set -euo pipefail
 
@@ -12,7 +12,7 @@ tools_dir="${RUNNER_TEMP:-${XDG_CACHE_HOME:-$HOME/.cache}}/github-workflow-parts
 requirements="${repo_root}/test/requirements.txt"
 requirements_hash="$(sha256sum "$requirements" | cut -d ' ' -f 1)"
 
-# The virtual environment is built again whenever the requirements change.
+# Creates the virtual environment again when the requirements change.
 if [ ! -f "${tools_dir}/venv/${requirements_hash}" ]; then
   echo "Installing PyYAML and shellcheck..."
   rm -rf "${tools_dir}/venv"

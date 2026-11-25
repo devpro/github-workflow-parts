@@ -1,12 +1,13 @@
 name: Lint Go code
 description: |
-  Checks a Go module with the Go toolchain alone, no third party linter: its files formatted by gofmt,
-  its go.mod and go.sum tidy, and go vet finding nothing.
-  Needs Go 1.23 or later on the path, from actions/setup-go or the image of the job.
+  Checks a Go module with only the Go toolchain: gofmt, go mod tidy and go vet.
+  Requires Go 1.23 or later on the path, from actions/setup-go or the image of the job.
 
 inputs:
   working-directory:
-    description: Directory of the Go module (go.mod), relative to the workspace, which a composite action does not take from the defaults of the calling job
+    description: >-
+      Directory of the Go module (go.mod), relative to the workspace.
+      A composite action does not use the default working directory of the job.
     required: false
     default: "."
 
@@ -23,7 +24,7 @@ runs:
           echo "$unformatted" >&2
           exit 1
         fi
-    # A requirement nothing imports, or one missing, shows here rather than as a surprise in the next build.
+    # Finds missing and unused requirements now, so that they do not cause a problem in the next build.
     - name: Check go.mod and go.sum are tidy
       shell: bash
       working-directory: ${{ inputs.working-directory }}

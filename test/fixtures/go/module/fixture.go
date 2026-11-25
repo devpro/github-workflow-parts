@@ -1,4 +1,4 @@
-// Package fixture is a Go module the Go actions check, formatted, tidy and with nothing for go vet nor govulncheck to report.
+// Package fixture is a correct Go module: the Go actions must find no problem in it.
 package fixture
 
 // Add returns the sum of two numbers.

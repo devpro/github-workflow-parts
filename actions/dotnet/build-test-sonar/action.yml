@@ -1,5 +1,5 @@
 name: Build, Test & Analyze
-description: Builds, runs tests on a .NET codebase and run analysis with Sonar
+description: Builds and tests .NET code, and analyzes it with Sonar
 
 inputs:
   dotnet-test-args:
@@ -11,11 +11,11 @@ inputs:
     required: false
     default: "21"
   sonar-cpd-exclusions:
-    description: Files or directories that should be excluded from Sonar code duplication analysis
+    description: Files or directories to exclude from the Sonar code duplication analysis
     required: false
     default: "**/*Generated*.cs"
   sonar-exclusions:
-    description: Files or directories that should be excluded from Sonar analysis
+    description: Files or directories to exclude from the Sonar analysis
     required: false
     default: "**/node_modules/**"
   report-folder:
@@ -39,7 +39,7 @@ inputs:
     required: false
     default: ""
   sonar-settings-file:
-    description: SonarQube.Analysis.xml file of the repository, relative to the working directory, holding analysis settings such as issue exclusions
+    description: SonarQube.Analysis.xml file with analysis settings such as issue exclusions, relative to the working directory
     required: false
     default: ""
   sonarscanner-version:
@@ -51,7 +51,9 @@ inputs:
     required: false
     default: ""
   working-directory:
-    description: Directory of the .NET code, relative to the workspace, which a composite action does not take from the defaults of the calling job
+    description: >-
+      Directory of the .NET code, relative to the workspace.
+      A composite action does not use the default working directory of the job.
     required: false
     default: "."
 
@@ -63,14 +65,14 @@ runs:
       with:
         java-version: ${{ inputs.java-version }}
         distribution: "zulu"
-    # The analyzers Sonar downloads land in its user home.
+    # Caches the analyzers, because Sonar downloads them to its user home.
     - name: Cache Sonar packages
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
       with:
         path: ~/.sonar/cache
         key: ${{ runner.os }}-sonar
         restore-keys: ${{ runner.os }}-sonar
-    # Keyed by version with no fallback, since a scanner restored from another key would be another version.
+    # Uses the version as the cache key with no fallback, because another key would restore another scanner version.
     - name: Cache Sonar scanner
       id: cache-sonar-scanner
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
@@ -96,15 +98,15 @@ runs:
           /d:sonar.coverageReportPaths="$REPORT_FOLDER/SonarQube.xml"
           /d:sonar.cs.vstest.reportsPaths="$REPORT_FOLDER/TestResults/*.trx"
         )
-        # SonarCloud needs an organization, which a SonarQube server has no notion of.
+        # Sets the organization only when it is given, because SonarCloud requires it and a SonarQube server does not have it.
         if [ -n "$SONAR_ORGANIZATION" ]; then
           args+=(/o:"$SONAR_ORGANIZATION")
         fi
         if [ -n "$SONAR_PROJECT_NAME" ]; then
           args+=(/n:"$SONAR_PROJECT_NAME")
         fi
-        # The scanner for .NET never reads a sonar-project.properties, so a settings file passed with /s: is how a repository versions its own settings.
-        # The path is made absolute, since the scanner resolves a relative one against its own .sonarqube folder.
+        # Passes a settings file with /s:, because the scanner for .NET does not read sonar-project.properties.
+        # Makes the path absolute, because the scanner starts a relative path from its .sonarqube folder.
         if [ -n "$SONAR_SETTINGS_FILE" ]; then
           args+=(/s:"$(realpath "$SONAR_SETTINGS_FILE")")
         fi
@@ -129,7 +131,8 @@ runs:
         BUILD_SOURCEBRANCHNAME: ${{ github.ref_name }}
         BUILD_BUILDID: ${{ github.run_id }}
     - name: Run tests
-      # Shell words by contract, quotes included, parsed from a variable rather than pasted into the script by GitHub.
+      # Reads the arguments from a variable, so that GitHub does not paste them into the script.
+      # Uses eval so that the shell applies the quotes in the arguments.
       run: |
         test_args=()
         eval "test_args=(${DOTNET_TEST_ARGS})"
@@ -142,7 +145,8 @@ runs:
         ASPNETCORE_ENVIRONMENT: Development
         DOTNET_TEST_ARGS: ${{ inputs.dotnet-test-args }}
         REPORT_FOLDER: ${{ inputs.report-folder }}
-    # Microsoft.Testing.Platform writes the coverage beside the results, and VSTest in a folder of its own for each run.
+    # Searches all subfolders, because VSTest writes the coverage to a new folder for each run.
+    # Microsoft.Testing.Platform writes it next to the test results.
     - name: Generate test report
       if: ${{ always() && hashFiles(format('{0}/{1}/TestResults/**/*.cobertura.xml', inputs.working-directory, inputs.report-folder)) != '' }}
       run: |

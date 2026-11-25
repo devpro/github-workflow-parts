@@ -2,7 +2,7 @@ using Xunit;
 
 namespace Fixture.Tests.LeftOut;
 
-// Fails on purpose: the CI job passes only when the test filter leaves this namespace out.
+// Fails on purpose, so that the CI job passes only when the test filter excludes this namespace.
 public class LeftOutTests
 {
     [Fact]

@@ -1,8 +1,9 @@
 name: Setup chart-testing
 description: |
-  Installs the chart-testing CLI (ct) by downloading the official release and verifying its SHA256 checksum, with the yamllint and yamale it calls
-  (replacement for helm/chart-testing-action, to reduce third-party GitHub Action supply-chain risk).
-  Helm and git must be installed beforehand, for example with the Setup Helm action.
+  Installs the chart-testing CLI (ct) by downloading the official release and verifying its SHA256 checksum.
+  Also installs yamllint and yamale, because ct uses them.
+  Replaces helm/chart-testing-action, to reduce third-party GitHub Action supply-chain risk.
+  Requires Helm and git, for example from the Setup Helm action.
   Linux x64 or arm64 runners only (for example ubuntu-latest or ubuntu-24.04-arm).
 
 inputs:
@@ -30,7 +31,7 @@ runs:
         YAMLLINT_VERSION: ${{ inputs.yamllint-version }}
         YAMALE_VERSION: ${{ inputs.yamale-version }}
       run: |
-        # Downloaded into a directory of its own, since the repository may hold a file or a directory named like the binary.
+        # Downloads to a new directory, because the repository can contain a file or a directory with the name of the binary.
         cd "$(mktemp -d)"
         CT_TAR="chart-testing_${CT_VERSION#v}_linux_${CT_ARCH}.tar.gz"
         BASE_URL="https://github.com/helm/chart-testing/releases/download/${CT_VERSION}"
@@ -43,13 +44,13 @@ runs:
         if grep " ${CT_TAR}$" checksums.txt | sha256sum --check --status; then
           echo "Verification successful!"
           tar -xzf "${CT_TAR}" ct etc
-          # Installed where the job owns the directory, so neither root nor sudo is needed, on a hosted runner or in a container.
+          # Installs in a directory that the job owns, so that a hosted runner or a container needs no root access and no sudo.
           mkdir -p "${RUNNER_TEMP}/bin"
           mv ct "${RUNNER_TEMP}/bin/ct"
-          # The schema and the lint rules are looked up by ct in $HOME/.ct when no flag names them.
+          # Copies the schema and the lint rules to $HOME/.ct, because ct looks there by default.
           mkdir -p "${HOME}/.ct"
           cp etc/chart_schema.yaml etc/lintconf.yaml "${HOME}/.ct/"
-          # Kept in a virtual environment of their own, since the system Python may refuse a global install.
+          # Uses a virtual environment, because the system Python can refuse a global install.
           python3 -m venv "${RUNNER_TEMP}/ct-venv"
           "${RUNNER_TEMP}/ct-venv/bin/pip" install --quiet "yamllint==${YAMLLINT_VERSION}" "yamale==${YAMALE_VERSION}"
           ln -sf "${RUNNER_TEMP}/ct-venv/bin/yamllint" "${RUNNER_TEMP}/bin/yamllint"

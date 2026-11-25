@@ -1,13 +1,14 @@
 name: Start MongoDB
 description: |
-  Starts a local MongoDB server on 127.0.0.1, with mongosh on the path,
-  from the official archives with their SHA256 checksums verified rather than the apt packages,
-  so neither root nor sudo is needed, on a hosted runner or in a container.
+  Starts a local MongoDB server on 127.0.0.1, with mongosh on the path.
+  Uses the official archives and verifies their SHA256 checksums, because apt packages need root access or sudo.
   Linux x64 or arm64 runners on Ubuntu 24.04 only (for example ubuntu-latest or ubuntu-24.04-arm).
 
 inputs:
   mongodb-version:
-    description: Version of the MongoDB server, an 8.0 one for instance, the latest release (9.0.8) when empty (check latest from https://www.mongodb.com/try/download/community)
+    description: >-
+      Version of the MongoDB server (check latest from https://www.mongodb.com/try/download/community).
+      Uses 9.0.8 when empty.
     required: false
     default: ""
   mongosh-version:
@@ -15,19 +16,24 @@ inputs:
     required: false
     default: "2.14.3"
   mongosh-sha256:
-    description: SHA256 of the mongosh archive for x64, given with any other mongosh-version, since its release publishes no checksum file
+    description: >-
+      SHA256 of the mongosh archive for x64.
+      Required when mongosh-version changes, because the release contains no checksum file.
     required: false
     default: "2f9082b19c3daa4469865cb2d13ba64eea9f5b447371ecd25f175bb99320d575"  # 2.14.3
   mongosh-sha256-arm64:
-    description: SHA256 of the mongosh archive for arm64, given with any other mongosh-version
+    description: SHA256 of the mongosh archive for arm64, required when mongosh-version changes
     required: false
     default: "47ce1c6b6aa22c58118416f6423237093bf67886b56998fae4dd8430b369b667"  # 2.14.3
   port:
-    description: Port the server listens on
+    description: Port of the server
     required: false
     default: "27017"
   replica-set:
-    description: Name of a single-node replica set the server starts as, for an application writing in transactions, which a standalone server refuses, standalone when empty
+    description: >-
+      Name of the single-node replica set.
+      Set it for an application that uses transactions, because a standalone server does not support them.
+      Starts a standalone server when empty.
     required: false
     default: ""
 
@@ -37,7 +43,7 @@ runs:
     - name: Install & start MongoDB
       shell: bash
       env:
-        # The one place naming the default version, which the workflows calling this action leave empty.
+        # Sets the default version only here, because the workflows that call this action pass an empty input.
         MONGODB_ARCHIVE: mongodb-linux-${{ runner.arch == 'ARM64' && 'aarch64' || 'x86_64' }}-ubuntu2404-${{ inputs.mongodb-version || '9.0.8' }}.tgz
         MONGOSH_VERSION: ${{ inputs.mongosh-version }}
         MONGOSH_ARCHIVE: mongosh-${{ inputs.mongosh-version }}-linux-${{ runner.arch == 'ARM64' && 'arm64' || 'x64' }}.tgz
@@ -45,7 +51,7 @@ runs:
         MONGODB_PORT: ${{ inputs.port }}
         REPLICA_SET: ${{ inputs.replica-set }}
       run: |
-        # Downloaded into a directory of its own, since the repository may hold a file or a directory named like an archive.
+        # Downloads to a new directory, because the repository can contain a file or a directory with the name of an archive.
         cd "$(mktemp -d)"
 
         echo "Downloading MongoDB server and mongosh..."
@@ -57,7 +63,7 @@ runs:
         sha256sum --check --status "${MONGODB_ARCHIVE}.sha256"
         echo "${MONGOSH_SHA256}  ${MONGOSH_ARCHIVE}" | sha256sum --check --status
 
-        # Installed where the job owns the directory, so neither root nor sudo is needed.
+        # Installs in a directory that the job owns, so that the job needs no root access and no sudo.
         mkdir -p "${RUNNER_TEMP}/bin" "${RUNNER_TEMP}/mongodb/data"
         tar xzf "${MONGODB_ARCHIVE}" --strip-components=2 -C "${RUNNER_TEMP}/bin" --wildcards "*/bin/mongod"
         tar xzf "${MONGOSH_ARCHIVE}" --strip-components=2 -C "${RUNNER_TEMP}/bin" --wildcards "*/bin/mongosh"
@@ -65,17 +71,19 @@ runs:
         export PATH="${RUNNER_TEMP}/bin:$PATH"
         rm -f "${MONGODB_ARCHIVE}" "${MONGODB_ARCHIVE}.sha256" "${MONGOSH_ARCHIVE}"
 
-        # Forked rather than started by systemd, which a container has no instance of.
+        # Starts the server with --fork, because a container has no systemd.
         log="${RUNNER_TEMP}/mongodb/mongod.log"
         args=(--dbpath "${RUNNER_TEMP}/mongodb/data" --bind_ip 127.0.0.1 --port "$MONGODB_PORT" --fork --logpath "$log")
         check='db.runCommand({ ping: 1 })'
         if [[ -n "$REPLICA_SET" ]]; then
           args+=(--replSet "$REPLICA_SET")
-          # Ready once the node is primary, the set being initiated by the first check the server answers.
-          check="try { rs.status() } catch (e) { rs.initiate({ _id: '${REPLICA_SET}', members: [{ _id: 0, host: '127.0.0.1:${MONGODB_PORT}' }] }) } quit(db.hello().isWritablePrimary ? 0 : 1)"
+          # Initiates the replica set on the first check that the server answers, then waits for the node to become primary.
+          check="try { rs.status() } catch (e) { rs.initiate({ _id: '${REPLICA_SET}', members: [{ _id: 0, host: '127.0.0.1:${MONGODB_PORT}' }] }) }"
+          check+=" quit(db.hello().isWritablePrimary ? 0 : 1)"
         fi
-        # Each collection and index is a file the server keeps open, and under the soft limit of 1024 a container often has it aborts with "Too many open files".
-        # 64000 is the figure MongoDB's production notes recommend, a hard limit below it being as far as the soft one goes.
+        # Increases the soft limit of open files, because the server keeps one file open for each collection and each index.
+        # Containers often have a limit of 1024, and the server then stops with "Too many open files".
+        # MongoDB recommends 64000 in its production notes, but the soft limit cannot exceed the hard limit.
         soft="$(ulimit -Sn)"
         if [[ "$soft" != unlimited ]] && (( soft < 64000 )); then
           hard="$(ulimit -Hn)"
@@ -84,7 +92,7 @@ runs:
           fi
           ulimit -Sn "$hard"
         fi
-        # The log is the only place saying why a server did not start, and it is gone with the runner.
+        # Prints the log when the server does not start, because only the log gives the cause and the runner does not keep it.
         if ! mongod "${args[@]}"; then
           cat "$log"
           exit 1

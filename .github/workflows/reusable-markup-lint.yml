@@ -45,7 +45,8 @@ jobs:
         env:
           SHELLCHECK_ARCH: ${{ runner.arch == 'ARM64' && 'aarch64' || 'x86_64' }}
         run: |
-          # pins the SHA256 of each archive as ShellCheck publishes no checksum file (GitHub reports it for the release assets)
+          # Pins the SHA256 of each archive, because ShellCheck publishes no checksum file.
+          # GitHub shows the SHA256 of each release asset.
           shellcheck_version="v0.11.0"
           declare -A shellcheck_sha256=(
             [x86_64]="b7af85e41cc99489dcc21d66c6d5f3685138f06d34651e6d34b42ec6d54fe6f6"
@@ -57,12 +58,12 @@ jobs:
           echo "${shellcheck_sha256[$SHELLCHECK_ARCH]}  ${archive}" | sha256sum --check --strict
           tar -xzf "$archive" -C "$RUNNER_TEMP"
           shellcheck="${RUNNER_TEMP}/shellcheck-${shellcheck_version}/shellcheck"
-          # finds a script without the .sh extension, such as a Git hook, by its shebang
+          # Finds scripts without the .sh extension, such as Git hooks, by their shebang.
           mapfile -t scripts < <(git ls-files -z | xargs -0 -r awk 'FNR == 1 { if (FILENAME ~ /\.sh$/ || /^#!.*[\/ ](ba)?sh([ \t]|$)/) print FILENAME; nextfile }')
           if [[ ${#scripts[@]} -eq 0 ]]; then
             echo "No shell script to lint"
             exit 0
           fi
           "$shellcheck" --version
-          # checks, rather than reports as not followed, because a sourced file is resolved from the directory of its script
+          # Looks for sourced files from the directory of each script, so that ShellCheck checks them.
           "$shellcheck" --external-sources --source-path=SCRIPTDIR "${scripts[@]}"

@@ -1,8 +1,8 @@
 name: Generate SBOM with Syft
 description: |
-  Installs Syft by downloading the official binary from its GitHub release, verifying its SHA256 checksum,
-  and uses it to generate a Software Bill of Materials for a container image or a source directory
-  (replacement for anchore/sbom-action, to reduce third-party GitHub Action supply-chain risk).
+  Installs Syft by downloading the official binary from its GitHub release and verifying its SHA256 checksum.
+  Generates a Software Bill of Materials for a container image or a source directory.
+  Replaces anchore/sbom-action, to reduce third-party GitHub Action supply-chain risk.
   Linux x64 or arm64 runners (for example ubuntu-latest or ubuntu-24.04-arm), or Windows x64 runners (for example windows-2025).
 
 inputs:
@@ -15,11 +15,11 @@ inputs:
     required: false
     default: ""
   target-path:
-    description: Source directory to scan, used only when target-image is not set
+    description: Source directory to scan when target-image is not set
     required: false
     default: "."
   exclude-paths:
-    description: Paths left out of a source directory's SBOM, relative to target-path, one per line
+    description: Paths to exclude from the SBOM of a source directory, relative to target-path, one per line
     required: false
     default: ""
   output-format:
@@ -46,10 +46,12 @@ runs:
       shell: bash
       env:
         SYFT_VERSION: ${{ inputs.syft-version }}
-        SYFT_ARCHIVE: syft_${{ inputs.syft-version }}_${{ runner.os == 'Windows' && 'windows_amd64.zip' || format('linux_{0}.tar.gz', runner.arch == 'ARM64' && 'arm64' || 'amd64') }}
+        SYFT_ARCHIVE: >-
+          syft_${{ inputs.syft-version }}_${{ runner.os == 'Windows' && 'windows_amd64.zip'
+          || format('linux_{0}.tar.gz', runner.arch == 'ARM64' && 'arm64' || 'amd64') }}
         SYFT_CHECKSUMS: syft_${{ inputs.syft-version }}_checksums.txt
       run: |
-        # Downloaded into a directory of its own, since the repository may hold a file or a directory named like the binary.
+        # Downloads to a new directory, because the repository can contain a file or a directory with the name of the binary.
         cd "$(mktemp -d)"
         BASE_URL="https://github.com/anchore/syft/releases/download/v${SYFT_VERSION}"
 
@@ -60,12 +62,12 @@ runs:
         echo "Verifying checksum..."
         if grep " ${SYFT_ARCHIVE}$" "${SYFT_CHECKSUMS}" | sha256sum --check --status; then
           echo "Verification successful!"
-          # Installed where the job owns the directory, so neither root nor sudo is needed, on a hosted runner or in a container.
+          # Installs in a directory that the job owns, so that a hosted runner or a container needs no root access and no sudo.
           mkdir -p "${RUNNER_TEMP}/bin"
           if [ "$RUNNER_OS" = Windows ]; then
             unzip -q "${SYFT_ARCHIVE}" syft.exe
             mv syft.exe "${RUNNER_TEMP}/bin/syft.exe"
-            # The drive colon of a Windows path would split the PATH of bash.
+            # Converts the Windows path, because bash uses the colon of the drive as a separator in PATH.
             PATH="$(cygpath -u "${RUNNER_TEMP}/bin"):$PATH"
             export PATH
           else
@@ -96,7 +98,7 @@ runs:
           SOURCE="dir:${TARGET_PATH}"
         fi
 
-        # Syft matches the exclusions of a directory against paths starting with ./
+        # Adds ./ to each exclusion, because Syft compares the exclusions with paths that start with ./
         args=()
         while IFS= read -r path; do
           if [ -n "$path" ]; then

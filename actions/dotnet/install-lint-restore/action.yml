@@ -1,5 +1,5 @@
 name: Install & Lint
-description: Installs .NET SDK, lints and restores .NET code
+description: Installs the .NET SDK, lints the code and restores the packages
 
 inputs:
   dotnet-version:
@@ -11,7 +11,9 @@ inputs:
     required: false
     default: "5.6.1"
   working-directory:
-    description: Directory of the .NET code, relative to the workspace, which a composite action does not take from the defaults of the calling job
+    description: >-
+      Directory of the .NET code, relative to the workspace.
+      A composite action does not use the default working directory of the job.
     required: false
     default: "."
 

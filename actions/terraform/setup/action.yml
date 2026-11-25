@@ -1,7 +1,7 @@
 name: Setup Terraform
 description: |
-  Installs the Terraform CLI by downloading the official binary from HashiCorp's release server and verifying its SHA256 checksum
-  (replacement for hashicorp/setup-terraform, to reduce third-party GitHub Action supply-chain risk).
+  Installs the Terraform CLI by downloading the official binary from HashiCorp's release server and verifying its SHA256 checksum.
+  Replaces hashicorp/setup-terraform, to reduce third-party GitHub Action supply-chain risk.
   Linux x64 or arm64 runners only (for example ubuntu-latest or ubuntu-24.04-arm).
 
 inputs:
@@ -20,7 +20,7 @@ runs:
         TERRAFORM_ZIP: terraform_${{ inputs.terraform-version }}_linux_${{ runner.arch == 'ARM64' && 'arm64' || 'amd64' }}.zip
         TERRAFORM_SHA256SUMS: terraform_${{ inputs.terraform-version }}_SHA256SUMS
       run: |
-        # Downloaded into a directory of its own, since the repository may hold a file or a directory named like the binary.
+        # Downloads to a new directory, because the repository can contain a file or a directory with the name of the binary.
         cd "$(mktemp -d)"
         BASE_URL="https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}"
 
@@ -33,7 +33,7 @@ runs:
           echo "Verification successful!"
           unzip -o "${TERRAFORM_ZIP}"
           chmod +x terraform
-          # Installed where the job owns the directory, so neither root nor sudo is needed, on a hosted runner or in a container.
+          # Installs in a directory that the job owns, so that a hosted runner or a container needs no root access and no sudo.
           mkdir -p "${RUNNER_TEMP}/bin"
           mv terraform "${RUNNER_TEMP}/bin/terraform"
           echo "${RUNNER_TEMP}/bin" >> "$GITHUB_PATH"

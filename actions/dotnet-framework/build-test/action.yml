@@ -14,18 +14,22 @@ inputs:
     required: false
     default: Release
   test-assembly-filter:
-    description: File name pattern of the test assemblies, searched in the bin folders of the configuration, no test being run when empty
+    description: >-
+      File name pattern to find the test assemblies in the bin folders of the configuration.
+      Runs no tests when empty.
     required: false
     default: "*.Tests.dll"
   working-directory:
-    description: Directory of the code, relative to the workspace, which a composite action does not take from the defaults of the calling job
+    description: >-
+      Directory of the code, relative to the workspace.
+      A composite action does not use the default working directory of the job.
     required: false
     default: "."
 
 runs:
   using: "composite"
   steps:
-    # Visual Studio is installed on the runner but not on the PATH, and vswhere is the way Microsoft documents to find it.
+    # Finds Visual Studio with vswhere, as Microsoft recommends, because Visual Studio is not on the PATH of the runner.
     - name: Find MSBuild and VSTest
       shell: pwsh
       run: |
@@ -40,7 +44,8 @@ runs:
         Write-Output "VSTest: $vstest"
         "MSBUILD_PATH=$msbuild" >> $env:GITHUB_ENV
         "VSTEST_PATH=$vstest" >> $env:GITHUB_ENV
-    # RestorePackagesConfig lets the restore target read packages.config files, which it otherwise leaves to nuget.exe.
+    # Sets RestorePackagesConfig so that the restore target also reads packages.config files.
+    # Without it, only nuget.exe reads these files.
     - name: Restore and build
       shell: pwsh
       working-directory: ${{ inputs.working-directory }}
@@ -58,7 +63,8 @@ runs:
         CONFIGURATION: ${{ inputs.configuration }}
         TEST_ASSEMBLY_FILTER: ${{ inputs.test-assembly-filter }}
       run: |
-        # Only the assembly a project builds in its own bin folder is kept, as copies in obj or beside a referencing project would run the same tests twice.
+        # Keeps only the assembly in the bin folder of its own project.
+        # Copies in obj or in the folder of another project would run the same tests again.
         $output = "^(?<project>.+)\\bin\\$([regex]::Escape($env:CONFIGURATION))(\\[^\\]+)?$"
         $assemblies = @(Get-ChildItem -Path . -Recurse -File -Filter $env:TEST_ASSEMBLY_FILTER |
           Where-Object { $_.Directory.FullName -match $output -and (Test-Path (Join-Path $Matches.project "$($_.BaseName).csproj")) } |

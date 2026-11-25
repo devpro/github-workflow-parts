@@ -1,20 +1,23 @@
 name: Setup chart-releaser
 description: |
-  Installs chart-releaser (cr) by downloading the official binary from its GitHub release and verifying its SHA256 checksum, pinned here rather than read from the release it would vouch for
-  (replacement for helm/chart-releaser-action, to reduce third-party GitHub Action supply-chain risk).
+  Installs chart-releaser (cr) by downloading the official binary from its GitHub release and verifying its SHA256 checksum.
+  The checksum is pinned here, because a checksum from the same release would not prove that the binary is safe.
+  Replaces helm/chart-releaser-action, to reduce third-party GitHub Action supply-chain risk.
   Linux x64 or arm64 runners only (for example ubuntu-latest or ubuntu-24.04-arm).
 
 inputs:
   chart-releaser-version:
-    description: Version of chart-releaser to install, v1.9.0 or later for a repository with immutable releases (check latest from https://github.com/helm/chart-releaser/releases)
+    description: >-
+      Version of chart-releaser to install (check latest from https://github.com/helm/chart-releaser/releases).
+      A repository with immutable releases requires v1.9.0 or later.
     required: false
     default: "v1.10.1"
   chart-releaser-sha256:
-    description: SHA256 of the chart-releaser archive for x64, given with any other chart-releaser-version
+    description: SHA256 of the chart-releaser archive for x64, required when chart-releaser-version changes
     required: false
     default: "ce46baf9975d10193b7070b2b7406750c3f664181e36df3f3bbb4a00be40dc1b"  # v1.10.1
   chart-releaser-sha256-arm64:
-    description: SHA256 of the chart-releaser archive for arm64, given with any other chart-releaser-version
+    description: SHA256 of the chart-releaser archive for arm64, required when chart-releaser-version changes
     required: false
     default: "a52a067a56a6e2dc295b250a32692a0fbb5b96b69516a89f38c8dc30dd130921"  # v1.10.1
 
@@ -28,13 +31,13 @@ runs:
         CHART_RELEASER_ARCH: ${{ runner.arch == 'ARM64' && 'arm64' || 'amd64' }}
         CHART_RELEASER_SHA256: ${{ runner.arch == 'ARM64' && inputs.chart-releaser-sha256-arm64 || inputs.chart-releaser-sha256 }}
       run: |
-        # Downloaded into a directory of its own, since the repository may hold a file or a directory named like the binary.
+        # Downloads to a new directory, because the repository can contain a file or a directory with the name of the binary.
         cd "$(mktemp -d)"
         tarball="chart-releaser_${CHART_RELEASER_VERSION#v}_linux_${CHART_RELEASER_ARCH}.tar.gz"
         curl -fsSL -O "https://github.com/helm/chart-releaser/releases/download/${CHART_RELEASER_VERSION}/${tarball}"
         echo "${CHART_RELEASER_SHA256}  ${tarball}" | sha256sum --check --status
         tar -xzf "${tarball}" cr
-        # Installed where the job owns the directory, so neither root nor sudo is needed, on a hosted runner or in a container.
+        # Installs in a directory that the job owns, so that a hosted runner or a container needs no root access and no sudo.
         mkdir -p "${RUNNER_TEMP}/bin"
         mv cr "${RUNNER_TEMP}/bin/cr"
         echo "${RUNNER_TEMP}/bin" >> "$GITHUB_PATH"

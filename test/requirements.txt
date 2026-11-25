@@ -1,4 +1,4 @@
-# Tools of test/run_static_checks.sh, pinned with the hashes of every published file, as pip --require-hashes asks.
+# Pins the tools of test/run_static_checks.sh with the hash of each published file, as pip --require-hashes requires.
 pyyaml==6.0.4 \
     --hash=sha256:070c22b6f490d6cc30912be9fb9ab1af9c752769b39b53616f6510c3f038ee6a \
     --hash=sha256:0a3a351f04dc124f9357512bdb80ac37cd1750cf1371da33e7cbb96d80ac865f \

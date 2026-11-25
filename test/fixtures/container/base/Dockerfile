@@ -1,3 +1,3 @@
-# A base image marked as built by this run, which the derived image checks it was built on.
+# Marks the base image, so that the derived image can check that it uses this base.
 FROM busybox:1.38
 RUN echo built-in-this-run > /base-marker

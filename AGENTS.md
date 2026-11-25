@@ -21,8 +21,15 @@ Linux or WSL2, Docker and `bash`.
 Applies to Markdown, code comments, commit messages and prose in scripts.
 
 - **A comment says why, not what, and the why is timeless.**
+- **Natural, simple English, in the style of ASD-STE100.**
+  Short sentences in the active voice, with common words.
+  Applies also to input descriptions and to messages.
+- **A comment starts with a verb.**
+  "Sets X for Y", "Uses X, because Y", "Does X, so that Y".
+  Not "Read by X as Y, the Z being W".
 - **One thought per line.**
-  Every sentence starts on its own line, and there is no maximum line length.
+  Every sentence starts on its own line, and Markdown has no maximum line length.
+  A YAML line has at most 180 characters.
 - **No em dash, no en dash.**
   A colon, a comma, or a full stop.
 - **No second person.**

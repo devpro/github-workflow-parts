@@ -3,7 +3,7 @@ plugin "terraform" {
   preset  = "recommended"
 }
 
-# A plugin pinned to an exact version, for the check of TFLint plugin versions.
+# Pins a plugin to an exact version, so that the CI can test the check of TFLint plugin versions.
 plugin "azurerm" {
   enabled = true
   version = "0.33.0"

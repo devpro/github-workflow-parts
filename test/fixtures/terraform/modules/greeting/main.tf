@@ -1,4 +1,4 @@
-# Module of the Terraform fixture, validated on its own and through the example calling it.
+# Defines a module that the CI validates directly and through the example that calls it.
 
 terraform {
   required_version = ">= 1.9.0"

@@ -1,22 +1,24 @@
 name: Check changes
 description: |
-  Tells whether the checked out commit changes any of the given paths, compared with a base:
-  the one given, or else the base of the pull request, or else the commit before the push, or else the parent commit.
-  A base the clone cannot read counts as a change, as on a new branch or in a shallow clone, so nothing is skipped by mistake.
-  The repository is checked out with its history (fetch-depth 0) for the base to be readable.
+  Checks if the current commit changes one of the given paths.
+  Compares with the given base, the base of the pull request, the commit before the push, or the parent commit, in this order.
+  Reports a change when the clone does not contain the base, as on a new branch or in a shallow clone, so that no job is skipped by mistake.
+  Requires a checkout with the full history (fetch-depth 0).
 
 inputs:
   paths:
     description: Paths to compare, separated by spaces (for example "src test")
     required: true
   base:
-    description: Commit or tree to compare with, the base of the pull request, the commit before the push or the parent commit when empty
+    description: >-
+      Commit or tree to compare with.
+      When empty, uses the base of the pull request, the commit before the push, or the parent commit.
     required: false
     default: ""
 
 outputs:
   changed:
-    description: "\"true\" when a path changed, \"false\" otherwise"
+    description: Set to "true" when a path changed, or "false" when no path changed
     value: ${{ steps.compare.outputs.changed }}
 
 runs:
@@ -30,7 +32,7 @@ runs:
         PATHS: ${{ inputs.paths }}
       run: |
         read -ra path_list <<< "$PATHS"
-        # An event naming no base, a manual run or a local one, is compared with the parent commit.
+        # Compares with the parent commit when the event gives no base, as in a manual or a local run.
         BASE="${BASE:-HEAD~1}"
         if ! git cat-file -e "${BASE}^{tree}" 2>/dev/null; then
           echo "No readable base to compare with, counted as a change"
@@ -38,7 +40,7 @@ runs:
           exit 0
         fi
         echo "Comparing ${PATHS} between ${BASE} and HEAD"
-        # The exit status tells a change (1) from a failure of git (above 1), which stops the step.
+        # Saves the exit status, because 1 means a change and a higher value means that git failed.
         status=0
         git diff --quiet "$BASE" HEAD -- "${path_list[@]}" || status=$?
         case "$status" in

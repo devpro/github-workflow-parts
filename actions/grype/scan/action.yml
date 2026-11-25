@@ -1,9 +1,10 @@
 name: Scan with Grype
 description: |
-  Installs Grype by downloading the official binary from its GitHub release and verifying its SHA256 checksum,
-  then scans a container image of the local Docker engine for vulnerabilities (replacement for anchore/scan-action,
-  to reduce third-party GitHub Action supply-chain risk).
-  Windows x64 runners only (for example windows-2025), where Grype reads the version of every .NET assembly and Windows binary of an image in which Trivy finds no package.
+  Installs Grype by downloading the official binary from its GitHub release and verifying its SHA256 checksum.
+  Scans a container image of the local Docker engine for vulnerabilities.
+  Replaces anchore/scan-action, to reduce third-party GitHub Action supply-chain risk.
+  Windows x64 runners only (for example windows-2025).
+  Trivy finds no packages in a Windows image, but Grype reads the version of each .NET assembly and each Windows binary.
 
 inputs:
   grype-version:
@@ -14,11 +15,15 @@ inputs:
     description: Reference of the image to scan, in the local Docker engine
     required: true
   image-path:
-    description: Folder of the image to scan alone (for example C:\app), the whole image when empty
+    description: >-
+      Folder of the image to scan (for example C:\app).
+      Scans the full image when empty.
     required: false
     default: ""
   fail-on:
-    description: Lowest severity that fails the scan (negligible, low, medium, high, critical), none when empty
+    description: >-
+      Lowest severity that fails the scan (negligible, low, medium, high, critical).
+      Never fails on a finding when empty.
     required: false
     default: "critical"
 
@@ -31,9 +36,9 @@ runs:
         GRYPE_VERSION: ${{ inputs.grype-version }}
       run: |
         $ErrorActionPreference = 'Stop'
-        # A progress bar redrawn in a CI log only adds lines, and slows the download down.
+        # Disables the progress bar, because it adds lines to the CI log and slows the download.
         $ProgressPreference = 'SilentlyContinue'
-        # Downloaded into a directory of its own, since the repository may hold a file or a directory named like the binary.
+        # Downloads to a new directory, because the repository can contain a file or a directory with the name of the binary.
         $directory = New-Item -ItemType Directory -Path (Join-Path $env:RUNNER_TEMP "grype-$([guid]::NewGuid())")
         $archive = "grype_${env:GRYPE_VERSION}_windows_amd64.zip"
         $checksums = "grype_${env:GRYPE_VERSION}_checksums.txt"
@@ -54,7 +59,7 @@ runs:
         Write-Output "Verification successful!"
 
         Expand-Archive -Path (Join-Path $directory $archive) -DestinationPath $directory
-        # Installed where the job owns the directory, so no administrator right is needed, on a hosted runner or in a container.
+        # Installs in a directory that the job owns, so that a hosted runner or a container needs no administrator rights.
         $bin = Join-Path $env:RUNNER_TEMP 'bin'
         New-Item -ItemType Directory -Path $bin -Force | Out-Null
         Move-Item -Path (Join-Path $directory 'grype.exe') -Destination $bin -Force
@@ -72,7 +77,8 @@ runs:
         $copy = Join-Path $env:RUNNER_TEMP "grype-$([guid]::NewGuid())"
         $nameArgs = @()
         if ($env:IMAGE_PATH) {
-          # A folder is copied out of a container never started, in seconds, where saving a Windows image takes minutes for its gigabytes of base layers.
+          # Copies the folder from a container that is not started, which takes seconds.
+          # A copy of the full Windows image takes minutes, because its base layers contain gigabytes of data.
           $container = docker create $env:IMAGE
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           docker cp "${container}:$env:IMAGE_PATH" $copy
@@ -80,17 +86,17 @@ runs:
           docker rm $container | Out-Null
           if ($code -ne 0) { exit $code }
           $target = "dir:$copy"
-          # A folder has no name of its own, so the findings are named after the image.
+          # Gives the image name to the findings, because a folder has no name to show.
           $nameArgs = @('--name', $env:IMAGE)
         } else {
-          # The image is read from an archive, so the scan needs no access of its own to the engine.
+          # Saves the image to an archive, so that the scan does not need access to the engine.
           $copy = "$copy.tar"
           docker save --output $copy $env:IMAGE
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $target = "docker-archive:$copy"
         }
 
-        # Every finding is printed, and only those at or above the severity given fail the scan.
+        # Prints all findings, but fails only for findings at or above the given severity.
         $grypeArgs = @($target, '--output', 'table') + $nameArgs
         if ($env:FAIL_ON) {
           $grypeArgs += @('--fail-on', $env:FAIL_ON)
@@ -98,7 +104,7 @@ runs:
         Write-Output "Running: grype $($grypeArgs -join ' ')"
         grype @grypeArgs
         $code = $LASTEXITCODE
-        # A Windows image archive takes gigabytes, which a runner keeping its disk between jobs would pile up.
-        # The copy goes too, so the scan of another image never reads it.
+        # Removes the archive or the copied folder, because gigabytes of data would collect on a runner that keeps its disk.
+        # This also prevents a later scan from reading the copy.
         Remove-Item -Path $copy -Recurse -Force
         exit $code
