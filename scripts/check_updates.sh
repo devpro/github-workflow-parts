@@ -9,6 +9,7 @@ cd "$(dirname "$0")/.."
 
 # Gives the source of the latest release for each version input.
 # A GitHub source is owner/repo, then the tag prefix if the tags have one.
+# Use "github-tag" for a repository that publishes tags without releases.
 # Use "skip" for a version that is selected on purpose, such as an LTS major version.
 declare -A SOURCES=(
   [chart-releaser-version]="github helm/chart-releaser"
@@ -18,7 +19,7 @@ declare -A SOURCES=(
   [dotnet-version]="skip"
   [fossa-version]="github fossas/fossa-cli"
   [goreleaser-version]="github goreleaser/goreleaser"
-  [govulncheck-version]="github golang/vuln"
+  [govulncheck-version]="github-tag golang/vuln"
   [grype-version]="github anchore/grype"
   [helm-repo-html-version]="github halkeye/helm-repo-html"
   [helm-unittest-version]="github helm-unittest/helm-unittest"
@@ -46,16 +47,38 @@ declare -A SOURCES=(
 )
 
 # Excludes prereleases, because a default version must be stable.
-latest_github() {
+# Lists the tags from the newest to the oldest.
+github_tags() {
   local repo=$1 prefix=${2:-}
   git ls-remote --tags --refs "https://github.com/${repo}" | sed 's#.*refs/tags/##' \
-    | grep -E "^${prefix}v?[0-9]+(\.[0-9]+)*$" | sed "s#^${prefix}##" | sort -V | tail -1
+    | grep -E "^${prefix}v?[0-9]+(\.[0-9]+)*$" | sed "s#^${prefix}##" | sort -rV
+}
+
+# Succeeds when the second version is newer than the first.
+# Compares without the v prefix, because only some pins and some tags have it.
+is_newer() {
+  [[ "${1#v}" != "${2#v}" && "$(printf '%s\n%s\n' "${1#v}" "${2#v}" | sort -V | tail -1)" == "${2#v}" ]]
+}
+
+# Ignores a newer tag that has no release, because its files are not available.
+# Calls the API only for newer tags, because GitHub limits the calls without a token.
+latest_github() {
+  local current=$1 repo=$2 prefix=${3:-} tag code
+  while read -r tag; do
+    if is_newer "$current" "$tag"; then
+      code=$(curl -sS -o /dev/null -w '%{http_code}' "https://api.github.com/repos/${repo}/releases/tags/${prefix}${tag}")
+      [[ "$code" == 404 ]] && continue
+    fi
+    echo "$tag"
+    return
+  done < <(github_tags "$repo" "$prefix")
 }
 
 latest() {
-  local kind=$1; shift
+  local current=$1 kind=$2; shift 2
   case "$kind" in
-    github) latest_github "$@" ;;
+    github) latest_github "$current" "$@" ;;
+    github-tag) github_tags "$@" | sed -n 1p ;;
     nuget) curl -fsSL "https://api.nuget.org/v3-flatcontainer/$1/index.json" | jq -r '[.versions[] | select(test("-") | not)] | last' ;;
     npm) curl -fsSL "https://registry.npmjs.org/$1/latest" | jq -r .version ;;
     pypi) curl -fsSL "https://pypi.org/pypi/$1/json" | jq -r .info.version ;;
@@ -67,13 +90,12 @@ latest() {
 
 status=0
 
-# Compares without the v prefix, because only some pins and some tags have it.
 report() {
   local name=$1 current=$2 found=$3 where=$4
   if [[ -z "$found" ]]; then
     printf '%-28s %-16s %-16s %s\n' "$name" "$current" "NOT FOUND" "$where"
     status=1
-  elif [[ "${current#v}" != "${found#v}" && "$(printf '%s\n%s\n' "${current#v}" "${found#v}" | sort -V | tail -1)" == "${found#v}" ]]; then
+  elif is_newer "$current" "$found"; then
     printf '%-28s %-16s %-16s %s\n' "$name" "$current" "$found" "$where"
     status=1
   fi
@@ -105,6 +127,17 @@ pins() {
     | sed -E 's/^([^:]+):shellcheck_version="([^"]+)"/shellcheck-version \2 \1/'
   sed -nE 's/^ACTIONLINT_VERSION=(.*)/actionlint-version \1 test\/run_static_checks.sh/p' test/run_static_checks.sh
   sed -nE 's/^([A-Za-z0-9_.-]+)==([^ ]+).*/pypi:\1 \2 test\/requirements.txt/p' test/requirements.txt
+  # Reads the packages of the test fixtures.
+  # Excludes a go.mod file, because the fixture is untidy on purpose.
+  git ls-files 'test/fixtures/**/package.json' | while read -r file; do
+    jq -r --arg f "$file" '(.dependencies // {}) + (.devDependencies // {}) | to_entries[] | "npm:\(.key) \(.value) \($f)"' "$file"
+  done
+  git ls-files 'test/fixtures/**/*.csproj' | while read -r file; do
+    sed -nE "s#.*<PackageReference Include=\"([^\"]+)\" Version=\"([^\"]+)\".*#nuget:\1 \2 ${file}#p" "$file"
+  done
+  git ls-files 'test/fixtures/**/packages.config' | while read -r file; do
+    sed -nE "s#.*<package id=\"([^\"]+)\" version=\"([^\"]+)\".*#nuget:\1 \2 ${file}#p" "$file"
+  done
   # Reads the providers in the lock files of the fixtures, because the provider scan reports vulnerabilities in old versions.
   git ls-files '*.terraform.lock.hcl' | while read -r lock; do
     awk -v f="$lock" '
@@ -125,6 +158,8 @@ while read -r name current file; do
     source="pypi ${name#pypi:}"
   elif [[ "$name" == npm:* ]]; then
     source="npm ${name#npm:}"
+  elif [[ "$name" == nuget:* ]]; then
+    source="nuget $(tr '[:upper:]' '[:lower:]' <<< "${name#nuget:}")"
   elif [[ "$name" == terraform:* ]]; then
     source="terraform ${name#terraform:}"
   else
@@ -137,13 +172,13 @@ while read -r name current file; do
   fi
   [[ "$source" == skip ]] && continue
   # shellcheck disable=SC2086 # Splits the source into its kind and arguments on purpose.
-  report "$name" "$current" "$(latest $source || true)" "$file"
+  report "$name" "$current" "$(latest "$current" $source || true)" "$file"
 done < <(pins)
 
 # Checks the GitHub Actions that are pinned by SHA, with the version from the comment at the end of the line.
 while read -r action version; do
   repo=$(cut -d/ -f1-2 <<< "$action")
-  report "$action" "$version" "$(latest_github "$repo" || true)" "uses"
+  report "$action" "$version" "$(latest_github "$version" "$repo" || true)" "uses"
 done < <(grep -rhoE 'uses: [A-Za-z0-9_.-]+/[A-Za-z0-9_./-]+@[0-9a-f]{40} +# v?[0-9.]+' .github actions \
   | sed -E 's/uses: ([^@]+)@[0-9a-f]+ +# (.*)/\1 \2/' | sort -u)
 
