@@ -887,7 +887,7 @@ jobs:
       sonar-host-url: ${{ vars.SONAR_HOST_URL }}
       sonar-organization: ${{ vars.SONAR_ORGANIZATION }}
       sonar-project-key: github-workflow-parts-dotnet-fixture
-      sonar-project-name: GitHub workflow parts .NET fixture
+      sonar-project-name: github-workflow-parts / dotnet
       sonar-settings-file: SonarQube.Analysis.xml
     secrets:
       sonar-token: ${{ secrets.SONAR_TOKEN }}
@@ -1142,7 +1142,7 @@ jobs:
       sonar-host-url: ${{ vars.SONAR_HOST_URL }}
       sonar-organization: ${{ vars.SONAR_ORGANIZATION }}
       sonar-project-key: github-workflow-parts-node-fixture
-      sonar-project-name: GitHub workflow parts Node.js fixture
+      sonar-project-name: github-workflow-parts / nodejs
       test-script: test:coverage
       working-directory: test/fixtures/node
     secrets:

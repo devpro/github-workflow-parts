@@ -11,6 +11,11 @@ runner:
   docker: ["test-container-scan-on-base*", "test-cosign-sign*", "test-container-build-push*"]
   sonarqube:
     gate: true
+    profile: Sonar way comprehensive
+    projects:
+      - github-workflow-parts-dotnet-fixture
+      - github-workflow-parts-node-fixture
+      - github-workflow-parts-sonar-properties
 
 workflow:
   skipJobs: [test-qemu-setup]
