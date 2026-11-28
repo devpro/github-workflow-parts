@@ -1,0 +1,63 @@
+name: Apply the examples of a Puppet module
+description: |
+  Applies each manifest of the examples folder of a Puppet module two times, with puppet apply, on the runner.
+  Fails when the first run fails, or when the second run changes something, because a module must be idempotent.
+  Runs as the user of the job, without root access, so that the examples must manage only what this user owns.
+  Requires the gems of the module, installed by actions/bundler/setup, with openvox in the Gemfile.
+  Linux runners only (for example ubuntu-latest or a container job).
+
+inputs:
+  working-directory:
+    description: Folder of the module, with its metadata.json and a Rakefile that requires voxpupuli/test/rake
+    required: false
+    default: "."
+  examples:
+    description: Folder of the manifests to apply, relative to the working directory
+    required: false
+    default: "examples"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Apply the examples
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        INPUT_EXAMPLES: ${{ inputs.examples }}
+      run: |
+        shopt -s nullglob
+        manifests=("${INPUT_EXAMPLES}"/*.pp)
+        if [ ${#manifests[@]} -eq 0 ]; then
+          echo "::error::No manifest in ${INPUT_EXAMPLES}"
+          exit 1
+        fi
+        # Puts the module and the modules of .fixtures.yml in one folder, because puppet apply finds the classes by module path.
+        bundle exec rake fixtures:prep
+        module_path="${PWD}/spec/fixtures/modules"
+        failed=()
+        for manifest in "${manifests[@]}"; do
+          echo "::group::${manifest}"
+          # Reads the detailed exit codes: 0 is no change, 2 is a change, 4 and 6 are failures.
+          for run in first second; do
+            if bundle exec puppet apply --detailed-exitcodes --modulepath "$module_path" "$manifest"; then
+              code=0
+            else
+              code=$?
+            fi
+            if [ "$run" = first ] && [ "$code" != 0 ] && [ "$code" != 2 ]; then
+              echo "::error file=${manifest}::The first run failed with the exit code ${code}"
+              failed+=("$manifest")
+              break
+            fi
+            if [ "$run" = second ] && [ "$code" != 0 ]; then
+              echo "::error file=${manifest}::The second run is not idempotent, with the exit code ${code}"
+              failed+=("$manifest")
+            fi
+          done
+          echo "::endgroup::"
+        done
+        bundle exec rake fixtures:clean
+        if [ ${#failed[@]} -gt 0 ]; then
+          echo "::error::The examples failed: ${failed[*]}"
+          exit 1
+        fi

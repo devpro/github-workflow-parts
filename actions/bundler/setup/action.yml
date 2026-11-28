@@ -1,0 +1,116 @@
+name: Setup Bundler
+description: |
+  Installs Bundler by downloading its gem from rubygems.org and verifying its SHA256 checksum.
+  Installs the gems of a Gemfile.lock, which must give the SHA256 checksum of each gem, so that Bundler verifies every download.
+  Installs as the user of the job, with the Ruby of the runner or of the image, and uses sudo only to install a missing Ruby.
+  Linux runners only (for example ubuntu-latest or a container job).
+
+inputs:
+  bundler-version:
+    description: >-
+      Version of Bundler to install (check latest from https://rubygems.org/gems/bundler).
+      The Gemfile.lock must give the same version under BUNDLED WITH.
+    required: false
+    default: "4.1.1"
+  working-directory:
+    description: Folder of the Gemfile
+    required: false
+    default: "."
+  gemfile:
+    description: >-
+      Path of the Gemfile, relative to the working directory.
+      The next steps of the job use it through BUNDLE_GEMFILE, so that several folders can share one set of gems.
+    required: false
+    default: "Gemfile"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install Ruby
+      shell: bash
+      run: |
+        missing=()
+        command -v ruby > /dev/null || missing+=(ruby)
+        # Checks the headers and libffi, because gems with native extensions compile against them, fiddle for example.
+        if command -v ruby > /dev/null && ! ruby -rmkmf -e '' > /dev/null 2>&1; then
+          missing+=(ruby-dev)
+        fi
+        if ! compgen -G '/usr/include/ffi.h' > /dev/null && ! compgen -G '/usr/include/*/ffi.h' > /dev/null; then
+          missing+=(libffi-dev)
+        fi
+        command -v make > /dev/null || missing+=(make)
+        command -v g++ > /dev/null || missing+=(g++)
+        if [ ${#missing[@]} -eq 0 ]; then
+          ruby --version
+          exit 0
+        fi
+        # Uses sudo only when a package is missing, because a job must not need root access when the runner has Ruby.
+        if ! sudo -n true 2> /dev/null; then
+          echo "::error::Missing packages ${missing[*]}, and sudo is not available to install them: use a runner or an image that has Ruby"
+          exit 1
+        fi
+        echo "Installing ${missing[*]} from the packages of the runner OS..."
+        sudo apt-get update -qq
+        sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends ruby ruby-dev libffi-dev make g++
+        ruby --version
+    - name: Install Bundler
+      shell: bash
+      env:
+        # Uses another name than BUNDLER_VERSION, because Bundler reads that variable to choose its version.
+        INPUT_BUNDLER_VERSION: ${{ inputs.bundler-version }}
+      run: |
+        # Downloads to a new directory, because the repository can contain a file with the name of the gem.
+        cd "$(mktemp -d)"
+        gem_file="bundler-${INPUT_BUNDLER_VERSION}.gem"
+        curl -fsSL --retry 3 -o "$gem_file" "https://rubygems.org/downloads/${gem_file}"
+        expected="$(curl -fsSL --retry 3 "https://rubygems.org/api/v2/rubygems/bundler/versions/${INPUT_BUNDLER_VERSION}.json" | jq -r '.sha // empty')"
+        if [ -z "$expected" ]; then
+          echo "::error::rubygems.org gives no checksum for Bundler ${INPUT_BUNDLER_VERSION}"
+          exit 1
+        fi
+        if ! echo "${expected}  ${gem_file}" | sha256sum --check --status; then
+          echo "ERROR: Checksum verification failed!" >&2
+          exit 1
+        fi
+        # Installs in the home of the user, so that the job needs no root access.
+        gem install --user-install --local --no-document "$gem_file"
+        bin_dir="$(ruby -e 'print Gem.user_dir')/bin"
+        echo "$bin_dir" >> "$GITHUB_PATH"
+        "${bin_dir}/bundle" --version
+    - name: Install the gems
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        INPUT_BUNDLER_VERSION: ${{ inputs.bundler-version }}
+        INPUT_GEMFILE: ${{ inputs.gemfile }}
+      run: |
+        gemfile="$(realpath "$INPUT_GEMFILE")"
+        lock="${gemfile}.lock"
+        if [ ! -f "$lock" ]; then
+          echo "::error::${INPUT_GEMFILE}.lock is missing: commit the lock file, so that each run installs the same gems"
+          exit 1
+        fi
+        # Requires the Bundler of this step, because a Bundler of another version downloads the locked version without verifying it.
+        locked="$(awk '/^BUNDLED WITH$/ { getline; gsub(/ /, ""); print }' "$lock")"
+        if [ "$locked" != "$INPUT_BUNDLER_VERSION" ]; then
+          echo "::error::${INPUT_GEMFILE}.lock is bundled with Bundler '${locked}', not ${INPUT_BUNDLER_VERSION}: run 'bundle _${INPUT_BUNDLER_VERSION}_ update --bundler'"
+          exit 1
+        fi
+        # Requires a checksum for each locked gem, because Bundler does not verify a gem that has none.
+        unchecked="$(awk '
+          /^[A-Z]/ { section = $0 }
+          section == "GEM" && /^    [^ ]/ { gsub(/^ +/, ""); gems[$0] = 1 }
+          section == "CHECKSUMS" && /^  [^ ].* sha256=[0-9a-f]+$/ { gsub(/^ +| sha256=.*$/, ""); sums[$0] = 1 }
+          END { for (gem in gems) if (!(gem in sums)) print gem }
+        ' "$lock" | sort)"
+        if [ -n "$unchecked" ]; then
+          echo "::error::${INPUT_GEMFILE}.lock has no checksum for $(echo "$unchecked" | paste -sd ',' | sed 's/,/, /g'): run 'bundle lock --add-checksums'"
+          exit 1
+        fi
+        {
+          echo "BUNDLE_GEMFILE=${gemfile}"
+          echo "BUNDLE_PATH=${RUNNER_TEMP}/bundle"
+          echo "BUNDLE_FROZEN=true"
+        } >> "$GITHUB_ENV"
+        export BUNDLE_GEMFILE="$gemfile" BUNDLE_PATH="${RUNNER_TEMP}/bundle" BUNDLE_FROZEN=true
+        bundle install --jobs 4 --retry 3

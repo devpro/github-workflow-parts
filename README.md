@@ -44,6 +44,10 @@ Node.js:
 - [Lint, build, test and analyze the code](.github/workflows/reusable-node-quality.yml)
 - [Publish a package to npmjs.org or GitHub Packages](.github/workflows/reusable-npm-publication.yml)
 
+Puppet:
+
+- [Check a module, apply its examples and scan its gems](.github/workflows/reusable-puppet-quality.yml)
+
 Terraform:
 
 - [Deploy or destroy an environment](.github/workflows/reusable-terraform-deployment.yml)
@@ -109,6 +113,15 @@ Node.js:
 
 - [Publish a package unless its version already is](actions/npm/publish/action.yml)
 - [Install the Playwright browsers](actions/playwright/install/action.yml)
+
+Puppet:
+
+- [Check a module with voxpupuli-test](actions/puppet/check/action.yml)
+- [Apply the examples of a module two times, to verify it is idempotent](actions/puppet/apply/action.yml)
+
+Ruby:
+
+- [Setup Bundler and install the gems of a lock file with checksums](actions/bundler/setup/action.yml)
 
 Search engines:
 

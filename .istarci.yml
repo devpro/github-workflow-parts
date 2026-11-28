@@ -8,6 +8,8 @@ runner:
     test-node-quality-sonar: ghcr.io/devpro/ubuntu-node-playwright:latest
     test-npm-publication: ghcr.io/devpro/ubuntu-node:latest
     test-go-lint-govulncheck-scan: registry.suse.com/bci/golang:1.27
+    test-bundler-setup: ghcr.io/devpro/ubuntu-ruby:latest
+    "test-puppet-*": ghcr.io/devpro/ubuntu-ruby:latest
   docker: ["test-container-scan-on-base*", "test-cosign-sign*", "test-container-build-push*"]
   sonarqube:
     gate: true

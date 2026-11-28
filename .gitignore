@@ -1,2 +1,3 @@
 .terraform/
 *.tfplan
+node_modules/

@@ -1,0 +1,98 @@
+name: Reusable - Puppet quality
+
+on:
+  workflow_call:
+    inputs:
+      job-name:
+        description: "Job name"
+        type: string
+        required: false
+        default: "Quality"
+      timeout-minutes:
+        description: Minutes the job may run before it is cancelled
+        type: number
+        required: false
+        default: 30
+      working-directory:
+        description: Folder of the module, with its metadata.json, its Gemfile and a Rakefile that requires voxpupuli/test/rake
+        type: string
+        required: false
+        default: "."
+      gemfile:
+        description: Path of the Gemfile, relative to the working directory
+        type: string
+        required: false
+        default: "Gemfile"
+      operating-system:
+        description: "Operating system executing the runner"
+        type: string
+        required: false
+        default: "ubuntu-latest"
+      acceptance-enabled:
+        description: >-
+          Applies each manifest of the examples folder two times on the runner, without root access,
+          and fails when the second run changes something
+        type: boolean
+        required: false
+        default: false
+      severity:
+        description: Comma-separated severities that the Trivy scan of the installed gems reports and fails on
+        type: string
+        required: false
+        default: "HIGH,CRITICAL"
+      workflow-parts-version:
+        description: >-
+          GitHub workflow parts version (branch/tag/SHA).
+          Use the same version as the one that calls this reusable workflow.
+          Ignored when this repository is the caller, because it tests the actions of the current commit.
+        type: string
+        required: false
+        default: "main"
+
+jobs:
+  puppet-quality:
+    name: ${{ inputs.job-name }}
+    runs-on: ${{ inputs.operating-system }}
+    timeout-minutes: ${{ inputs.timeout-minutes }}
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Checkout workflow parts
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          repository: devpro/github-workflow-parts
+          # Uses the current commit when this repository is the caller, so that the CI tests the actions of that commit.
+          ref: ${{ github.repository == 'devpro/github-workflow-parts' && github.sha || inputs.workflow-parts-version }}
+          # Uses a hidden folder, because puppet-lint, puppet-syntax and RuboCop check every file of the folder of a module but a hidden one.
+          path: .workflow-parts
+          persist-credentials: false
+      - name: Exclude workflow parts from git
+        run: echo "/.workflow-parts/" >> .git/info/exclude
+      - name: Setup Bundler and install the gems
+        id: gems
+        uses: ./.workflow-parts/actions/bundler/setup
+        with:
+          working-directory: ${{ inputs.working-directory }}
+          gemfile: ${{ inputs.gemfile }}
+      - name: Check the module
+        uses: ./.workflow-parts/actions/puppet/check
+        with:
+          working-directory: ${{ inputs.working-directory }}
+      # Runs also when a check fails, so that one run reports all problems.
+      - name: Apply the examples
+        if: ${{ !cancelled() && steps.gems.outcome == 'success' && inputs.acceptance-enabled }}
+        uses: ./.workflow-parts/actions/puppet/apply
+        with:
+          working-directory: ${{ inputs.working-directory }}
+      # Scans the installed gems, because the checks and the acceptance test run their code on the runner.
+      - name: Scan the gems with Trivy
+        if: ${{ !cancelled() && steps.gems.outcome == 'success' }}
+        uses: ./.workflow-parts/actions/trivy/scan
+        with:
+          scan-type: rootfs
+          target: ${{ runner.temp }}/bundle
+          severity: ${{ inputs.severity }}
+          ignore-unfixed: "true"
+          exit-code: "1"

@@ -1,0 +1,21 @@
+{
+  "name": "devpro-fixture",
+  "version": "1.0.0",
+  "author": "devpro",
+  "summary": "Module that passes every check of the Puppet parts",
+  "license": "GPL-3.0-only",
+  "source": "https://github.com/devpro/github-workflow-parts",
+  "dependencies": [],
+  "operatingsystem_support": [
+    {
+      "operatingsystem": "Ubuntu",
+      "operatingsystemrelease": ["24.04"]
+    }
+  ],
+  "requirements": [
+    {
+      "name": "openvox",
+      "version_requirement": ">= 8.0.0 < 9.0.0"
+    }
+  ]
+}

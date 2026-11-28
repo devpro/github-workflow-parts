@@ -1,0 +1,8 @@
+# frozen_string_literal: true
+
+source 'https://rubygems.org'
+
+gem 'openvox', '~> 8.34'
+gem 'voxpupuli-test', '~> 15.0'
+# Keeps json 2, because jgrep, which facterdb uses to find the facts of a system, calls JSON.create_id=, removed in json 3.
+gem 'json', '~> 2.21'

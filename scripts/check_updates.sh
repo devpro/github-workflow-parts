@@ -44,6 +44,7 @@ declare -A SOURCES=(
   [yamale-version]="pypi yamale"
   [yamllint-version]="pypi yamllint"
   [actionlint-version]="github rhysd/actionlint"
+  [bundler-version]="rubygems bundler"
 )
 
 # Excludes prereleases, because a default version must be stable.
@@ -82,6 +83,7 @@ latest() {
     nuget) curl -fsSL "https://api.nuget.org/v3-flatcontainer/$1/index.json" | jq -r '[.versions[] | select(test("-") | not)] | last' ;;
     npm) curl -fsSL "https://registry.npmjs.org/$1/latest" | jq -r .version ;;
     pypi) curl -fsSL "https://pypi.org/pypi/$1/json" | jq -r .info.version ;;
+    rubygems) curl -fsSL "https://rubygems.org/api/v1/versions/$1/latest.json" | jq -r .version ;;
     kubectl) curl -fsSL https://dl.k8s.io/release/stable.txt ;;
     terraform) curl -fsSL "https://registry.terraform.io/v1/providers/$1/versions" | jq -r '[.versions[].version | select(test("^[0-9]+\\.[0-9]+\\.[0-9]+$"))] | sort_by(split(".") | map(tonumber)) | last' ;;
     mongodb) curl -fsSL https://downloads.mongodb.org/full.json | jq -r '[.versions[] | select(.production_release) | .version] | first' ;;
@@ -126,7 +128,8 @@ pins() {
   grep -HoE 'shellcheck_version="[^"]+"' .github/workflows/reusable-*.yml \
     | sed -E 's/^([^:]+):shellcheck_version="([^"]+)"/shellcheck-version \2 \1/'
   sed -nE 's/^ACTIONLINT_VERSION=(.*)/actionlint-version \1 test\/run_static_checks.sh/p' test/run_static_checks.sh
-  sed -nE 's/^([A-Za-z0-9_.-]+)==([^ ]+).*/pypi:\1 \2 test\/requirements.txt/p' test/requirements.txt
+  sed -nE 's/^SHELLCHECK_VERSION=(.*)/shellcheck-version \1 test\/run_static_checks.sh/p' test/run_static_checks.sh
+  jq -r '.dependencies // {} | to_entries[] | "npm:\(.key) \(.value) test/package.json"' test/package.json
   # Reads the packages of the test fixtures.
   # Excludes a go.mod file, because the fixture is untidy on purpose.
   git ls-files 'test/fixtures/**/package.json' | while read -r file; do

@@ -864,6 +864,110 @@ jobs:
     with:
       working-directory: test/fixtures/terraform
 
+  # Runs the refused lock files first, so that each one installs into an empty folder and Bundler downloads the gem with the wrong checksum.
+  test-bundler-setup:
+    name: "Test / Bundler setup action"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Write lock files that the action must refuse
+        run: |
+          for case in tampered unchecked other-bundler; do
+            mkdir -p "${RUNNER_TEMP}/${case}"
+            cp test/fixtures/puppet/Gemfile test/fixtures/puppet/Gemfile.lock "${RUNNER_TEMP}/${case}/"
+          done
+          sed -i -E '0,/^  addressable .* sha256=/s/(^  addressable .* sha256=)[0-9a-f]{4}/\10000/' "${RUNNER_TEMP}/tampered/Gemfile.lock"
+          grep -q '^  addressable .* sha256=0000' "${RUNNER_TEMP}/tampered/Gemfile.lock"
+          sed -i -E '/^  addressable .* sha256=/d' "${RUNNER_TEMP}/unchecked/Gemfile.lock"
+          sed -i -E '/^BUNDLED WITH$/{n;s/.*/  4.0.25/}' "${RUNNER_TEMP}/other-bundler/Gemfile.lock"
+      - name: Install from a lock file with a wrong checksum, failing on it
+        id: tampered
+        continue-on-error: true
+        uses: ./actions/bundler/setup
+        with:
+          working-directory: ${{ runner.temp }}/tampered
+      - name: Install from a lock file with a gem without checksum, failing on it
+        id: unchecked
+        continue-on-error: true
+        uses: ./actions/bundler/setup
+        with:
+          working-directory: ${{ runner.temp }}/unchecked
+      - name: Install from a lock file of another Bundler version, failing on it
+        id: other-bundler
+        continue-on-error: true
+        uses: ./actions/bundler/setup
+        with:
+          working-directory: ${{ runner.temp }}/other-bundler
+      - name: Install the gems of the Puppet fixtures
+        uses: ./actions/bundler/setup
+        with:
+          working-directory: test/fixtures/puppet
+      - name: Verify the refused lock files failed and the gems are installed
+        env:
+          TAMPERED: ${{ steps.tampered.outcome }}
+          UNCHECKED: ${{ steps.unchecked.outcome }}
+          OTHER_BUNDLER: ${{ steps.other-bundler.outcome }}
+        run: |
+          [ "$TAMPERED" = failure ]
+          [ "$UNCHECKED" = failure ]
+          [ "$OTHER_BUNDLER" = failure ]
+          [ "$(bundle --version)" = "Bundler version 4.1.1" ]
+          bundle exec puppet --version
+
+  test-puppet-check-apply:
+    name: "Test / Puppet check and apply actions"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install the gems of the Puppet fixtures
+        uses: ./actions/bundler/setup
+        with:
+          working-directory: test/fixtures/puppet
+      - name: Check a module that passes every check
+        uses: ./actions/puppet/check
+        with:
+          working-directory: test/fixtures/puppet/module
+      - name: Check a module that puppet-lint rejects, failing on it
+        id: unlinted
+        continue-on-error: true
+        uses: ./actions/puppet/check
+        with:
+          working-directory: test/fixtures/puppet/unlinted
+      - name: Apply the examples of the module
+        uses: ./actions/puppet/apply
+        with:
+          working-directory: test/fixtures/puppet/module
+      - name: Apply an example that changes the system at each run, failing on it
+        id: not-idempotent
+        continue-on-error: true
+        uses: ./actions/puppet/apply
+        with:
+          working-directory: test/fixtures/puppet/not-idempotent
+      - name: Verify both failed and the example wrote its file
+        env:
+          UNLINTED: ${{ steps.unlinted.outcome }}
+          NOT_IDEMPOTENT: ${{ steps.not-idempotent.outcome }}
+        run: |
+          [ "$UNLINTED" = failure ]
+          [ "$NOT_IDEMPOTENT" = failure ]
+          [ "$(cat /tmp/puppet-fixture.txt)" = "managed by Puppet" ]
+
+  test-puppet-quality:
+    name: "Test / Puppet quality reusable workflow"
+    uses: ./.github/workflows/reusable-puppet-quality.yml
+    with:
+      working-directory: test/fixtures/puppet/module
+      gemfile: ../Gemfile
+      acceptance-enabled: true
+
   test-dotnet-quality:
     name: "Test / .NET quality reusable workflow"
     uses: ./.github/workflows/reusable-dotnet-quality.yml

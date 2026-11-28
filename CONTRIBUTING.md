@@ -13,7 +13,8 @@ IstarCI runs them on an arm64 machine, emulated on an amd64 one with a `qemu-aar
 
 ## Run the static checks
 
-`test/run_static_checks.sh` runs actionlint, shellcheck on the scripts of the composite actions, and the conventions of `test/check_workflow_parts.py`.
+`test/run_static_checks.sh` runs actionlint, shellcheck on the scripts of the composite actions, and the conventions of `test/check_workflow_parts.js`.
+It needs Node.js and npm, and installs the packages of `test/package-lock.json`.
 A part no CI job can exercise is listed in `UNTESTED_PARTS` of that file, with the reason.
 
 ## Check for updates

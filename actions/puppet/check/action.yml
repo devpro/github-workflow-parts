@@ -1,0 +1,31 @@
+name: Check a Puppet module
+description: |
+  Runs the checks of voxpupuli-test on a Puppet module: the files of the module, the syntax, metadata.json, puppet-lint, RuboCop and rspec-puppet.
+  Runs each check even when the previous check fails, so that one run reports all problems.
+  Requires the gems of the module, installed by actions/bundler/setup, with voxpupuli-test in the Gemfile.
+  Linux runners only (for example ubuntu-latest or a container job).
+
+inputs:
+  working-directory:
+    description: Folder of the module, with its metadata.json and a Rakefile that requires voxpupuli/test/rake
+    required: false
+    default: "."
+
+runs:
+  using: "composite"
+  steps:
+    - name: Run the checks
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        failed=()
+        # Runs the Rake tasks of voxpupuli-test one by one, because its test task stops at the first failure.
+        for task in check validate lint rubocop spec; do
+          echo "::group::rake ${task}"
+          bundle exec rake "$task" || failed+=("$task")
+          echo "::endgroup::"
+        done
+        if [ ${#failed[@]} -gt 0 ]; then
+          echo "::error::The Puppet checks failed: ${failed[*]}"
+          exit 1
+        fi
