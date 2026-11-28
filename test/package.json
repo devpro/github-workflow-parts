@@ -1,8 +1,7 @@
 {
   "name": "github-workflow-parts-checks",
   "private": true,
-  "description": "Packages of test/check_workflow_parts.js, installed by test/run_static_checks.sh",
-  "type": "module",
+  "description": "Packages of test/check_workflow_parts.mjs, installed by test/run_static_checks.sh",
   "dependencies": {
     "yaml": "2.9.1"
   }

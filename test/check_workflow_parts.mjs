@@ -24,7 +24,7 @@ const UNTESTED_PARTS = {
 // Lists the inputs that are kept but not used, because a caller fails when it passes an input that is not declared.
 const RESERVED_INPUTS = {}
 
-const TEXT_SUFFIXES = new Set(['.cs', '.csproj', '.hcl', '.js', '.json', '.md', '.pp', '.rb', '.sh', '.tf', '.yaml', '.yml', ''])
+const TEXT_SUFFIXES = new Set(['.cs', '.csproj', '.hcl', '.js', '.json', '.mjs', '.md', '.pp', '.rb', '.sh', '.tf', '.yaml', '.yml', ''])
 const DASHES = [String.fromCodePoint(0x2013), String.fromCodePoint(0x2014)]
 const SECOND_PERSON = /\b(you|your|yours|yourself)\b/i
 const EXPRESSION = /\$\{\{\s*(.*?)\s*\}\}/g
@@ -123,7 +123,7 @@ function checkTextHygiene(files) {
       }
     })
     // Checks the scripts of the repository, not the files of the test fixtures, which keep the names of their ecosystem.
-    const script = suffix === '.sh' || (suffix === '.js' && !name.startsWith('test/fixtures/'))
+    const script = suffix === '.sh' || (['.js', '.mjs'].includes(suffix) && !name.startsWith('test/fixtures/'))
     if (script) {
       if (!/^[a-z0-9_]+$/.test(basename(name, suffix))) fail(name, 'script name is not snake_case')
       if (mode !== '100755') fail(name, 'script does not have the executable bit')

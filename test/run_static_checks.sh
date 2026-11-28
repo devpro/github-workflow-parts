@@ -65,5 +65,5 @@ status=0
 echo "Running actionlint on the workflows..."
 "$actionlint" -shellcheck "$shellcheck" || status=1
 echo "Checking the conventions of the actions and workflows..."
-node test/check_workflow_parts.js || status=1
+node test/check_workflow_parts.mjs || status=1
 exit "$status"

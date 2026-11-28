@@ -915,7 +915,7 @@ jobs:
           [ "$TAMPERED" = failure ]
           [ "$UNCHECKED" = failure ]
           [ "$OTHER_BUNDLER" = failure ]
-          [ "$(bundle --version)" = "Bundler version 4.1.1" ]
+          [ "$(bundle --version)" = 4.1.1 ]
           bundle exec puppet --version
 
   test-puppet-check-apply:
