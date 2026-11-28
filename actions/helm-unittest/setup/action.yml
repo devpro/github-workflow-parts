@@ -8,7 +8,7 @@ inputs:
   helm-unittest-version:
     description: Version of helm-unittest to install, without the v prefix (check latest from https://github.com/helm-unittest/helm-unittest/releases)
     required: false
-    default: "1.2.1"
+    default: "1.3.0"
 
 runs:
   using: "composite"

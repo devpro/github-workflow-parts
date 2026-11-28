@@ -9,17 +9,17 @@ inputs:
   opengrep-version:
     description: Version of Opengrep to install (check latest from https://github.com/opengrep/opengrep/releases)
     required: false
-    default: "v2.0.0"
+    default: "v2.1.0"
   opengrep-sha256:
     description: >-
       SHA256 of the Opengrep binary for x64.
       Required when opengrep-version changes, because the release contains no checksum file.
     required: false
-    default: "37e93f4da5fd04a18c5c1febbdd12f7e98dfccd4d0c9cf2593bcb25eeb462da0"  # v2.0.0
+    default: "d6a68a84c01a3d8ee933f60847decf1b4d0fd7791a26833b32b95922baf28974"  # v2.1.0
   opengrep-sha256-arm64:
     description: SHA256 of the Opengrep binary for arm64, required when opengrep-version changes
     required: false
-    default: "6257b65423a744b704af2ff9beeb8f222c2f6925236af386b56b031d4c06d6d8"  # v2.0.0
+    default: "3abfc87d66f208efd143a1b408d489af934cea7d9968ab1f37dca001f9886092"  # v2.1.0
 
 runs:
   using: "composite"

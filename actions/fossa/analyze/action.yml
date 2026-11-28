@@ -9,7 +9,7 @@ inputs:
   fossa-version:
     description: Version of the FOSSA CLI to install (check latest from https://github.com/fossas/fossa-cli/releases)
     required: false
-    default: "3.21.0"
+    default: "3.21.1"
   api-key:
     description: FOSSA API key
     required: true

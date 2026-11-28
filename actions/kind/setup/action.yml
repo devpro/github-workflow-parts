@@ -15,7 +15,7 @@ inputs:
       Version of kubectl to install (check latest from https://dl.k8s.io/release/stable.txt).
       Must be within one minor version of the cluster.
     required: false
-    default: "v1.37.2"
+    default: "v1.37.3"
 
 runs:
   using: "composite"
